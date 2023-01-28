@@ -17,6 +17,20 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 
+class unpresence_of_element(object):
+	def __init__(self, locator):
+		self.locator = locator
+
+	def __call__(self, driver):
+		try:
+			driver.find_element(*self.locator)
+			return False
+		except:
+			return True
+
+def is_form_page(url):
+	return "Forms" in url or ("ViewEvent" in url and urlparse(url).fragment)
+
 def extract_base_url(url):
 	url_parts = urlparse(url)
 	return f"{url_parts.scheme}://{url_parts.netloc}"
@@ -30,10 +44,10 @@ def measure_network_speed():
 	return st.download() / 1000000
 
 def specify_sheet_layout(sheet):
-	sheet.move_range("G1:G1", rows=0, cols=4)
-	sheet.move_range("C1:C1", rows=0, cols=4)
-	sheet.move_range("G2:G2", rows=0, cols=4)
-	sheet.move_range("C2:C2", rows=0, cols=4)
+	sheet.move_range("M1:M1", rows=0, cols=9)
+	sheet.move_range("D1:D1", rows=0, cols=9)
+	sheet.move_range("M2:M2", rows=0, cols=9)
+	sheet.move_range("D2:D2", rows=0, cols=9)
 
 def reset_styles(cells):
 	for cell in cells:
@@ -55,7 +69,28 @@ def login_user(driver, url):
 	password_field.send_keys("8Huds(3d")
 	submit_btn.click()
 
-def measure_load_time(driver, url, timeout, loops):
+def wait_form_page_load(driver, timeout):
+	WebDriverWait(driver, timeout).until(
+		EC.any_of(
+			EC.presence_of_element_located((By.ID, "pnlForm")),
+			EC.presence_of_element_located((By.ID, "pnlEventContent")),
+			EC.presence_of_element_located((By.TAG_NAME, "accelify-forms-details")),
+			EC.presence_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
+			EC.presence_of_element_located((By.TAG_NAME, "accelify-progress-report"))
+		)
+	)
+
+def wait_standard_page_load(driver, timeout):
+	WebDriverWait(driver, timeout).until(
+		EC.any_of(
+			unpresence_of_element((By.CLASS_NAME, "loading-wrapper")),
+			unpresence_of_element((By.CLASS_NAME, "blockUI")),
+			unpresence_of_element((By.CLASS_NAME, "blockMsg")),
+			unpresence_of_element((By.CLASS_NAME, "blockPage"))
+		)
+	)
+
+def measure_load_time(driver, url, timeout, loops, scenario):
 	measure_result = namedtuple("MeasureResult", ["first_measure", "min", "max", "mean"])
 	totals = np.zeros(loops)
 	is_first_measure = True
@@ -63,15 +98,7 @@ def measure_load_time(driver, url, timeout, loops):
 	for j in range(loops):
 		start_time = time.time()
 		driver.get(url)
-		WebDriverWait(driver, timeout).until(
-			EC.any_of(
-				EC.presence_of_element_located((By.ID, "pnlForm")),
-				EC.presence_of_element_located((By.ID, "pnlEventContent")),
-				EC.presence_of_element_located((By.TAG_NAME, "accelify-forms-details")),
-				EC.presence_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
-				EC.presence_of_element_located((By.TAG_NAME, "accelify-progress-report"))
-			)
-		)
+		scenario(driver, timeout)
 		total = time.time() - start_time
 		totals[j] = total
 		if is_first_measure:
@@ -125,23 +152,24 @@ def main():
 	driver = webdriver.Chrome()
 	#driver.execute_cdp_cmd("Network.setCacheDisabled", {"cacheDisabled":True})
 	options = Options()
-	options.headless = True
+	#options.headless = True
 
 	driver = webdriver.Chrome(options=options)
 
-	head_cell_top = wb_sheet["C1"]
+	head_cell_top = wb_sheet["D1"]
 	head_cell_top.alignment = Alignment(horizontal='center')
-	head_cell_bottom = wb_sheet["C2"]
+	head_cell_bottom = wb_sheet["D2"]
 	head_cell_bottom.alignment = Alignment(horizontal='center')
 
 	build_version = ""
 	prev_base_url = ""
 	base_url = ""
 	is_first_row = True
+	i = 0
 	for row in wb_sheet.iter_rows(min_row=5):
-		form_url = row[1].value
-		if form_url != None and validators.url(form_url):
-			base_url = extract_base_url(form_url)
+		url = row[1].value
+		if url != None and validators.url(url):
+			base_url = extract_base_url(url)
 			if prev_base_url != base_url or is_first_row:
 				login_user(driver, base_url)
 				build_version = driver.find_element(By.CSS_SELECTOR, "span.version").text.replace("Version ", "")
@@ -178,7 +206,11 @@ def main():
 						  		 row[26], row[27]], threshold)
 
 			try:
-				(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, form_url, timeout, loops)
+				scenario = wait_form_page_load
+				if not is_form_page(url):
+					scenario = wait_standard_page_load
+
+				(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, timeout, loops, scenario)
 				reset_styles([row[0], row[1]])
 			except TimeoutException:
 				(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
