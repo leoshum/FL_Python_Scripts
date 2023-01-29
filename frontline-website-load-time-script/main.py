@@ -69,18 +69,24 @@ def login_user(driver, url):
 	password_field.send_keys("8Huds(3d")
 	submit_btn.click()
 
-def wait_form_page_load(driver, timeout):
+def measure_form_page_load(url, driver, timeout):
+	start_time = time.time()
+	driver.get(url)
 	WebDriverWait(driver, timeout).until(
 		EC.any_of(
 			EC.presence_of_element_located((By.ID, "pnlForm")),
 			EC.presence_of_element_located((By.ID, "pnlEventContent")),
 			EC.presence_of_element_located((By.TAG_NAME, "accelify-forms-details")),
 			EC.presence_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-progress-report"))
+			EC.presence_of_element_located((By.TAG_NAME, "accelify-progress-report")),
+			EC.presence_of_element_located((By.TAG_NAME, "accelify-forms-details"))
 		)
 	)
+	return time.time() - start_time
 
-def wait_standard_page_load(driver, timeout):
+def measure_standard_page_load(url, driver, timeout):
+	start_time = time.time()
+	driver.get(url)
 	WebDriverWait(driver, timeout).until(
 		EC.any_of(
 			unpresence_of_element((By.CLASS_NAME, "loading-wrapper")),
@@ -89,6 +95,24 @@ def wait_standard_page_load(driver, timeout):
 			unpresence_of_element((By.CLASS_NAME, "blockPage"))
 		)
 	)
+	return time.time() - start_time
+
+def measure_form_save(url, driver, timeout):
+	measure_form_page_load(url, driver, timeout)
+	WebDriverWait(driver, timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")))
+	save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")
+	start_time = time.time()
+	for save_btn in save_btns:
+		if save_btn.text == "Save Form":
+			save_btn.click()
+	WebDriverWait(driver, timeout).until(
+		EC.any_of(
+			unpresence_of_element((By.CLASS_NAME, "k-loading-panel")),
+			unpresence_of_element((By.CLASS_NAME, "blockUI")),
+			unpresence_of_element((By.CLASS_NAME, "blockOverlay"))
+		)
+	)
+	return time.time() - start_time
 
 def measure_load_time(driver, url, timeout, loops, scenario):
 	measure_result = namedtuple("MeasureResult", ["first_measure", "min", "max", "mean"])
@@ -96,14 +120,11 @@ def measure_load_time(driver, url, timeout, loops, scenario):
 	is_first_measure = True
 	first_measure = 0
 	for j in range(loops):
-		start_time = time.time()
-		driver.get(url)
-		scenario(driver, timeout)
-		total = time.time() - start_time
-		totals[j] = total
+		measured_time = scenario(url, driver, timeout)
+		totals[j] = measured_time
 		if is_first_measure:
 			is_first_measure = False
-			first_measure = total
+			first_measure = measured_time
 	return measure_result(first_measure, np.min(totals), np.max(totals), np.mean(totals))
 
 def compare_measures(curr_cell, prev_cell, diff_cell):
@@ -142,6 +163,7 @@ def main():
 	network_speed = measure_network_speed()
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
+	enable_save = my_namespace.enable_save
 	threshold = 6
 	timeout = 30
 
@@ -163,9 +185,9 @@ def main():
 
 	build_version = ""
 	prev_base_url = ""
+
 	base_url = ""
 	is_first_row = True
-	i = 0
 	for row in wb_sheet.iter_rows(min_row=5):
 		url = row[1].value
 		if url != None and validators.url(url):
@@ -205,26 +227,41 @@ def main():
 						  		 row[17], row[18], row[19],
 						  		 row[26], row[27]], threshold)
 
-			try:
-				scenario = wait_form_page_load
-				if not is_form_page(url):
-					scenario = wait_standard_page_load
+			scenario = measure_form_page_load
+			is_form_page_url = is_form_page(url)
+			if not is_form_page_url:
+					scenario = measure_standard_page_load
 
+			try:
 				(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, timeout, loops, scenario)
 				reset_styles([row[0], row[1]])
 			except TimeoutException:
 				(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
 				mark_form_as_invalid(row)
 
+			if is_form_page_url and enable_save:
+				try:
+					(first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, timeout, loops, measure_form_save)
+				except TimeoutException:
+					(first_save_time, min_save_time, max_save_time, mean_save_time) = (timeout, timeout, timeout, timeout)
+					mark_form_as_invalid(row)
+
 			row[3].value = f"{first_load_time:.2f}"
 			row[4].value = f"{min_time:.2f}"
 			row[5].value = f"{max_time:.2f}"
 			row[6].value = f"{mean_time:.2f}"
-
 			compare_measures(row[15], row[24], row[16])
 			compare_measures(row[6], row[15], row[7])
-			reset_styles([row[3], row[4], row[5], row[6]])
-			flag_high_load_time([row[3], row[4], row[5], row[6]], threshold)
+
+			if is_form_page_url and enable_save:
+				row[8].value = f"{min_save_time:.2f}"
+				row[9].value = f"{max_save_time:.2f}"
+				row[10].value = f"{mean_save_time:.2f}"
+				compare_measures(row[19], row[28], row[20])
+				compare_measures(row[10], row[19], row[11])
+
+			reset_styles([row[3], row[4], row[5], row[6], row[8], row[9], row[10]])
+			flag_high_load_time([row[3], row[4], row[5], row[6], row[8], row[9], row[10]], threshold)
 			prev_base_url = base_url
 	head_cell_top.value = f"{build_version} {timestamp}"
 	head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed:.2f}mb/s, loops: {loops}"
