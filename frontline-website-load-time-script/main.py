@@ -99,19 +99,24 @@ def measure_standard_page_load(url, driver, timeout):
 
 def measure_form_save(url, driver, timeout):
 	measure_form_page_load(url, driver, timeout)
+	loader_locator = EC.any_of(
+		unpresence_of_element((By.CLASS_NAME, "k-loading-panel")),
+		unpresence_of_element((By.CLASS_NAME, "blockUI")),
+		unpresence_of_element((By.CLASS_NAME, "blockOverlay"))
+	)
 	WebDriverWait(driver, timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")))
+	try:
+		WebDriverWait(driver, 5).until(loader_locator)
+	except:
+		pass
 	save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")
 	start_time = time.time()
 	for save_btn in save_btns:
 		if save_btn.text == "Save Form":
+			start_time = time.time()
 			save_btn.click()
-	WebDriverWait(driver, timeout).until(
-		EC.any_of(
-			unpresence_of_element((By.CLASS_NAME, "k-loading-panel")),
-			unpresence_of_element((By.CLASS_NAME, "blockUI")),
-			unpresence_of_element((By.CLASS_NAME, "blockOverlay"))
-		)
-	)
+			break
+	WebDriverWait(driver, timeout).until(loader_locator)
 	return time.time() - start_time
 
 def measure_load_time(driver, url, timeout, loops, scenario):
