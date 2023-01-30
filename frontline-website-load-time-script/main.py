@@ -100,15 +100,15 @@ def measure_standard_page_load(url, driver, timeout):
 def measure_form_save(url, driver, timeout):
 	measure_form_page_load(url, driver, timeout)
 	loader_locator = EC.any_of(
-		unpresence_of_element((By.CLASS_NAME, "k-loading-panel")),
-		unpresence_of_element((By.CLASS_NAME, "blockUI")),
-		unpresence_of_element((By.CLASS_NAME, "blockOverlay"))
+		EC.invisibility_of_element((By.CLASS_NAME, "k-loading-panel")),
+		EC.invisibility_of_element((By.CLASS_NAME, "blockUI")),
+		EC.invisibility_of_element((By.CLASS_NAME, "blockOverlay"))
 	)
-	WebDriverWait(driver, timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")))
 	try:
-		WebDriverWait(driver, 5).until(loader_locator)
+		WebDriverWait(driver, 10).until(EC.invisibility_of_element((By.CSS_SELECTOR, ".blockUI.blockOverlay")))
 	except:
 		pass
+	WebDriverWait(driver, timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")))
 	save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")
 	start_time = time.time()
 	for save_btn in save_btns:
@@ -179,7 +179,7 @@ def main():
 	driver = webdriver.Chrome()
 	#driver.execute_cdp_cmd("Network.setCacheDisabled", {"cacheDisabled":True})
 	options = Options()
-	#options.headless = True
+	options.headless = True
 
 	driver = webdriver.Chrome(options=options)
 
@@ -196,6 +196,7 @@ def main():
 	for row in wb_sheet.iter_rows(min_row=5):
 		url = row[1].value
 		if url != None and validators.url(url):
+			print(url)
 			base_url = extract_base_url(url)
 			if prev_base_url != base_url or is_first_row:
 				login_user(driver, base_url)
