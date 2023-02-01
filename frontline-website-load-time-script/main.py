@@ -15,7 +15,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
 
 class unpresence_of_element(object):
 	def __init__(self, locator):
@@ -35,9 +35,9 @@ def extract_base_url(url):
 	url_parts = urlparse(url)
 	return f"{url_parts.scheme}://{url_parts.netloc}"
 
-def mark_form_as_invalid(row):
-	row[0].font = Font(color="FF0000")
-	row[1].font = Font(color="FF0000")
+def mark_form_as_invalid(row, color="FF0000"):
+	row[0].font = Font(color=color)
+	row[1].font = Font(color=color)
 
 def measure_network_speed():
 	st = speedtest.Speedtest()
@@ -99,24 +99,23 @@ def measure_standard_page_load(url, driver, timeout):
 
 def measure_form_save(url, driver, timeout):
 	measure_form_page_load(url, driver, timeout)
-	loader_locator = EC.any_of(
-		EC.invisibility_of_element((By.CLASS_NAME, "k-loading-panel")),
-		EC.invisibility_of_element((By.CLASS_NAME, "blockUI")),
-		EC.invisibility_of_element((By.CLASS_NAME, "blockOverlay"))
-	)
-	try:
-		WebDriverWait(driver, 10).until(EC.invisibility_of_element((By.CSS_SELECTOR, ".blockUI.blockOverlay")))
-	except:
-		pass
+	loader_locator = unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
+	WebDriverWait(driver, timeout).until(loader_locator)
 	WebDriverWait(driver, timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")))
 	save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")
-	start_time = time.time()
+	start_time = None
+	save_btn_elem = None
 	for save_btn in save_btns:
 		if save_btn.text == "Save Form":
-			start_time = time.time()
-			save_btn.click()
+			save_btn_elem = save_btn
 			break
-	WebDriverWait(driver, timeout).until(loader_locator)
+		
+	if save_btn_elem != None:
+		start_time = time.time()
+		save_btn_elem.click()
+		WebDriverWait(driver, timeout).until(loader_locator)
+	else:
+		raise NoSuchElementException()
 	return time.time() - start_time
 
 def measure_load_time(driver, url, timeout, loops, scenario):
@@ -162,13 +161,13 @@ def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("input_file", type=str)
 	parser.add_argument("--loops", type=int, default=3)
-	parser.add_argument("--enable_save", type=bool, default=True)
+	parser.add_argument("--disable_save", action="store_true")
 	my_namespace = parser.parse_args()
 
 	network_speed = measure_network_speed()
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
-	enable_save = my_namespace.enable_save
+	disable_save = my_namespace.disable_save
 	threshold = 6
 	timeout = 30
 
@@ -245,12 +244,15 @@ def main():
 				(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
 				mark_form_as_invalid(row)
 
-			if is_form_page_url and enable_save:
+			if is_form_page_url and not disable_save:
 				try:
 					(first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, timeout, loops, measure_form_save)
 				except TimeoutException:
 					(first_save_time, min_save_time, max_save_time, mean_save_time) = (timeout, timeout, timeout, timeout)
 					mark_form_as_invalid(row)
+				except ElementClickInterceptedException:
+					(first_save_time, min_save_time, max_save_time, mean_save_time) = (timeout, timeout, timeout, timeout)
+					mark_form_as_invalid(row, color="9933FF")
 
 			row[3].value = f"{first_load_time:.2f}"
 			row[4].value = f"{min_time:.2f}"
@@ -259,7 +261,7 @@ def main():
 			compare_measures(row[15], row[24], row[16])
 			compare_measures(row[6], row[15], row[7])
 
-			if is_form_page_url and enable_save:
+			if is_form_page_url and not disable_save:
 				row[8].value = f"{min_save_time:.2f}"
 				row[9].value = f"{max_save_time:.2f}"
 				row[10].value = f"{mean_save_time:.2f}"
