@@ -1,0 +1,10 @@
+{
+    "branch" : "prod",
+    "ticket_only" : false,
+    "version" : {
+        "first" : "3.42.0.992",
+        "last" : "3.42.0.994"
+    },
+    "host" : "teams.acceliplan.com",
+    "token" : "eyJ0eXAiOiAiVENWMiJ9.cjU0eF91VmNtX3FmOTFsS3dhbG03cTVNak40.MTllNThhNDQtODM3My00Mjc5LTkxMGEtZTU5YzU1MWQwYjhj"
+}
