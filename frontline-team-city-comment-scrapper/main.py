@@ -1,9 +1,12 @@
-from datetime import datetime
 import json
+import sys
+from datetime import datetime
+
 import requests
-from packaging import version
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
+from packaging import version
+
 
 def getJson(url: str):
     headers = { "Accept" : "application/json" }
@@ -41,21 +44,25 @@ baseurl = f"https://{configuration['host']}/app/rest"
 
 comment_file_name = f"{from_version.__str__()}-{to_version.__str__()}.xlsx"
 
-if configuration['branch'] == 'prod' or configuration['branch'] == 'production' or configuration['branch'] == 'main':
-    configuration['branch'] = 'Production'
+branch = sys.argv[0]
+if branch == None:
+    branch = configuration['branch']
+
+if branch == 'prod' or branch == 'production' or branch == 'main':
+    branch = 'Production'
     job_id = 'BuildNewArchitecture_Main_BuildVersion'
-elif configuration['branch'] == 'release':
-    configuration['branch'] = 'Release'
+elif branch == 'release':
+    branch = 'Release'
     job_id = 'BuildNewArchitecture_TagFix_BuildVersion'
-elif configuration['branch'] == 'develop' or configuration['branch'] == 'dev':
-    configuration['branch'] = 'Develop'
+elif branch == 'develop' or branch == 'dev':
+    branch = 'Develop'
     job_id = 'BuildNewArchitecture_Trunk_BuildVersion'        
 
 book = Workbook()
 sheet = book.active
 
 sheet.title = "Comments"
-sheet.append([configuration['branch']])
+sheet.append([branch])
 width = {
     'Version' : 0,
     'Build Date' : 0,

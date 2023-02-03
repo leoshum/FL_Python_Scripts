@@ -1,4 +1,5 @@
 {
+    "branch_template" : "prod , production , main | release | develop , dev",
     "branch" : "prod",
     "ticket_only" : false,
     "version" : {
