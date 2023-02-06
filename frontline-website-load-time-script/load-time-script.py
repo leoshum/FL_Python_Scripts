@@ -89,7 +89,7 @@ def measure_form_page_load(url, driver, timeout):
 			EC.presence_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
 			EC.presence_of_element_located((By.TAG_NAME, "accelify-progress-report")),
 			EC.presence_of_element_located((By.TAG_NAME, "accelify-forms-details")),
-            EC.presence_of_element_located((By.TAG_NAME, "accelify-event-exceptionalities-view"))
+			EC.presence_of_element_located((By.TAG_NAME, "accelify-event-exceptionalities-view"))
 		)
 	)
 	return time.time() - start_time
@@ -174,7 +174,7 @@ def main():
 	parser.add_argument("--disable_save", action="store_true")
 	my_namespace = parser.parse_args()
 
-	#network_speed = measure_network_speed()
+	network_speed = measure_network_speed()
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
 	disable_save = my_namespace.disable_save
