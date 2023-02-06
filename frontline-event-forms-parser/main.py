@@ -21,6 +21,7 @@ with open(result_filename,'w') as file:
 for url in urls:
     if not validators.url(url):
         continue
+    print(url)
     url_parts = urlparse(url)
     base_url = f"{url_parts.scheme}://{url_parts.netloc}"
     if base_url != prev_base_url:
@@ -38,7 +39,9 @@ for url in urls:
 			EC.presence_of_element_located((By.ID, "pnlEventContent")),
 			EC.presence_of_element_located((By.TAG_NAME, "accelify-forms-details")),
 			EC.presence_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-progress-report"))
+			EC.presence_of_element_located((By.TAG_NAME, "accelify-progress-report")),
+			EC.presence_of_element_located((By.TAG_NAME, "accelify-forms-details")),
+            EC.presence_of_element_located((By.TAG_NAME, "accelify-event-exceptionalities-view"))
 		)
 	)
     WebDriverWait(driver, 60).until(
