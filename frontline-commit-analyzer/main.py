@@ -1,9 +1,10 @@
-import base64
+#import base64
 import json
 from datetime import datetime, timedelta
+import sys
 
 import requests
-from unidiff import PatchSet
+#from unidiff import PatchSet
 
 
 def get(url, token):
@@ -18,7 +19,9 @@ def get(url, token):
         
         return json.loads(response.text)
 
-days = 1
+days = sys.argv[0]
+if days == None:
+        days = 1
 branch = 'develop'
 token = ''
 
@@ -53,6 +56,7 @@ while is_continue:
                         'sha' : commit['sha'],
                         'Upload Date' : date.isoformat(sep=' ',timespec='seconds'),
                         'Author' : commit['commit']['author']['name'],
+                        'Url' : commit['html_url'],
                         'Files' : []
                 })
 
@@ -65,7 +69,11 @@ for commit in commits:
         #Collect file information
         url = f"{base_url}/commits/{commit['sha']}"
         cmt = get(url, token)
-        commit['Files'] = [{'sha' : file['sha'], 'patch' : file.get('patch')} for file in cmt['files']]
+        for file in cmt['files']:
+                patch = file.get('patch')
+                #if patch != None:
+                        #patch = patch.replace(r'\n', '\n')
+                commit['Files'].append({'sha' : file['sha'], 'patch' : patch})
         #patch = body['files'][0]['patch']
         #patch = "diff --git a/.gitignore b/.gitignore\nnew file mode 100644\nindex 0000000..017f622\n--- /dev/null\n+++ b/.gitignore\n" + patch
         #patched = PatchSet(patch)
@@ -75,25 +83,34 @@ for commit in commits:
         url = f"{base_url}/commits/{commit['sha']}/pulls"
         prs = get(url, token)
 
-        #Add check for if this pr is merged
-        #Add link to commit
         for pr in prs:
-                url = f"{base_url}/pulls/{pr['number']}"
-                pull_request = get(url, token)
+                exist_pr = [pull_request['number'] for pull_request in pull_requests]
+                if pr['number'] in exist_pr:
+                        pull_requests[exist_pr.index(pr['number'])]['commits'].append(commit)
+                else:
+                        url = f"{base_url}/pulls/{pr['number']}"
+                        pull_request = get(url, token)
 
-                url = f"{base_url}/pulls/{pr['number']}/reviews"
-                reviews = get(url, token)
+                        url = f"{base_url}/pulls/{pr['number']}/reviews"
+                        reviews = get(url, token)
 
-                comments = []
-                for review in reviews:
-                        comments.append(review['body'])
-                #/repos/{owner}/{repo}/pulls/comments/{comment_id}
-                pull_requests.append({
-                        'number' : pull_request['number'],
-                        'commit' : commit,
-                        'Merged by' : pull_request['merged_by']['login'],
-                        'Comments' : comments
-                        })
+                        comments = []
+                        for review in reviews:
+                                if review['body'] != '':
+                                        comments.append({
+                                                'Author' : review['user']['login'],
+                                                'Text': review['body']
+                                                })
+                                else:
+                                        print('s')
+                        #/repos/{owner}/{repo}/pulls/comments/{comment_id}
+                        pull_requests.append({
+                                'number' : pull_request['number'],
+                                'commits' : [commit],
+                                'Merged by' : pull_request['merged_by']['login'],
+                                'Url' : pull_request['html_url'],
+                                'Comments' : comments
+                                })
 
 with open('.\\prs.json','w',encoding='UTF-8') as file:
         file.write(json.dumps(pull_requests, indent=2, ensure_ascii=False))
