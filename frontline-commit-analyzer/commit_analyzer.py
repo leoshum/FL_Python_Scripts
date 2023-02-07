@@ -19,9 +19,7 @@ def get(url, token):
         
         return json.loads(response.text)
 
-days = sys.argv[0]
-if days == None:
-        days = 1
+days = 1
 branch = 'develop'
 token = ''
 
