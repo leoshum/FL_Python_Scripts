@@ -29,14 +29,6 @@ class unpresence_of_element(object):
 		except:
 			return True
 
-def get_excel_files_in_dir(base_path):
-	result_files = []
-	for (root,dirs,files) in os.walk(base_path, topdown=True):
-		for file in files:
-			if "xlsx" in file:
-				result_files.append(f"{root}\{file}")
-	return result_files
-
 def is_excel_file_opened(filename):
 	try:
 		wb = load_workbook(filename)
@@ -174,7 +166,6 @@ def compare_measures(curr_cell, prev_cell, diff_cell):
 		diff_cell.fill = PatternFill(start_color="FF0000", fill_type = "solid")
 
 def main():
-	files = get_excel_files_in_dir(".")
 	timestamp = datetime.now().strftime("%m-%d-%y_%H-%M")
 	start_time = time.time()
 	parser = argparse.ArgumentParser()
@@ -182,7 +173,7 @@ def main():
 	parser.add_argument("--loops", type=int, default=3)
 	parser.add_argument("--disable_save", action="store_true")
 	my_namespace = parser.parse_args()
-
+	print(f"Input file: {my_namespace.input_file}")
 	network_speed = measure_network_speed()
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
