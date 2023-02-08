@@ -1,3 +1,4 @@
+import os
 import time
 import numpy as np
 import validators
@@ -27,15 +28,22 @@ class unpresence_of_element(object):
 			return False
 		except:
 			return True
-		
-def is_file_opened(filename):
+
+def get_excel_files_in_dir(base_path):
+	result_files = []
+	for (root,dirs,files) in os.walk(base_path, topdown=True):
+		for file in files:
+			if "xlsx" in file:
+				result_files.append(f"{root}\{file}")
+	return result_files
+
+def is_excel_file_opened(filename):
 	try:
 		wb = load_workbook(filename)
 		wb.save(filename)
 		return False
 	except:
 		return True
-
 
 def is_form_page(url):
 	return "Forms" in url or ("ViewEvent" in url and urlparse(url).fragment)
@@ -64,7 +72,7 @@ def reset_styles(cells):
 
 def flag_high_load_time(cells, threshold):
 	for cell in cells:
-		if cell.value != None and float(cell.value) > threshold:
+		if cell.value != None and cell.value != "" and float(cell.value) > threshold:
 			cell.font = Font(color="FF0000")
 
 def login_user(driver, url):
@@ -166,6 +174,7 @@ def compare_measures(curr_cell, prev_cell, diff_cell):
 		diff_cell.fill = PatternFill(start_color="FF0000", fill_type = "solid")
 
 def main():
+	files = get_excel_files_in_dir(".")
 	timestamp = datetime.now().strftime("%m-%d-%y_%H-%M")
 	start_time = time.time()
 	parser = argparse.ArgumentParser()
@@ -181,7 +190,7 @@ def main():
 	threshold = 6
 	timeout = 30
 
-	if is_file_opened(input_file):
+	if is_excel_file_opened(input_file):
 		print(f"Close opened {input_file} file!")
 		return
 	
@@ -218,9 +227,10 @@ def main():
 			row[23].value = row[14].value
 			row[24].value = row[15].value
 
-			row[25].value = row[17].value
-			row[26].value = row[18].value
-			row[27].value = row[19].value
+			if not disable_save:
+				row[25].value = row[17].value
+				row[26].value = row[18].value
+				row[27].value = row[19].value
 
 			reset_styles([row[12], row[13], row[14], 
 		 				  row[15], row[21], row[22], 
@@ -234,9 +244,10 @@ def main():
 			row[14].value = row[5].value
 			row[15].value = row[6].value
 
-			row[17].value = row[8].value
-			row[18].value = row[9].value
-			row[19].value = row[10].value
+			if not disable_save:
+				row[17].value = row[8].value
+				row[18].value = row[9].value
+				row[19].value = row[10].value
 
 			flag_high_load_time([row[12], row[13], row[14], 
 		 				  		 row[15], row[21], row[22], 
@@ -256,15 +267,20 @@ def main():
 				(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
 				mark_form_as_invalid(row)
 
+			error_in_save = False
 			if is_form_page_url and not disable_save:
 				try:
 					(first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, timeout, loops, measure_form_save)
 				except TimeoutException:
-					(first_save_time, min_save_time, max_save_time, mean_save_time) = (timeout, timeout, timeout, timeout)
 					mark_form_as_invalid(row)
+					error_in_save = True
 				except ElementClickInterceptedException:
-					(first_save_time, min_save_time, max_save_time, mean_save_time) = (timeout, timeout, timeout, timeout)
 					mark_form_as_invalid(row, color="9933FF")
+					error_in_save = True
+				except NoSuchElementException:
+					mark_form_as_invalid(row, color="991100")
+					error_in_save = True
+					pass
 
 			row[3].value = f"{first_load_time:.2f}"
 			row[4].value = f"{min_time:.2f}"
@@ -274,11 +290,16 @@ def main():
 			compare_measures(row[6], row[15], row[7])
 
 			if is_form_page_url and not disable_save:
-				row[8].value = f"{min_save_time:.2f}"
-				row[9].value = f"{max_save_time:.2f}"
-				row[10].value = f"{mean_save_time:.2f}"
-				compare_measures(row[19], row[28], row[20])
-				compare_measures(row[10], row[19], row[11])
+				if not error_in_save:
+					row[8].value = f"{min_save_time:.2f}"
+					row[9].value = f"{max_save_time:.2f}"
+					row[10].value = f"{mean_save_time:.2f}"
+					compare_measures(row[19], row[28], row[20])
+					compare_measures(row[10], row[19], row[11])
+				else:
+					row[8].value = ""
+					row[9].value = ""
+					row[10].value = ""
 
 			reset_styles([row[3], row[4], row[5], row[6], row[8], row[9], row[10]])
 			flag_high_load_time([row[3], row[4], row[5], row[6], row[8], row[9], row[10]], threshold)
