@@ -44,9 +44,9 @@ baseurl = f"https://{configuration['host']}/app/rest"
 
 comment_file_name = f"{from_version.__str__()}-{to_version.__str__()}.xlsx"
 
-branch = sys.argv[0]
-if branch == None:
-    branch = configuration['branch']
+
+branch = sys.argv[1] if len(sys.argv) > 1 else configuration['branch']
+print(f"Branch name: {branch}.")
 
 if branch == 'prod' or branch == 'production' or branch == 'main':
     branch = 'Production'
