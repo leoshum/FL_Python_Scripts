@@ -63,7 +63,7 @@ async def main():
         await asyncio.gather(*tasks)
 
     root_directory = os.path.dirname(sys.argv[0])
-    with open(f'{root_directory}\\prs.json','w',encoding='UTF-8') as file:
+    with open(f'.{root_directory}\\prs.json','w',encoding='UTF-8') as file:
             file.write(json.dumps(pull_requests, indent=2, ensure_ascii=False))
 
 async def get_commit_info(commit, session, pull_requests):
