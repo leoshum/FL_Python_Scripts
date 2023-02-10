@@ -1,6 +1,7 @@
 import base64
 import json
 from datetime import datetime, timedelta
+import os
 
 import requests
 from unidiff import PatchSet
@@ -20,7 +21,7 @@ def get(url, token):
 
 days = 1
 branch = 'develop'
-token = ''
+token = os.environ.get('GITHUB_TOKEN')
 
 github_url = 'https://api.github.com'
 repo = 'CW-0575-IEP'
