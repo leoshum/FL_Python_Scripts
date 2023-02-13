@@ -1,4 +1,4 @@
-from asyncio import run
+from asyncio import get_event_loop
 import json
 import logging
 from os import environ, path
@@ -6,7 +6,6 @@ from sys import exit,argv
 from datetime import datetime
 import aiohttp
 
-import requests
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from packaging import version
@@ -25,7 +24,7 @@ ticket_match = "https://frontlinetechnologies.atlassian.net/browse/CW0575-"
 ticket_number_length = 5
 
 root_directory = path.dirname(argv[0])
-configuration_path = f".{root_directory}\\configuration.json"
+configuration_path = f"{root_directory}\\configuration.json"
 if not path.exists(configuration_path):
     logging.error(msg=f"Configuration file not found in [{configuration_path}] path!")
     exit()
@@ -54,7 +53,7 @@ if to_version < from_version:
     to_version = from_version
     from_version = to_version
 
-comments_path = f".{root_directory}\\{from_version.__str__()}-{to_version.__str__()}.xlsx"
+comments_path = f"{root_directory}\\{from_version.__str__()}-{to_version.__str__()}.xlsx"
 
 host_key = 'host'
 if host_key not in configuration:
@@ -95,42 +94,48 @@ sheet.append(columns)
 async def main():
     start = 0
     current_version = from_version
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
-        while current_version >= from_version:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False),trust_env=True) as session:
+        need_to_parse = True
+        while need_to_parse:
 
             url = f"{baseurl}/builds?locator=defaultFilter:false,start:{start},buildType:{job_id}"
-            builds = await get(url, token, session)
-            logger.info(f"Recived [{len(builds['build'])}] builds for [{job_id}] job, started from [{start}].")
-            for build in builds['build']:
-
+            list_builds = await get(url, token, session)
+            if len(list_builds['build']) == 0:
+                logger.info(f"Recived empty builds list.")
+                need_to_parse = False
+                break
+            logger.info(f"Detect [{len(list_builds['build'])}] builds for [{job_id}] job, started from [{start}].")
+            
+            for build in list_builds['build']:
                 current_version = version.parse(build['number'])
-                if current_version >= from_version and current_version <= to_version:
-                    url = f"{baseurl}/changes?locator=build:(id:{build['id']})&fields=change(username,date,comment)"
-                    builds = await get(url, token, session)
-                    logger.info(f"Recived details for [{build['number']}] build.")
+                if current_version < from_version or current_version > to_version: continue
+                
+                url = f"{baseurl}/changes?locator=build:(id:{build['id']})&fields=change(username,date,comment)"
+                changes = await get(url, token, session)
+                logger.info(f"Recived details for [{build['number']}] build.")
 
-                    updateLength(build['number'], width, 'Version')
-                    build_date = str(datetime.strptime(build['finishOnAgentDate'][0:15], '%Y%m%dT%H%M%S'))
-                    updateLength(build_date, width, 'Build Date')
+                updateLength(build['number'], width, 'Version')
+                build_date = str(datetime.strptime(build['finishOnAgentDate'][0:15], '%Y%m%dT%H%M%S'))
+                updateLength(build_date, width, 'Build Date')
+                
+                for change in changes['change']:
                     
-                    for change in builds['change']:
-                        
-                        change_date = str(datetime.strptime(change['date'][0:15], '%Y%m%dT%H%M%S'))
+                    change_date = str(datetime.strptime(change['date'][0:15], '%Y%m%dT%H%M%S'))
 
-                        change['comment'] = change['comment'].replace('\n', '')
-                        if ticket_match in change['comment']:
-                            ticket = change['comment'][change['comment'].index(ticket_match):len(ticket_match)+ticket_number_length]
-                            comment = change['comment'][len(ticket_match)+ticket_number_length:]
-                        else:
-                            ticket = ''
-                            comment = change['comment']
+                    change['comment'] = change['comment'].replace('\n', '')
+                    if ticket_match in change['comment']:
+                        ticket = change['comment'][change['comment'].index(ticket_match):len(ticket_match)+ticket_number_length]
+                        comment = change['comment'][len(ticket_match)+ticket_number_length:]
+                    else:
+                        ticket = ''
+                        comment = change['comment']
 
 
-                        updateLength(change['username'], width, 'Author')
-                        updateLength(change_date, width, 'Commit Date')
-                        updateLength(ticket, width, 'Jira Ticket')
-                        updateLength(comment, width, 'Comment')
-                        sheet.append([build['number'], build_date, change['username'], change_date, ticket, comment])
+                    updateLength(change['username'], width, 'Author')
+                    updateLength(change_date, width, 'Commit Date')
+                    updateLength(ticket, width, 'Jira Ticket')
+                    updateLength(comment, width, 'Comment')
+                    sheet.append([build['number'], build_date, change['username'], change_date, ticket, comment])
             start += 100
 
         for i, column_width in enumerate(width.values(),1):  # ,1 to start at 1
@@ -153,7 +158,4 @@ def updateLength(value, width, name):
     if length > width[name]:
         width[name] = length
 
-
-#loop = get_event_loop()
-#loop.run_until_complete(main())
-run(main())
+get_event_loop().run_until_complete(main())
