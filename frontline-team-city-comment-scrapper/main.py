@@ -24,7 +24,7 @@ ticket_match = "https://frontlinetechnologies.atlassian.net/browse/CW0575-"
 ticket_number_length = 5
 
 root_directory = path.dirname(argv[0])
-configuration_path = f"{root_directory}\\configuration.json"
+configuration_path = f".{root_directory}\\configuration.json"
 if not path.exists(configuration_path):
     logging.error(msg=f"Configuration file not found in [{configuration_path}] path!")
     exit()
@@ -53,7 +53,7 @@ if to_version < from_version:
     to_version = from_version
     from_version = to_version
 
-comments_path = f"{root_directory}\\{from_version.__str__()}-{to_version.__str__()}.xlsx"
+comments_path = f".{root_directory}\\{from_version.__str__()}-{to_version.__str__()}.xlsx"
 
 host_key = 'host'
 if host_key not in configuration:
