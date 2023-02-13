@@ -35,7 +35,7 @@ def main():
 	files = []
 	for file in my_namespace.path:
 		new_files = []
-		if os.path.isfile(file):
+		if os.path.isfile(file) and "~" not in file:
 			new_files.append(file)
 
 		if os.path.isdir(file):

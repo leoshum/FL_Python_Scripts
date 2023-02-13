@@ -16,7 +16,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
 
 class unpresence_of_element(object):
 	def __init__(self, locator):
@@ -271,7 +271,9 @@ def main():
 				except NoSuchElementException:
 					mark_form_as_invalid(row, color="991100")
 					error_in_save = True
-					pass
+				except StaleElementReferenceException:
+					mark_form_as_invalid(row, color="550000")
+					error_in_save = True
 
 			row[3].value = f"{first_load_time:.2f}"
 			row[4].value = f"{min_time:.2f}"
