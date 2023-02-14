@@ -1,21 +1,11 @@
 import asyncio
-import logging
 import json
+import logging
 import os
-from datetime import datetime, timedelta
 import sys
+from datetime import datetime, timedelta
 
 import aiohttp
-
-async def get(url, token, session):
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": f"token {token}"
-    }
-    async with session.get(url, headers=headers) as resp:
-        if resp.status != 200:
-            raise Exception("Error in API call: " + await resp.text())
-        return await resp.json()
 
 hours = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 12
 
@@ -35,7 +25,8 @@ async def main():
         # Collect commit information
         page = 1
         is_continue = True
-        commits = []
+        tasks = []
+        pull_requests = []
         start = datetime.today() - timedelta(hours=hours)
         while is_continue:
             url = f"{base_url}/commits?page={page}&branch={branch}"
@@ -47,24 +38,32 @@ async def main():
                 if date < start:
                     is_continue = False
                     break
-                commits.append({
+
+                tasks.append(asyncio.create_task(get_commit_info({
                     'sha': commit['sha'],
                     'Upload Date': date.isoformat(sep=' ', timespec='seconds'),
                     'Author': commit['commit']['author']['name'],
                     'Url': commit['html_url'],
                     'Files': []
-                })
+                }, session, pull_requests)))
+            page += 1
 
-        pull_requests = []
-        tasks = []
-        for commit in commits:
-            task = asyncio.create_task(get_commit_info(commit, session, pull_requests))
-            tasks.append(task)
         await asyncio.gather(*tasks)
 
     root_directory = os.path.dirname(sys.argv[0])
     with open(f'.{root_directory}\\prs.json','w',encoding='UTF-8') as file:
             file.write(json.dumps(pull_requests, indent=2, ensure_ascii=False))
+            
+
+async def get(url, token, session):
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"token {token}"
+    }
+    async with session.get(url, headers=headers) as resp:
+        if resp.status != 200:
+            raise Exception("Error in API call: " + await resp.text())
+        return await resp.json()
 
 async def get_commit_info(commit, session, pull_requests):
     # Collect file information
@@ -81,6 +80,18 @@ async def get_commit_info(commit, session, pull_requests):
     for pr in prs:
         await update_pull_request(pr, commit=commit,pull_requests=pull_requests,base_url=base_url,token=token,  session=session)
 
+async def get_reviews(pr_number, session):
+    url = f"{base_url}/pulls/{pr_number}/reviews"
+    reviews =  await get(url, token, session)
+    logging.info(msg=f"Recived [{len(reviews)}] reviews for [{pr_number}] pull request.")
+
+    return [{
+                'Author' : review['user']['login'],
+                'Text': review['body'],
+                'State' : review['state']
+            } for review in reviews]
+
+
 async def update_pull_request(pr, commit, pull_requests, base_url, token, session):
     exist_pr = [pull_request['number'] for pull_request in pull_requests]
     if pr['number'] in exist_pr:
@@ -90,25 +101,13 @@ async def update_pull_request(pr, commit, pull_requests, base_url, token, sessio
         pull_request = await get(url, token, session)
         logging.info(msg=f"Recived [{pr['number']}] pull requests.")
 
-        url = f"{base_url}/pulls/{pr['number']}/reviews"
-        reviews =  await get(url, token, session)
-        logging.info(msg=f"Recived [{len(reviews)}] reviews for [{pr['number']}] pull request.")
-
-        comments = []
-        for review in reviews:
-            comments.append({
-                'Author' : review['user']['login'],
-                'Text': review['body'],
-                'State' : review['state']
-            })
+        
         pull_requests.append({
             'number' : pull_request['number'],
             'commits' : [commit],
             'Merged by' : pull_request['merged_by']['login'],
             'Url' : pull_request['html_url'],
-            'Comments' : comments
+            'Comments' : await get_reviews(pr_number = pr['number'], session = session)
         })
-    logging.info(f"Processing pull request: {pr['number']}")
 
-
-asyncio.run(main())
+asyncio.get_event_loop().run_until_complete(main())
