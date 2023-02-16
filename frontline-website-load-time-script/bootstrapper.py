@@ -6,7 +6,7 @@ def get_excel_files_in_dir(base_path, recurse=False):
 	result_files = []
 	for (root,dirs,files) in os.walk(base_path, topdown=True):
 		for file in files:
-			if "xlsx" in file:
+			if "xlsx" in file and "~" not in file:
 				result_files.append(f"{root}\{file}")
 		if not recurse:
 			break
