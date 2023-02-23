@@ -77,8 +77,8 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider):
         review = ""
         try:
             review = codereview_provider.get_code_review(file.get('patch'))
-        except:
-            pass
+        except Exception as e:
+            logging.info(msg=f"error {e}")
         files.append({'sha' : file['sha'], 
                       'patch' : file.get('patch'), 
                       'review': review})
