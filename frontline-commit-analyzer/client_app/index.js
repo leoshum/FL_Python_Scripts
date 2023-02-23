@@ -1,29 +1,45 @@
-const { exec } = require("child_process");
+const { spawn } = require("child_process");
 const express = require('express');
+const path = require('path');
 
 const app = express();
 
+app.use(express.static('public'));
+
 const prs_path = `${__dirname}/prs.json`;
 const index_path = `${__dirname}/index.html`;
-const analyzer_path = `${__dirname}/../analyzer.py`;
+const analyzer_path = path.normalize(`${__dirname}\\..\\analyzer.py`);
 const logic_path = `${__dirname}/logic.js`;
+const ico_path = `${__dirname}/favicon.ico`;
 
-app.get('/analyze', (req, res) => {
-    exec(`python ${analyzer_path}`, (error, stdout, stderr) => {
-        if (error) {
-            console.log(`error: ${error.message}`);
-            res.send('Bad');
-            return;
-        }
-        if (stderr) {
-            console.log(`stderr: ${stderr}`);
-            res.send('Bad');
-            return;
-        }
-        console.log(`stdout: ${stdout}`);
-    })
+app.get('/analyze', async (req, res) => {
+    const hours = req.query.hours;
 
-    res.send('Ok');
+    new Promise((resolve, reject) => {
+        const childProcess = spawn('python', [analyzer_path, hours]);
+    
+        childProcess.stdout.on('data', (data) => {
+            console.log(`stdout: ${data}`);
+        });
+    
+        childProcess.stderr.on('data', (data) => {
+            console.error(`stderr: ${data}`);
+        });
+    
+        childProcess.on('close', (code) => {
+            if (code == 0) {
+                res.status(200).send();
+            } else {
+                res.status(500).send(code);
+            }
+            resolve();
+        });
+    
+        childProcess.on('error', (err) => {
+            res.status(500).send(`Failed to start child process: ${err}`);
+            reject(err);
+        });
+    });
 });
 
 app.get('/prs', (req, res) => {
@@ -32,10 +48,6 @@ app.get('/prs', (req, res) => {
 
 app.get('/', (req, res) => {
     res.sendFile(index_path);
-});
-app.get('/logic.js', function(req, res) {
-    res.setHeader('Content-Type', 'text/javascript');
-    res.sendFile(logic_path);
 });
 
 // Start the server

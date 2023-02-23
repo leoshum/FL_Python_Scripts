@@ -6,29 +6,59 @@
 const base_url = 'http://localhost:3000'
 const prs_path = `${base_url}/prs.json`;
 
-get_prs().then(data => {
-    $.each(data, function(index, item) {
-        var $row = $('<tr data-toggle="collapse" data-target="#row' + index + '" aria-expanded="false" aria-controls="row' + index + '">' +
-        '<td> <a href="' + item.Url + '">' + item.number + '</a></td>' + '<td>' + item['Merged by'] + '</td>' + '<td>' + item.Comments.length + '</td>' + '<td>' + item.commits.length + '</td>' + '</tr>');
-        
-        var $detailsRow = $('<tr id="row' + index + '" class="collapse" colspan="3">' + '<td colspan="4">' + '<div class="row">' + '<div class="col-md-3">' +  '<h4>Comments:</h4>' + '<ul>' + $.map(item.Comments, function(comment) {
-            return '<li><strong>[' + comment.State + ']' + comment.Author + ':</strong>' + comment.Text + '</li>';
-        }).join('') + '</ul>' + '</div>' + '<div class="col-md-9">' + '<h4>Commits:</h4>' + '<ul>' + $.map(item.commits, function(commit) {
-            return '<li><strong><a href="' + commit.Url + '">' + commit.sha + '</a>:</strong> ' +'<ul>' + $.map(commit.Files, function(files) {
-                return '<li><strong>'+ files.sha + ':</strong> ' + files.patch.replace('\r\n', '<br>').replace('\n', '<br>') + '</li>';
-            }).join('')+ '</ul>' + '</li>';
-        }).join('') + '</ul>' + '</div>' + '</div>' + '</td>' + '</tr>');
-    
-        $('tbody').append($row).append($detailsRow);
-        jQuery(function($) {
-            $('tr[data-toggle="collapse"]').click(function() {
-                var target = $(this).data('target');
-                $(target).collapse('toggle');
+function fill_table(){
+    get_prs().then(data => {
+        $('tbody').empty();
+
+        $.each(data, function(index, item) {
+            var $row =
+            $('<tr data-toggle="collapse" data-target="#row' + index + '" aria-expanded="false" aria-controls="row' + index + '">' +
+                '<td>' + 
+                    '<a href="' + item.Url + '">' + item.number + '</a>' + 
+                '</td>' +
+                '<td>' + item['Merged by'] + '</td>' + 
+                '<td>' + item.Comments.length + '</td>' + 
+                '<td>' + item.commits.length + '</td>' +
+            '</tr>');
+            
+            var $detailsRow =
+            $('<tr id="row' + index + '" class="collapse" colspan="3">' +
+                '<td colspan="4">' +
+                    '<div class="row">' +
+                        '<div class="col-md-3">' +
+                            '<h4>Comments:</h4>' +
+                            '<ul>' + $.map(item.Comments, function(comment) {
+                                return '<li><strong>[' + comment.State + '] ' + comment.Author + ':</strong> ' + comment.Text + '</li>'; }).join('') +
+                            '</ul>' +
+                        '</div>' +
+                        '<div class="col-md-9">' +
+                            '<h4>Commits:</h4>' +
+                            '<ul>' + $.map(item.commits, function(commit) {
+                                return '<li><strong><a href="' + commit.Url + '">[' + commit.Author + '] [' + commit['Create Date'] + '] </strong><br>' + commit.Message + '</a> : ' +
+                                    '<ul>' + $.map(commit.Files, function(file) {
+                                        return '<li><strong>'+ file.name + ':</strong> ' + file.patch?.replace('\r\n', '<br>')?.replace('\n', '<br>') + '</li>'; }).join('')+
+                                    '</ul>' +
+                                '</li>'; }).join('') +
+                            '</ul>' +
+                        '</div>' +
+                    '</div>' +
+                '</td>' +
+            '</tr>');
+
+            var tbody = document.getElementsByTagName('tbody')[0];
+            tbody.appendChild($row[0]);
+            tbody.appendChild($detailsRow[0]);
+
+            jQuery(function($) {
+                $('tr[data-toggle="collapse"]').click(function() {
+                    var target = $(this).data('target');
+                    $(target).collapse('toggle');
+                });
             });
         });
-    });
-})
-
+    })
+}
+fill_table();
 // $(document).ready(function() {
 //     get_prs().then(data => {
 //         var tr;
@@ -109,14 +139,18 @@ async function get_prs(){
 }
 
 $('#update').on('click', async e => {
-    const url = `${base_url}/analyze`;
+    const hours = $('#hours').val();
+    const url = `${base_url}/analyze?hours=${hours}`;
     try {
         const response = await fetch(url, {'cache': 'no-cache'})
         if(response.ok){
-            return await response.json()
+            fill_table();
         }
+        console.log(await response.text()) 
     }
     catch(error){
         console.log(error)
     }
 })
+
+//add date and commit author

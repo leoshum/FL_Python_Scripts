@@ -44,6 +44,8 @@ async def main():
                 tasks.append(asyncio.create_task(get_commit_info({
                     'sha': commit['sha'],
                     'Upload Date': date.isoformat(sep=' ', timespec='seconds'),
+                    'Create Date': datetime.strptime(commit['commit']['author']['date'], '%Y-%m-%dT%H:%M:%SZ').isoformat(sep=' ', timespec='seconds'),
+                    'Message': commit['commit']['message'],
                     'Author': commit['commit']['author']['name'],
                     'Url': commit['html_url'],
                     'Files': []
@@ -52,8 +54,8 @@ async def main():
 
         await asyncio.gather(*tasks)
 
-    root_directory = os.path.dirname(sys.argv[0])
-    with open(f'.{root_directory}\\prs.json','w',encoding='UTF-8') as file:
+    root_directory = os.path.dirname(__file__)
+    with open(f'{root_directory}\\client_app\\prs.json','w',encoding='UTF-8') as file:
             file.write(json.dumps(pull_requests, indent=2, ensure_ascii=False))
             
 
@@ -80,10 +82,10 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider):
         except Exception as e:
             logging.info(msg=f"error {e}")
         files.append({'sha' : file['sha'], 
+                      'name' : file['filename'],
                       'patch' : file.get('patch'), 
                       'review': review})
     commit['Files'] = files
-
     url = f"{base_url}/commits/{commit['sha']}/pulls"
     prs = await get(url, token, session)
     logging.info(msg=f"Recived [{len(prs)}] pull requests for [{commit['sha']}] commit.")
