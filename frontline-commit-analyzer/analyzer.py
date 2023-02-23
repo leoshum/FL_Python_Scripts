@@ -72,10 +72,17 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider):
     url = f"{base_url}/commits/{commit['sha']}"
     cmt = await get(url, token, session)
     logging.info(msg=f"Recived [{commit['sha']}] commit.")
-    
-    commit['Files'] = [{'sha' : file['sha'], 
-                        'patch' : file.get('patch'), 
-                        'review': codereview_provider.get_code_review(file.get('patch'))} for file in cmt['files']]
+    files = []
+    for file in cmt['files']:
+        review = ""
+        try:
+            review = codereview_provider.get_code_review(file.get('patch'))
+        except:
+            pass
+        files.append({'sha' : file['sha'], 
+                      'patch' : file.get('patch'), 
+                      'review': review})
+    commit['Files'] = files
 
     url = f"{base_url}/commits/{commit['sha']}/pulls"
     prs = await get(url, token, session)

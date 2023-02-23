@@ -14,7 +14,7 @@ class CodeReviewProvider:
         completion = openai.Completion.create(
             engine=model_engine,
             prompt=prompt,
-            max_tokens=1024,
+            max_tokens=4097,
             temperature=0.5,
             top_p=1,
             frequency_penalty=0,
