@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 from datetime import datetime, timedelta
+from codeReview import CodeReviewProvider
 
 import aiohttp
 
@@ -22,6 +23,7 @@ logging.basicConfig(level=logging.INFO)
 
 async def main():
     async with aiohttp.ClientSession() as session:
+        codereview_provider = CodeReviewProvider()
         # Collect commit information
         page = 1
         is_continue = True
@@ -45,7 +47,7 @@ async def main():
                     'Author': commit['commit']['author']['name'],
                     'Url': commit['html_url'],
                     'Files': []
-                }, session, pull_requests)))
+                }, session, pull_requests, codereview_provider)))
             page += 1
 
         await asyncio.gather(*tasks)
@@ -65,13 +67,15 @@ async def get(url, token, session):
             raise Exception("Error in API call: " + await resp.text())
         return await resp.json()
 
-async def get_commit_info(commit, session, pull_requests):
+async def get_commit_info(commit, session, pull_requests, codereview_provider):
     # Collect file information
     url = f"{base_url}/commits/{commit['sha']}"
     cmt = await get(url, token, session)
     logging.info(msg=f"Recived [{commit['sha']}] commit.")
     
-    commit['Files'] = [{'sha' : file['sha'], 'patch' : file.get('patch')} for file in cmt['files']]
+    commit['Files'] = [{'sha' : file['sha'], 
+                        'patch' : file.get('patch'), 
+                        'review': codereview_provider.get_code_review(file.get('patch'))} for file in cmt['files']]
 
     url = f"{base_url}/commits/{commit['sha']}/pulls"
     prs = await get(url, token, session)
