@@ -74,7 +74,7 @@ app.listen(PORT, () => {
 // });
 
 
-exec(`"%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe" http://localhost:${PORT}`, (error, stdout, stderr) => {
+exec(`"%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe" http://localhost:${PORT}`, (error, stdout, stderr) => {
     if (error) {
         console.log(`error: ${error.message}`);
         return;
