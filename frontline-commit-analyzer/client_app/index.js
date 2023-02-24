@@ -1,16 +1,18 @@
-const { spawn } = require("child_process");
+const { spawn, exec } = require("child_process");
 const express = require('express');
 const path = require('path');
 
-const app = express();
 
-app.use(express.static('public'));
+const PORT = 3443
 
 const prs_path = `${__dirname}/prs.json`;
 const index_path = `${__dirname}/index.html`;
 const analyzer_path = path.normalize(`${__dirname}\\..\\analyzer.py`);
-const logic_path = `${__dirname}/logic.js`;
-const ico_path = `${__dirname}/favicon.ico`;
+
+
+const app = express();
+
+app.use(express.static('public'));
 
 app.get('/analyze', async (req, res) => {
     const hours = req.query.hours;
@@ -51,8 +53,8 @@ app.get('/', (req, res) => {
 });
 
 // Start the server
-app.listen(3000, () => {
-    console.log('Server started on port 3000');
+app.listen(PORT, () => {
+    console.log(`Server started on port ${PORT}`);
 });
 
 // var http = require('http');
@@ -72,17 +74,17 @@ app.listen(3000, () => {
 // });
 
 
-// exec(`"%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe" ${__dirname}\\index.html`, (error, stdout, stderr) => {
-//     if (error) {
-//         console.log(`error: ${error.message}`);
-//         return;
-//     }
-//     if (stderr) {
-//         console.log(`stderr: ${stderr}`);
-//         return;
-//     }
-//     if (stdout) {
-//         console.log(`stdout: ${stdout}`);
-//         return;
-//     }
-// });
+exec(`"%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe" http://localhost:${PORT}`, (error, stdout, stderr) => {
+    if (error) {
+        console.log(`error: ${error.message}`);
+        return;
+    }
+    if (stderr) {
+        console.log(`stderr: ${stderr}`);
+        return;
+    }
+    if (stdout) {
+        console.log(`stdout: ${stdout}`);
+        return;
+    }
+});

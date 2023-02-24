@@ -3,61 +3,126 @@
 // const { $ } = require("jquery")
 //const cors = require('cors');
 
-const base_url = 'http://localhost:3000'
+const base_url = 'http://localhost:3443'
 const prs_path = `${base_url}/prs.json`;
 
 function fill_table(){
     get_prs().then(data => {
-        $('tbody').empty();
+        // Get the tbody element
+var tbody = $('tbody');
 
-        $.each(data, function(index, item) {
-            var $row =
-            $('<tr data-toggle="collapse" data-target="#row' + index + '" aria-expanded="false" aria-controls="row' + index + '">' +
-                '<td>' + 
-                    '<a href="' + item.Url + '">' + item.number + '</a>' + 
-                '</td>' +
-                '<td>' + item['Merged by'] + '</td>' + 
-                '<td>' + item.Comments.length + '</td>' + 
-                '<td>' + item.commits.length + '</td>' +
-            '</tr>');
-            
-            var $detailsRow =
-            $('<tr id="row' + index + '" class="collapse" colspan="3">' +
-                '<td colspan="4">' +
-                    '<div class="row">' +
-                        '<div class="col-md-3">' +
-                            '<h4>Comments:</h4>' +
-                            '<ul>' + $.map(item.Comments, function(comment) {
-                                return '<li><strong>[' + comment.State + '] ' + comment.Author + ':</strong> ' + comment.Text + '</li>'; }).join('') +
-                            '</ul>' +
-                        '</div>' +
-                        '<div class="col-md-9">' +
-                            '<h4>Commits:</h4>' +
-                            '<ul>' + $.map(item.commits, function(commit) {
-                                return '<li><strong><a href="' + commit.Url + '">[' + commit.Author + '] [' + commit['Create Date'] + '] </strong><br>' + commit.Message + '</a> : ' +
-                                    '<ul>' + $.map(commit.Files, function(file) {
-                                        return '<li><strong>'+ file.name + ':</strong> ' + file.patch?.replace('\r\n', '<br>')?.replace('\n', '<br>') + '</li>'; }).join('')+
-                                    '</ul>' +
-                                '</li>'; }).join('') +
-                            '</ul>' +
-                        '</div>' +
-                    '</div>' +
-                '</td>' +
-            '</tr>');
+// Remove all rows from the table
+tbody.empty();
 
+// Iterate over each item in the data array
+$.each(data, function(index, item) {
+
+    // Count the number of files in all commits for the current item
+    var files = item.commits.reduce(function(sum, commit) {
+        return sum + commit.Files.length;
+    }, 0);
+
+    // Create the main row for the current item
+    var $row = $('<tr>', {
+        'data-toggle': 'collapse',
+        'data-target': '#row' + index,
+        'aria-expanded': false,
+        'aria-controls': 'row' + index
+    }).append(
+        $('<td>').append(
+            $('<a>', { href: item.Url }).text(item.number)
+        ),
+        $('<td>').text(item['Merged by']),
+        $('<td>').append(
+            $('<ul>').append(
+                item.Comments.map(function(comment) {
+                    return $('<li>').append(
+                        $('<strong>').text('[' + comment.State + '] ' + comment.Author + ':'),
+                        ' ' + comment.Text
+                    );
+                })
+            )
+        ),
+        $('<td>').text(item.commits.length),
+        $('<td>').text(files)
+    );
+
+    // Create the details row for the current item
+    var $detailsRow = $('<tr>', {
+        id: 'row' + index,
+        class: 'collapse',
+        colspan: 3
+    }).append(
+        $('<td>', { colspan: 5 }).append(
+            $('<div>').append(
+                $('<h5>').text('Commits:'),
+                $('<ul>').append(
+                    item.commits.map(function(commit) {
+                        return $('<li>', { class : 'commit'}).append(
+                            'Name: ',
+                            $('<a>', { href: commit.Url }).text(commit.Message),
+                            $('<br>'),
+                            'Author: ',
+                            $('<strong>').append(
+                                commit.Author),
+                            $('<br>'),
+                            'Date: ' + commit['Create Date'],
+                            $('<br>'),
+                            $('<ul>').append(
+                                commit.Files.filter(function(file) {
+                                    return file.patch;
+                                }).map(function(file) {
+                                    var patchHeaderRegex = /^@@\s-(\d+),(\d+)\s\+(\d+),(\d+)\s@@/;
+                                    var patchHeader = file.patch.match(patchHeaderRegex);
+                                    var patchLines = file.patch.split('\n');
+
+                                    return $('<li>', { class: 'row' }).append(
+                                        $('<div>', { class: 'col-md-8 file code' }).append(
+                                            $('<strong>').text(file.name + ':'),
+                                            $('<div>', { class: 'diff' }).append(
+                                                patchLines.map(function(line) {
+                                                    var classAttribute = '';
+                                                    if (line.startsWith('+')) {
+                                                        classAttribute = 'diff-added';
+                                                    } else if (line.startsWith('-')) {
+                                                        classAttribute = 'diff-removed';
+                                                    }
+                                                    return $('<div>', { class: classAttribute }).text(line.trim());
+                                                })
+                                            )
+                                        ),
+                                        $('<div>', { class : 'col-md-3 review'}).append(
+                                            file.review
+                                        )
+                                    );
+                                })
+                            )
+                        );
+                    })
+                )
+            )
+        )
+    );
+
+    // Add the main and details rows to the table
             var tbody = document.getElementsByTagName('tbody')[0];
             tbody.appendChild($row[0]);
             tbody.appendChild($detailsRow[0]);
+});
 
-            jQuery(function($) {
-                $('tr[data-toggle="collapse"]').click(function() {
-                    var target = $(this).data('target');
-                    $(target).collapse('toggle');
-                });
-            });
-        });
+// Attach the collapse toggle to the main rows
+tbody.on('click', 'tr[data-toggle="collapse"]', function() {
+    var target = $(this).data('target');
+    $(target).collapse('toggle');
+});
+
+        
     })
 }
+
+// var tbody = document.getElementsByTagName('tbody')[0];
+// tbody.appendChild($row[0]);
+// tbody.appendChild($detailsRow[0]);
 fill_table();
 // $(document).ready(function() {
 //     get_prs().then(data => {
@@ -126,7 +191,7 @@ fill_table();
 // const jsontext = JSON.parse(prs_file);
 
 async function get_prs(){
-    const url = `${base_url}/prs`;
+    const url = `${base_url}/prs.json`;
     try {
         const response = await fetch(url, {'cache': 'no-cache'})
         if(response.ok){

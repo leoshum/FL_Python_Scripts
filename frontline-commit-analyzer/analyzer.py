@@ -55,7 +55,7 @@ async def main():
         await asyncio.gather(*tasks)
 
     root_directory = os.path.dirname(__file__)
-    with open(f'{root_directory}\\client_app\\prs.json','w',encoding='UTF-8') as file:
+    with open(f'{root_directory}\\client_app\\public\\prs.json','w',encoding='UTF-8') as file:
             file.write(json.dumps(pull_requests, indent=2, ensure_ascii=False))
             
 
