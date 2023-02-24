@@ -1,3 +1,4 @@
 *.xlsx
 *.csv
 frontline-team-city-comment-scrapper/*.xlsx
+frontline-commit-analyzer/__pycache__
