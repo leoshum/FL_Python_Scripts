@@ -1,4 +1,5 @@
 import openai
+import tiktoken
 import os
 
 class CodeReviewProvider:
@@ -10,12 +11,12 @@ class CodeReviewProvider:
     def get_code_review(self, code):
         model_engine = "text-davinci-003"
         prompt = f"{self.prepromt}\n{code}"
-
+        encoding = tiktoken.get_encoding("p50k_base")
         completion = openai.Completion.create(
             engine=model_engine,
             prompt=prompt,
-            max_tokens=4097,
-            temperature=0.5,
+            max_tokens=4097 - len(encoding.encode(prompt)),
+            temperature=0.2,
             top_p=1,
             frequency_penalty=0,
             presence_penalty=0
