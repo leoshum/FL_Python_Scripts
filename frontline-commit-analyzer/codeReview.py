@@ -12,11 +12,14 @@ class CodeReviewProvider:
         model_engine = "text-davinci-003"
         prompt = f"{self.prepromt}\n{code}"
         encoding = tiktoken.get_encoding("p50k_base")
+        max_tokens = 4097 - len(encoding.encode(prompt))
+        if max_tokens < 0:
+            max_tokens = 4097
         completion = openai.Completion.create(
             engine=model_engine,
             prompt=prompt,
-            max_tokens=4097 - len(encoding.encode(prompt)),
-            temperature=0.2,
+            max_tokens=max_tokens,
+            temperature=0.5,
             top_p=1,
             frequency_penalty=0,
             presence_penalty=0
