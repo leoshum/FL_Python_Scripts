@@ -64,10 +64,20 @@ async def get(url, token, session):
         "Accept": "application/vnd.github+json",
         "Authorization": f"token {token}"
     }
-    async with session.get(url, headers=headers) as resp:
-        if resp.status != 200:
-            raise Exception("Error in API call: " + await resp.text())
-        return await resp.json()
+    attempt = 0
+    while attempt < 3:
+        try:
+            attempt += 1    
+            async with session.get(url, headers=headers) as resp:
+                if resp.status != 200:
+                    raise Exception("Error in API call: " + await resp.text())
+                return await resp.json()
+        except aiohttp.client_exceptions.ClientOSError as e:
+            print(f'Error making request: {e}')
+            await asyncio.sleep(1)
+        except aiohttp.client_exceptions.ServerDisconnectedError as e:
+            print(f'Server disconnected error: {e}')
+            await asyncio.sleep(1)
 
 async def get_commit_info(commit, session, pull_requests, codereview_provider):
     # Collect file information

@@ -5,7 +5,7 @@ import os
 class CodeReviewProvider:
     def __init__(self):
         openai.api_key = os.environ.get("OPENAI_API_TOKEN")
-        with open("preprompt.txt", "r") as file:
+        with open(f"{os.path.dirname(__file__)}\preprompt.txt", "r") as file:
             self.prepromt = file.read()
 
     def get_code_review(self, code):
