@@ -10,7 +10,10 @@ from codeReview import CodeReviewProvider
 import aiohttp
 
 hours = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 12
-hours = 2
+hours = 3
+
+root_directory = os.path.dirname(__file__)
+pull_request_path = f'{root_directory}\\client_app\\public\\prs.json'
 
 input_format = '%Y-%m-%dT%H:%M:%SZ'
 time_zone = pytz.utc
@@ -28,6 +31,14 @@ base_url = f"{github_url}/repos/{owner}/{repo}"
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+if os.path.exists(pull_request_path):
+    with open(pull_request_path, mode='r', encoding='UTF-8') as file:
+        pull_requests = json.load(file)
+        sha_exist_commits = [commit['sha'] for pr in pull_requests for commit in pr['commits']]
+
+else:
+    pull_requests = []
+
 async def main():
     async with aiohttp.ClientSession() as session:
         codereview_provider = CodeReviewProvider()
@@ -35,7 +46,6 @@ async def main():
         page = 1
         is_continue = True
         tasks = []
-        pull_requests = []
         while is_continue:
             url = f"{base_url}/commits?page={page}&branch={branch}"
             cmts = await get(url, token, session)
@@ -46,6 +56,8 @@ async def main():
                 if date < start:
                     is_continue = False
                     break
+                if commit['sha'] in sha_exist_commits:
+                    continue
 
                 tasks.append(asyncio.create_task(get_commit_info({
                     'sha': commit['sha'],
@@ -61,12 +73,11 @@ async def main():
         try:
             await asyncio.wait_for(asyncio.gather(*tasks), timeout=len(tasks) * 60)
         except asyncio.TimeoutError:
-            print("Timeout error: one or more tasks took too long to complete.")
-        
-
-    root_directory = os.path.dirname(__file__)
-    with open(f'{root_directory}\\client_app\\public\\prs.json','w',encoding='UTF-8') as file:
-            file.write(json.dumps(pull_requests, indent=2, ensure_ascii=False))
+            logging.warning(msg="Timeout error: one or more tasks took too long to complete.")
+            await asyncio.wait_for(asyncio.gather(*tasks), timeout=len(tasks) * 60)        
+    
+    with open(pull_request_path,'w',encoding='UTF-8') as file:
+        file.write(json.dumps(pull_requests, indent=2, ensure_ascii=False))
 
 async def get_commit_info(commit, session, pull_requests, codereview_provider):
     # Collect file information
