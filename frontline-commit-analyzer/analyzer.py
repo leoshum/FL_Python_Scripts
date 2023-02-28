@@ -67,7 +67,60 @@ async def main():
     root_directory = os.path.dirname(__file__)
     with open(f'{root_directory}\\client_app\\public\\prs.json','w',encoding='UTF-8') as file:
             file.write(json.dumps(pull_requests, indent=2, ensure_ascii=False))
-            
+
+async def get_commit_info(commit, session, pull_requests, codereview_provider):
+    # Collect file information
+    url = f"{base_url}/commits/{commit['sha']}"
+    cmt = await get(url, token, session)
+    logging.info(msg=f"Recived [{commit['sha']}] commit.")
+    files = []
+    for file in cmt['files']:
+        review = ""
+        try:
+            review = codereview_provider.get_code_review(file.get('patch'))
+        except Exception as e:
+            logging.info(msg=f"error {e}")
+        files.append({
+            'sha' : file['sha'],
+            'name' : file['filename'],
+            'patch' : file.get('patch'),
+            'review': review})
+    commit['Files'] = files
+    url = f"{base_url}/commits/{commit['sha']}/pulls"
+    prs = await get(url, token, session)
+    logging.info(msg=f"Recived [{len(prs)}] pull requests for [{commit['sha']}] commit.")
+
+    for pr in prs:
+        await update_pull_request(pr, commit=commit,pull_requests=pull_requests,base_url=base_url,token=token,  session=session)
+
+async def update_pull_request(pr, commit, pull_requests, base_url, token, session):
+    exist_pr = [pull_request['number'] for pull_request in pull_requests]
+    if pr['number'] in exist_pr:
+        pull_requests[exist_pr.index(pr['number'])]['commits'].append(commit)
+    else:
+        url = f"{base_url}/pulls/{pr['number']}"
+        pull_request = await get(url, token, session)
+        logging.info(msg=f"Recived [{pr['number']}] pull requests.")
+
+        
+        pull_requests.append({
+            'number' : pull_request['number'],
+            'commits' : [commit],
+            'Merged by' : pull_request['merged_by']['login'],
+            'Url' : pull_request['html_url'],
+            'Comments' : await get_reviews(pr_number = pr['number'], session = session)
+        })
+
+async def get_reviews(pr_number, session):
+    url = f"{base_url}/pulls/{pr_number}/reviews"
+    reviews =  await get(url, token, session)
+    logging.info(msg=f"Recived [{len(reviews)}] reviews for [{pr_number}] pull request.")
+
+    return [{
+                'Author' : review['user']['login'],
+                'Text': review['body'],
+                'State' : review['state']
+            } for review in reviews]
 
 async def get(url, token, session):
     headers = {
@@ -88,59 +141,8 @@ async def get(url, token, session):
         except aiohttp.client_exceptions.ServerDisconnectedError as e:
             print(f'Server disconnected error: {e}')
             await asyncio.sleep(1)
-
-async def get_commit_info(commit, session, pull_requests, codereview_provider):
-    # Collect file information
-    url = f"{base_url}/commits/{commit['sha']}"
-    cmt = await get(url, token, session)
-    logging.info(msg=f"Recived [{commit['sha']}] commit.")
-    files = []
-    for file in cmt['files']:
-        review = ""
-        try:
-            review = codereview_provider.get_code_review(file.get('patch'))
         except Exception as e:
-            logging.info(msg=f"error {e}")
-        files.append({'sha' : file['sha'], 
-                      'name' : file['filename'],
-                      'patch' : file.get('patch'), 
-                      'review': review})
-    commit['Files'] = files
-    url = f"{base_url}/commits/{commit['sha']}/pulls"
-    prs = await get(url, token, session)
-    logging.info(msg=f"Recived [{len(prs)}] pull requests for [{commit['sha']}] commit.")
-
-    for pr in prs:
-        await update_pull_request(pr, commit=commit,pull_requests=pull_requests,base_url=base_url,token=token,  session=session)
-
-async def get_reviews(pr_number, session):
-    url = f"{base_url}/pulls/{pr_number}/reviews"
-    reviews =  await get(url, token, session)
-    logging.info(msg=f"Recived [{len(reviews)}] reviews for [{pr_number}] pull request.")
-
-    return [{
-                'Author' : review['user']['login'],
-                'Text': review['body'],
-                'State' : review['state']
-            } for review in reviews]
-
-
-async def update_pull_request(pr, commit, pull_requests, base_url, token, session):
-    exist_pr = [pull_request['number'] for pull_request in pull_requests]
-    if pr['number'] in exist_pr:
-        pull_requests[exist_pr.index(pr['number'])]['commits'].append(commit)
-    else:
-        url = f"{base_url}/pulls/{pr['number']}"
-        pull_request = await get(url, token, session)
-        logging.info(msg=f"Recived [{pr['number']}] pull requests.")
-
-        
-        pull_requests.append({
-            'number' : pull_request['number'],
-            'commits' : [commit],
-            'Merged by' : pull_request['merged_by']['login'],
-            'Url' : pull_request['html_url'],
-            'Comments' : await get_reviews(pr_number = pr['number'], session = session)
-        })
+            print(f'Unexpected error occurred: {e}')
+            await asyncio.sleep(1)
 
 asyncio.get_event_loop().run_until_complete(main())
