@@ -25,14 +25,15 @@ app.get('/analyze', async (req, res) => {
         });
     
         childProcess.stderr.on('data', (data) => {
-            console.error(`stderr: ${data}`);
+            console.log(`stderr: ${data}`);
         });
     
         childProcess.on('close', (code) => {
+            console.error(`Exit code: ${code}`);
             if (code == 0) {
                 res.status(200).send();
             } else {
-                res.status(500).send(code);
+                res.status(500).send();
             }
             resolve();
         });
@@ -73,18 +74,21 @@ app.listen(PORT, () => {
 //     }).listen(PORT);
 // });
 
-
-exec(`"%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe" http://localhost:${PORT}`, (error, stdout, stderr) => {
-    if (error) {
-        console.log(`error: ${error.message}`);
-        return;
-    }
-    if (stderr) {
-        console.log(`stderr: ${stderr}`);
-        return;
-    }
-    if (stdout) {
-        console.log(`stdout: ${stdout}`);
-        return;
-    }
-});
+try {
+    exec(`"%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe" http://localhost:${PORT}`, (error, stdout, stderr) => {
+        if (error) {
+            console.log(`error: ${error.message}`);
+            return;
+        }
+        if (stderr) {
+            console.log(`stderr: ${stderr}`);
+            return;
+        }
+        if (stdout) {
+            console.log(`stdout: ${stdout}`);
+            return;
+        }
+    });    
+} catch (error) {
+    console.log(`Error during open chrome: ${error}`);    
+}
