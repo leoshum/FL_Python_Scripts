@@ -10,7 +10,6 @@ from codeReview import CodeReviewProvider
 import aiohttp
 
 hours = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 12
-hours = 3
 
 root_directory = os.path.dirname(__file__)
 pull_request_path = f'{root_directory}\\client_app\\public\\prs.json'
@@ -35,8 +34,8 @@ if os.path.exists(pull_request_path):
     with open(pull_request_path, mode='r', encoding='UTF-8') as file:
         pull_requests = json.load(file)
         sha_exist_commits = [commit['sha'] for pr in pull_requests for commit in pr['commits']]
-
 else:
+    sha_exist_commits = []
     pull_requests = []
 
 async def main():
