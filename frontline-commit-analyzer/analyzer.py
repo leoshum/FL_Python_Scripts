@@ -3,12 +3,19 @@ import json
 import logging
 import os
 import sys
+import pytz
 from datetime import datetime, timedelta
 from codeReview import CodeReviewProvider
 
 import aiohttp
 
 hours = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 12
+hours = 2
+
+input_format = '%Y-%m-%dT%H:%M:%SZ'
+time_zone = pytz.utc
+utc_now = datetime.now(time_zone)
+start = utc_now - timedelta(hours=hours)
 
 branch = 'develop'
 token = os.environ.get('GITHUB_TOKEN')
@@ -29,14 +36,13 @@ async def main():
         is_continue = True
         tasks = []
         pull_requests = []
-        start = datetime.today() - timedelta(hours=hours)
         while is_continue:
             url = f"{base_url}/commits?page={page}&branch={branch}"
             cmts = await get(url, token, session)
             logging.info(msg=f"Recived [{len(cmts)}] commits from [{page}] page for [{branch}] branch.")
 
             for commit in cmts:
-                date = datetime.strptime(commit['commit']['committer']['date'], '%Y-%m-%dT%H:%M:%SZ')
+                date = time_zone.localize(datetime.strptime(commit['commit']['committer']['date'], input_format))
                 if date < start:
                     is_continue = False
                     break
@@ -44,7 +50,7 @@ async def main():
                 tasks.append(asyncio.create_task(get_commit_info({
                     'sha': commit['sha'],
                     'Upload Date': date.isoformat(sep=' ', timespec='seconds'),
-                    'Create Date': datetime.strptime(commit['commit']['author']['date'], '%Y-%m-%dT%H:%M:%SZ').isoformat(sep=' ', timespec='seconds'),
+                    'Create Date': datetime.strptime(commit['commit']['author']['date'], input_format).isoformat(sep=' ', timespec='seconds'),
                     'Message': commit['commit']['message'],
                     'Author': commit['commit']['author']['name'],
                     'Url': commit['html_url'],
@@ -52,7 +58,11 @@ async def main():
                 }, session, pull_requests, codereview_provider)))
             page += 1
 
-        await asyncio.gather(*tasks)
+        try:
+            await asyncio.wait_for(asyncio.gather(*tasks), timeout=len(tasks) * 60)
+        except asyncio.TimeoutError:
+            print("Timeout error: one or more tasks took too long to complete.")
+        
 
     root_directory = os.path.dirname(__file__)
     with open(f'{root_directory}\\client_app\\public\\prs.json','w',encoding='UTF-8') as file:
