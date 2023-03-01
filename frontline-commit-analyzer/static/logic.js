@@ -83,8 +83,9 @@ $.each(data, function(index, item) {
                                 $('<strong>').append(
                                     commit.Author),
                                 $('<br>'),
-                                'Date: ' + commit['Create Date'],
-                                $('<br>')),
+                                'Creation date: ' + commit['Create Date'],
+                                $('<br>'),
+                                'Upload date: ' + commit['Upload Date'],),
                             $('<div>', { class: 'row' }).append(
                                 $('<div>', { class: 'col-md-8 tab-name' }).append(
                                     $('<strong>').append(
@@ -123,21 +124,43 @@ $.each(data, function(index, item) {
                                                 file.review
                                             )
                                         ),
-                                        $('<div>', { class : 'col-md-1 review-status'}).append(function() {
-                                            var iconClass;
-                                            switch (file.state) {
-                                                case 0:
-                                                    iconClass = 'bi-x-circle-fill bad-state-icon'; // Bad icon
-                                                    break;
-                                                case 1:
-                                                    iconClass = 'bi-exclamation-triangle-fill warning-state-icon'; // Warning icon
-                                                    break;
-                                                case 2:
-                                                    iconClass = 'bi-check-circle-fill good-state-icon'; // Good icon
-                                                    break;
-                                            }
-                                            return $('<span>', { class: 'bi ' + iconClass });
-                                        }
+                                        $('<div>', { class : 'col-md-1 review-status-container'}).append(
+                                            $('<div>', { class : 'review-status'}).append(function() {
+                                                var iconClass;
+                                                switch (file.state) {
+                                                    case 0:
+                                                        iconClass = 'bi-x-circle-fill bad-state-icon'; // Bad icon
+                                                        break;
+                                                    case 1:
+                                                        iconClass = 'bi-exclamation-triangle-fill warning-state-icon'; // Warning icon
+                                                        break;
+                                                    case 2:
+                                                        iconClass = 'bi-check-circle-fill good-state-icon'; // Good icon
+                                                        break;
+                                                }
+                                                return $('<span>', { class: 'bi ' + iconClass });
+                                            }),
+                                            $('<button>', { class: 'btn btn-primary refresh-review', sha: file.sha }).append(
+                                                $('<i>', { class: 'bi bi-arrow-clockwise' })                                        
+                                            ).on('click', async (e) => {
+                                                let button = $(e.currentTarget);
+                                                button.prop('disabled', true);
+                                                var sha = button.attr('sha');
+                                                
+                                                const url = `${base_url}/review?sha=${sha}`;
+                                                try {
+                                                    const response = await fetch(url, {'cache': 'no-cache'})
+                                                    if(response.ok){
+                                                        button.parent().parent().find('.review').text(await response.text());
+                                                    }
+                                                }
+                                                catch(error){
+                                                    console.log(error)
+                                                }
+                                                finally {
+                                                    button.prop('disabled', false);
+                                                }
+                                            })
                                         )
                                     );
                                 })

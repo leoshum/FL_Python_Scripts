@@ -2,10 +2,12 @@ import asyncio
 import mimetypes
 import os
 import logging
+from analyzer import analyze_commits, review_commit
 from aiohttp import web
-from asyncio.subprocess import PIPE, create_subprocess_exec
 
-logger = logging.getLogger(__name__)
+file_name = os.path.splitext(os.path.basename(__file__))[0]
+
+logger = logging.getLogger(file_name)
 logging.basicConfig(level=logging.INFO)
 
 async def index(request):
@@ -27,20 +29,31 @@ async def static(request):
 
 async def analyze(request):
     # Analyze data
-    hours = request.query.get('hours', '12')
-    analyzer_path = os.path.join(os.path.dirname(__file__), 'analyzer.py')
-
     try:
-        proc = await create_subprocess_exec('python', analyzer_path, hours, stdout=PIPE, stderr=PIPE)                
-        stdout, stderr = await proc.communicate()
-        if proc.returncode == 0:
-            logging.info(msg=stdout.decode())
-            logging.warning(msg=stderr.decode())
-            return web.Response(status=200)
-        else:
-            return web.Response(status=500)
+        hours = int(request.query.get('hours', 12))
+    except ValueError as e:
+        logger.error(e)
+        return web.Response(status=500, text=str(e))
+    
+    try:
+        await analyze_commits(hours)
+        return web.Response(status=200)
     except Exception as e:
-        logging.error(e)
+        logger.error(e)
+        return web.Response(status=500, text=str(e))
+    
+async def review(request):
+    # Review commit
+    sha = request.query.get('sha', -1)
+    if sha == -1:
+        e = 'Expected sha in query parameter'
+        logger.error(e)
+        return web.Response(status=500, text=str(e))
+    
+    try:
+        return web.Response(status=200, text=await review_commit(sha))
+    except Exception as e:
+        logger.info(msg=f"error {e}")
         return web.Response(status=500, text=str(e))
 
 async def init_app():
@@ -48,6 +61,7 @@ async def init_app():
     app.add_routes([
         web.get('/', index),
         web.get('/analyze', analyze),
+        web.get('/review', review),
         web.get('/{path:.+}', static),
     ])
     return app
