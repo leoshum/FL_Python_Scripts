@@ -12,7 +12,8 @@ import aiohttp
 hours = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 12
 
 root_directory = os.path.dirname(__file__)
-pull_request_path = f'{root_directory}\\client_app\\public\\prs.json'
+#pull_request_path = f'{root_directory}\\client_app\\public\\prs.json'
+pull_request_path = f'{root_directory}\\static\\prs.json'
 
 input_format = '%Y-%m-%dT%H:%M:%SZ'
 time_zone = pytz.utc
@@ -75,6 +76,7 @@ async def main():
             logging.warning(msg="Timeout error: one or more tasks took too long to complete.")
             await asyncio.wait_for(asyncio.gather(*tasks), timeout=len(tasks) * 60)        
     
+    pull_requests.sort(key=lambda pr: pr['Merged at'])
     with open(pull_request_path,'w',encoding='UTF-8') as file:
         file.write(json.dumps(pull_requests, indent=2, ensure_ascii=False))
 
@@ -94,6 +96,7 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider):
             'sha' : file['sha'],
             'name' : file['filename'],
             'patch' : file.get('patch'),
+            'state' : 1, # 0 - bad, 1 - warning, 2 - good
             'review': review})
     commit['Files'] = files
     url = f"{base_url}/commits/{commit['sha']}/pulls"
@@ -117,6 +120,7 @@ async def update_pull_request(pr, commit, pull_requests, base_url, token, sessio
             'number' : pull_request['number'],
             'commits' : [commit],
             'Merged by' : pull_request['merged_by']['login'],
+            'Merged at' : pull_request['merged_at'],
             'Url' : pull_request['html_url'],
             'Comments' : await get_reviews(pr_number = pr['number'], session = session)
         })
