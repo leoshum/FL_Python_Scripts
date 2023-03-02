@@ -1,0 +1,137 @@
+/* body {
+    background-color: #f6f8fa;
+    color: #24292e;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+  }
+  
+  h1 {
+    font-size: 26px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  
+  li {
+    background-color: #fff;
+    border: 1px solid #e1e4e8;
+    border-radius: 3px;
+    margin-bottom: 8px;
+    padding: 16px;
+  }
+  
+  li:hover {
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+  }
+  
+  a {
+    color: #0366d6;
+    text-decoration: none;
+  }
+  
+  a:hover {
+    text-decoration: underline;
+  } */
+  
+  .diff-added {
+    padding-left: 5px;
+    border-radius: 2px;
+    background-color: rgb(72, 226, 72);
+    background-color: #c8ffd5;
+  }
+
+  .diff-removed {
+    padding-left: 5px;
+    border-radius: 3px;
+    background-color: rgb(250, 96, 96);
+    background-color: #fdc6cc;
+  }
+
+  .code {
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+ul {
+  padding: 0px;
+  margin: 0px;
+  list-style: none;
+}
+
+.row {
+  margin: 0px;
+}
+
+.bad-state-icon {
+  font-size: 2rem;
+  color: rgb(255, 52, 52);
+}
+
+.warning-state-icon {
+  font-size: 2rem;
+  color: orange;
+}
+
+.good-state-icon {
+  font-size: 2rem;
+  color: rgb(52, 255, 52);  
+}
+
+.tab-name {
+  text-align: end;
+  padding-right: 15px;
+}
+
+.file, .review, .review-status {
+  background-color: rgb(219, 217, 217);
+  border-radius: 5px;
+  margin: 0px;
+  margin-bottom: 15px;
+  border: 1px solid rgb(24, 22, 22);
+  padding: 5px;
+  padding-left: 15px;
+  padding-right: 15px;
+  word-wrap: break-word;
+}
+
+.review-status-container {
+  padding: 0em;
+}
+
+.review-status {
+  display: flex;
+  justify-content: center; /* center horizontally */
+  height: fit-content;
+}
+
+.refresh-review {
+  width: 100%;
+}
+
+.review-container {
+  margin-bottom: 15px;
+  padding-left: 15px;
+  padding-right: 15px;
+}
+
+.review {
+  height: 100%;
+}
+
+.commit {
+  background-color: rgb(245, 245, 245);
+  border-radius: 5px;
+  border: 1px solid rgb(24, 22, 22);
+  margin: 10px;
+  padding: 5px;
+  padding-left: 15px;
+  padding-right: 15px;
+}
