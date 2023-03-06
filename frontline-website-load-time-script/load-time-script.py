@@ -204,7 +204,11 @@ def main():
 
 	base_url = ""
 	is_first_row = True
+	i = 0
 	for row in wb_sheet.iter_rows(min_row=5):
+		if i == 5:
+			break
+		i += 1
 		url = row[1].value
 		if url != None and validators.url(url):
 			print(url)
@@ -218,10 +222,9 @@ def main():
 			row[23].value = row[14].value
 			row[24].value = row[15].value
 
-			if not disable_save:
-				row[25].value = row[17].value
-				row[26].value = row[18].value
-				row[27].value = row[19].value
+			row[25].value = row[17].value
+			row[26].value = row[18].value
+			row[27].value = row[19].value
 
 			reset_styles([row[12], row[13], row[14], 
 		 				  row[15], row[21], row[22], 
@@ -235,10 +238,9 @@ def main():
 			row[14].value = row[5].value
 			row[15].value = row[6].value
 
-			if not disable_save:
-				row[17].value = row[8].value
-				row[18].value = row[9].value
-				row[19].value = row[10].value
+			row[17].value = row[8].value
+			row[18].value = row[9].value
+			row[19].value = row[10].value
 
 			flag_high_load_time([row[12], row[13], row[14], 
 		 				  		 row[15], row[21], row[22], 
@@ -279,6 +281,7 @@ def main():
 			row[4].value = f"{min_time:.2f}"
 			row[5].value = f"{max_time:.2f}"
 			row[6].value = f"{mean_time:.2f}"
+
 			compare_measures(row[15], row[24], row[16])
 			compare_measures(row[6], row[15], row[7])
 
@@ -293,6 +296,11 @@ def main():
 					row[8].value = ""
 					row[9].value = ""
 					row[10].value = ""
+
+			if disable_save:
+				row[8].value = ""
+				row[9].value = ""
+				row[10].value = ""
 
 			reset_styles([row[3], row[4], row[5], row[6], row[8], row[9], row[10]])
 			flag_high_load_time([row[3], row[4], row[5], row[6], row[8], row[9], row[10]], threshold)
