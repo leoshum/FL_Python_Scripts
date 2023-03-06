@@ -204,11 +204,7 @@ def main():
 
 	base_url = ""
 	is_first_row = True
-	i = 0
 	for row in wb_sheet.iter_rows(min_row=5):
-		if i == 5:
-			break
-		i += 1
 		url = row[1].value
 		if url != None and validators.url(url):
 			print(url)
