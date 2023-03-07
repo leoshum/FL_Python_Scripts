@@ -53,14 +53,14 @@ async def analyze_commits(hours = 12):
     
     if os.path.exists(pull_request_path):
         pull_requests = read_pull_requests()
-        sha_exist_commits = [commit['sha'] for pr in pull_requests for commit in pr['commits']]
+        sha_exist_files = [file['sha'] for pr in pull_requests for commit in pr['commits'] for file in commit['Files']]
     else:
         pull_requests = []
-        sha_exist_commits = []
+        sha_exist_files = []
     
-    await process_commits(start, pull_requests, sha_exist_commits)
+    await process_commits(start, pull_requests, sha_exist_files)
 
-async def process_commits(start, pull_requests, sha_exist_commits):
+async def process_commits(start, pull_requests, sha_exist_files):
     async with aiohttp.ClientSession() as session:
         codereview_provider = CodeReviewProvider()
         # Collect commit information
@@ -77,19 +77,17 @@ async def process_commits(start, pull_requests, sha_exist_commits):
                 if date < start:
                     is_continue = False
                     break
-                if commit['sha'] in sha_exist_commits:
-                    continue
 
                 tasks.append(asyncio.create_task(get_commit_info({
                     'sha': commit['sha'],
                     'Upload Date': date.isoformat(sep=' ', timespec='seconds'),
-                    'Upload Date' : datetime.strptime(commit['commit']['committer']['date'], input_format).isoformat(sep=' ', timespec='seconds'),
-                    'Create Date': datetime.strptime(commit['commit']['author']['date'], input_format).isoformat(sep=' ', timespec='seconds'),
+                    'Upload Date' : commit['commit']['committer']['date'],
+                    'Create Date': commit['commit']['author']['date'],
                     'Message': commit['commit']['message'],
                     'Author': commit['commit']['author']['name'],
                     'Url': commit['html_url'],
                     'Files': []
-                }, session, pull_requests, codereview_provider)))
+                }, session, pull_requests, codereview_provider, sha_exist_files)))
             page += 1
 
         try:
@@ -101,29 +99,30 @@ async def process_commits(start, pull_requests, sha_exist_commits):
     pull_requests.sort(key=lambda pr: datetime.strptime(pr['Merged at'], input_format),reverse=True)
     write_pull_requests(pull_requests)
 
-async def get_commit_info(commit, session, pull_requests, codereview_provider):
+async def get_commit_info(commit, session, pull_requests, codereview_provider, sha_exist_files):
     # Collect file information
     url = f"{base_url}/commits/{commit['sha']}"
     cmt = await get(url, token, session)
     logger.info(msg=f"Recived [{commit['sha']}] commit.")
     files = []
     for file in cmt['files']:
-        review = ""
-        try:
-            review = codereview_provider.get_code_review(file.get('patch'))
-            binary_answer = "True" in codereview_provider.get_binary_answer(file.get('patch'))
-            if binary_answer:
-                binary_answer = 2
-            else:
-                binary_answer = 0
-        except Exception as e:
-            logger.info(msg=f"error {e}")
-        files.append({
-            'sha' : file['sha'],
-            'name' : file['filename'],
-            'patch' : file.get('patch'),
-            'state' : binary_answer, # 0 - bad, 1 - warning, 2 - good
-            'review': review})
+        if file['sha'] not in sha_exist_files:
+            review = ""
+            try:
+                review = codereview_provider.get_code_review(file.get('patch'))
+                binary_answer = "True" in codereview_provider.get_binary_answer(file.get('patch'))
+                if binary_answer:
+                    binary_answer = 2
+                else:
+                    binary_answer = 0
+            except Exception as e:
+                logger.info(msg=f"error {e}")
+            files.append({
+                'sha' : file['sha'],
+                'name' : file['filename'],
+                'patch' : file.get('patch'),
+                'state' : binary_answer, # 0 - bad, 1 - warning, 2 - good
+                'review': review})
     commit['Files'] = files
     url = f"{base_url}/commits/{commit['sha']}/pulls"
     prs = await get(url, token, session)
@@ -135,12 +134,12 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider):
 async def update_pull_request(pr, commit, pull_requests, base_url, token, session):
     exist_pr = [pull_request['number'] for pull_request in pull_requests]
     if pr['number'] in exist_pr:
-        pull_requests[exist_pr.index(pr['number'])]['commits'].append(commit)
+        if commit['sha'] not in [commit['sha'] for commit in pull_requests[exist_pr.index(pr['number'])]['commits']]:
+            pull_requests[exist_pr.index(pr['number'])]['commits'].append(commit)
     else:
         url = f"{base_url}/pulls/{pr['number']}"
         pull_request = await get(url, token, session)
         logger.info(msg=f"Recived [{pr['number']}] pull requests.")
-
         
         pull_requests.append({
             'number' : pull_request['number'],
