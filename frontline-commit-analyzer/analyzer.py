@@ -112,9 +112,9 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider, s
                 review = codereview_provider.get_code_review(file.get('patch'))
                 binary_answer = "True" in codereview_provider.get_binary_answer(file.get('patch'))
                 if binary_answer:
-                    binary_answer = 2
-                else:
                     binary_answer = 0
+                else:
+                    binary_answer = 2
             except Exception as e:
                 logger.info(msg=f"error {e}")
             files.append({
