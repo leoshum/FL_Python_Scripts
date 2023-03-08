@@ -8,12 +8,84 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 import time
 import json
+from bs4 import BeautifulSoup
+
+
+def extract_tabs_from_plan(driver, url):
+    driver.execute_script("window.open('');")
+    driver.switch_to.window(driver.window_handles[1])
+    driver.get(url)
+    tabs_list = []
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, ".k-tabstrip-items > li"))
+        )
+        tabs = driver.find_elements(By.CSS_SELECTOR, ".k-tabstrip-items > li")
+        tabs_html = driver.find_element(By.CSS_SELECTOR, ".k-tabstrip-items").get_attribute('innerHTML')
+        soup = BeautifulSoup(tabs_html, 'lxml')
+        tabs = soup.find_all('li')
+        for tab in tabs:
+            tabs_list.append([tab.find("span", class_='caption').text.strip(), f"{url[0:url.index('#')]}formId={tab.get('data-id')}"])
+    except Exception as e:
+        pass
+    driver.close()
+    driver.switch_to.window(driver.window_handles[0])
+    return tabs_list
+
+
+def extract_tabs_from_planng(driver, url, section_name, base_url):
+    driver.execute_script("window.open('');")
+    driver.switch_to.window(driver.window_handles[1])
+    tabs_info = []
+    try:
+        url_parts = urlparse(url)
+        uri_splitted = url_parts.path.split("/")
+        event_index = uri_splitted.index("ViewEvent")
+        driver.get(f"{base_url}/plan/api/events/{uri_splitted[event_index + 1]}/details")
+        event_details = json.loads(driver.find_element(By.CSS_SELECTOR, 'pre').text)
+        event_id = event_details["eventModel"]["eventId"]
+        common_student_id = event_details["eventModel"]["commonStudentModel"]["commonStudentId"]
+        event_section = find_event_section(event_details, section_name)
+        driver.get(f"{base_url}/plan/api/sections/?eventId={event_id}&eventSectionId={event_section['eventSectionId']}&commonStudentId={common_student_id}")
+        tabs_api_info = json.loads(driver.find_element(By.CSS_SELECTOR, 'pre').text)["model"]
+        for tab_info in tabs_api_info:
+            link = f"{base_url}/planng/Events/ViewEvent/{event_id}/Forms/{event_section['nameHtmlText']}/{tab_info['formId']}"
+            tabs_info.append([tab_info["formDefinitionNameFromResourcesFull"], link])
+    except:
+        pass
+    driver.close()
+    driver.switch_to.window(driver.window_handles[0])
+    return tabs_info
+
+
+def find_event_section(event_details, section_name):
+    for section_group in event_details["sectionGroups"]:
+        for event_section in section_group["eventSections"]:
+            if event_section["name"] == section_name:
+                return event_section
+            
+def get_event_sections_list_with_tabs_extracted(event_sections, base_url, driver):
+    new_event_sections_list = []
+    for event_section in event_sections:
+        tab_list = []
+        if "planng" not in event_section[1]:
+            tab_list = extract_tabs_from_plan(driver, event_section[1])
+        else:
+            tab_list = extract_tabs_from_planng(driver, event_section[1], event_section[0], base_url)
+
+        if len(tab_list) > 1:
+            for tab in tab_list:
+                tab[0] = f"{event_section[0]} ({tab[0]})"
+                new_event_sections_list.append(tab)
+        else:
+            new_event_sections_list.append(event_section)
+    return new_event_sections_list
 
 urls = open(sys.argv[1], 'r').readlines()
 result_filename = "result.csv"
 prev_base_url = ""
 options = Options()
-#options.headless = True
+options.headless = True
 driver = webdriver.Chrome(options=options)
 with open(result_filename,'w') as file:
     pass
@@ -29,8 +101,8 @@ for url in urls:
         username_field = driver.find_element("id", "UserName")
         password_field = driver.find_element("id", "Password")
         submit_btn = driver.find_element("id", "lnkLogin")
-        username_field.send_keys("PMGMT")
-        password_field.send_keys("8Huds(3d")
+        username_field.send_keys("superlion")
+        password_field.send_keys("CTAKAH613777")
         submit_btn.click()
     driver.get(url)
     WebDriverWait(driver, 30).until(
@@ -80,7 +152,8 @@ for url in urls:
                     break
             if exclude_section_not_exists:
                 event_sections.append([link.find_element(By.CSS_SELECTOR, "span").text, link.get_attribute("href")])
-
+        
+    event_sections = get_event_sections_list_with_tabs_extracted(event_sections, base_url, driver)
     prev_base_url = base_url
     
     with open(result_filename, "a+") as file:
