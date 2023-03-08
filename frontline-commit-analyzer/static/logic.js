@@ -1,8 +1,8 @@
 const base_url = 'http://localhost:3443'
-const prs_path = `${base_url}/prs.json`;
+const prs_path = `prs.json`;
 
 async function get_prs(){
-    const url = `${base_url}/prs.json`;
+    const url = prs_path;
     try {
         const response = await fetch(url, {'cache': 'no-cache'})
         if(response.ok){
@@ -37,6 +37,17 @@ $.each(data, function(index, item) {
             return sum + 1;
         }, 0);
     }, 0);
+    const date = new Date(item['Merged at'])
+    const options = {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+    };
+    const formattedDate = date.toLocaleString("en-US", options).replace(/\//g, ".");
 
     // Create the main row for the current item
     var $row = $('<tr>', {
@@ -48,6 +59,7 @@ $.each(data, function(index, item) {
         $('<td>').append(
             $('<a>', { href: item.Url }).text(item.number)
         ),
+        $('<td>').text(formattedDate),
         $('<td>').text(item['Merged by']),
         $('<td>').append(
             $('<ul>').append(
@@ -70,11 +82,16 @@ $.each(data, function(index, item) {
         class: 'collapse',
         colspan: 3
     }).append(
-        $('<td>', { colspan: 6 }).append(
+        $('<td>', { colspan: 7 }).append(
             $('<div>').append(
                 $('<h5>').text('Commits:'),
                 $('<ul>').append(
                     item.commits.map(function(commit) {
+                        const createDate = new Date(commit['Create Date']);
+                        const uploadDate = new Date(commit['Upload Date']);
+                        const formattedUploadDate = uploadDate.toLocaleString("en-US", options).replace(/\//g, ".");
+                        const formattedCreateDate = createDate.toLocaleString("en-US", options).replace(/\//g, ".");
+
                         return $('<li>', { class : 'commit'}).append(
                             'Name: ',
                             $('<a>', { href: commit.Url }).text(commit.Message),
@@ -83,9 +100,9 @@ $.each(data, function(index, item) {
                                 $('<strong>').append(
                                     commit.Author),
                                 $('<br>'),
-                                'Creation date: ' + commit['Create Date'],
+                                'Creation date: ' + formattedCreateDate,
                                 $('<br>'),
-                                'Upload date: ' + commit['Upload Date'],),
+                                'Upload date: ' + formattedUploadDate,),
                             $('<div>', { class: 'row' }).append(
                                 $('<div>', { class: 'col-md-8 tab-name' }).append(
                                     $('<strong>').append(
@@ -97,9 +114,10 @@ $.each(data, function(index, item) {
                                     $('<strong>').append(
                                         'AI Status' ))),
                             $('<ul>').append(
-                                commit.Files.filter(function(file) {
-                                    return file.patch;
-                                }).map(function(file) {
+                                commit.Files.map(function(file) {
+                                    if (file.patch == null) {
+                                        file.patch = 'Not load'
+                                    }
                                     var patchHeaderRegex = /^@@\s-(\d+),(\d+)\s\+(\d+),(\d+)\s@@/;
                                     var patchHeader = file.patch.match(patchHeaderRegex);
                                     var patchLines = file.patch.split('\n');
@@ -147,7 +165,7 @@ $.each(data, function(index, item) {
                                                 button.prop('disabled', true);
                                                 var sha = button.attr('sha');
                                                 
-                                                const url = `${base_url}/review?sha=${sha}`;
+                                                const url = `/review?sha=${sha}`;
                                                 try {
                                                     const response = await fetch(url, {'cache': 'no-cache'})
                                                     if(response.ok){
@@ -194,7 +212,7 @@ let update = $('#update')
 update.on('click', async e => {
     update.prop('disabled', true);
     const hours = $('#hours').val();
-    const url = `${base_url}/analyze?hours=${hours}`;
+    const url = `/analyze?hours=${hours}`;
     try {
         const response = await fetch(url, {'cache': 'no-cache'})
         if(response.ok){
