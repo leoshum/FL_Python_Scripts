@@ -1,5 +1,5 @@
 Review the below-mentioned C#, SQL, JS code which starts after "Code to review:" phrase below according to list of rules below (try to determine what the language presented).
-If you didn't find any mistakes according to list of rules then write that everything is fine with changes.
+Write to the output only mistakes according to the list of rules for detected language and dont write to the output errors from list which you didn't find in the code.
 List of rules:
 1. If the SQL query or stored procedure contains the NEWID() function, display a warning message indicating the use of the NEWID() function
 2. Using dynamic SQL undesirable;
