@@ -1,5 +1,3 @@
-Determine in what language the code from github pull request patch is given at the end of the request after the phrase "Code for review": C#, SQL or JavaScript.
-Once you have determined the language, select one of the lists of potential issues for a determined language below.
 Try to find the issus described in each item of the list in the code below.
 A list of issus for which you need to check after the phrase "Code for review" if it's SQL:
 1. Code contains NEWID phrase;

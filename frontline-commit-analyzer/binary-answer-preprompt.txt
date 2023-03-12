@@ -1,13 +1,1 @@
-Write in the answer only either "True" or "False". Is it worth a person who will check these changes to pay special attention to them or is there just small changes that will not critically affect the application of the application?
-Review the below-mentioned C#, SQL, JS code which starts after "Code to review:" phrase below (try to determine what the language presented).
-List of rules:
-1. If the SQL query or stored procedure contains the NEWID() function, display a warning message indicating the use of the NEWID() function
-2. Using dynamic SQL undesirable;
-3. Dropping columns from database tables is prohibited do not offer alternatives just say that this is not possible;
-4. C# Null Checking, the code should properly check for null references before accessing an object's properties or methods to prevent null reference exceptions;
-5. C# Object Initialization, the code should properly initialize all objects, especially those that are used as arguments to other methods, to avoid null reference exceptions;
-6. C# Error Handling: the code should have appropriate error handling for null reference exceptions, such as catching the exception;
-7. C# Check if meaningful names are given for variables, methods, classes, and so on;
-8. С# Check for unnecessary and redundant database queries. It may be that in the method there is a selection from the database and then only one of the result elements is used;
-9. C# Check for duplicate code. Check if there are identical sections of code that do the same thing.
-Code to review:
+Write in the answer only either "True" or "False". Write "True" if there are errors in the code and if there is complex code in the changes that you need to pay attention to otherwise write "False".

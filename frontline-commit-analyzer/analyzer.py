@@ -109,8 +109,8 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider, s
         if file['sha'] not in sha_exist_files:
             review = ""
             try:
-                review = codereview_provider.get_code_review(file.get('patch'))
-                binary_answer = "True" in codereview_provider.get_binary_answer(file.get('patch'))
+                review = codereview_provider.get_code_review(file.get('patch'), file.get('url'))
+                binary_answer = "True" in codereview_provider.get_binary_answer(file.get('patch'), file.get('url'))
                 if binary_answer:
                     binary_answer = 0
                 else:
