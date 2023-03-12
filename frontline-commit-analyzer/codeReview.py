@@ -27,7 +27,7 @@ class CodeReviewProvider:
             frequency_penalty=0,
             presence_penalty=0
         )
-        return completion.choices[0].text
+        return completion.choices[0].text.strip()
     
     def get_code_review(self, code):
         return self.get_bot_answer(self.prepromt, code)
@@ -36,13 +36,14 @@ class CodeReviewProvider:
         return self.get_bot_answer(self.binary_prepromt, code)
     
 def main():
-    code = ""
+    codes = []
     with open("code-sample.txt", "r") as file:
-        code = file.read()
+        codes = file.readlines()
 
     code_review = CodeReviewProvider()
-    print(code_review.get_code_review(code))
-    print("----------")
-    print(code_review.get_binary_answer(code))
+    for code in codes:
+        print(code_review.get_code_review(code))
+        print(f"Attention: {code_review.get_binary_answer(code)}")
+        print("---------------")
 if __name__ == "__main__":
     main()
