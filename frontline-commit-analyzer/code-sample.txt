@@ -1,0 +1,1 @@
+@@ -49,5 +49,10 @@ public static class MigrationToolConstants\n         /// StudentParentalConsent\n         /// </summary>\n         public const string StudentParentalConsent = \"StudentParentalConsent\";\n+\n+        /// <summary>\n+        /// Caseload destination\n+        /// </summary>\n+        public const string ProviderCaseload = \"ProviderCaseload\";\n     }\n }

@@ -1,2 +1,0 @@
-Find the following errors in the code from file patch in the pull request below (1. Code contains NEWID phrase;2. Code contains dynamic SQL;3. Code drops column from a table schema using alter table drop column;).
-Code for review:

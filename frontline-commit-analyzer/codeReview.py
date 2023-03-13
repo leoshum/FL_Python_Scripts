@@ -14,6 +14,12 @@ class CodeReviewProvider:
         with open(f"{os.path.dirname(__file__)}\\sql-issues.txt", "r") as file:
             self.sql_preprompt = file.read()
         
+        with open(f"{os.path.dirname(__file__)}\\angular-issues.txt", "r") as file:
+            self.angular_preprompt = file.read()
+        
+        with open(f"{os.path.dirname(__file__)}\\js-issues.txt", "r") as file:
+            self.js_preprompt = file.read()
+        
         with open(f"{os.path.dirname(__file__)}\\binary-answer-preprompt.txt", "r") as file:
             self.binary_prepromt = file.read()
 
@@ -25,8 +31,10 @@ class CodeReviewProvider:
             code_issues = self.csharp_preprompt
         elif file_ext == ".sql":
             code_issues = self.sql_preprompt
+        elif file_ext == ".ts":
+            code_issues = self.angular_preprompt
         elif file_ext == ".js":
-            file_ext = prepromt
+            file_ext = self.js_preprompt
         else:
             file_ext = prepromt
 
@@ -64,8 +72,8 @@ def main():
 
     code_review = CodeReviewProvider()
     for code in codes:
-        print(code_review.get_code_review(code, "https://api.github.com/repos/octokit/octokit.rb/contents/README.sql"))
-        print(f"Attention: {code_review.get_binary_answer(code, 'https://api.github.com/repos/octokit/octokit.rb/contents/README.sql')}")
+        print(code_review.get_code_review(code, "https://api.github.com/repos/octokit/octokit.rb/contents/README.cs"))
+        print(f"Attention: {code_review.get_binary_answer(code, 'https://api.github.com/repos/octokit/octokit.rb/contents/README.cs')}")
         print("---------------")
 if __name__ == "__main__":
     main()

@@ -1,1 +1,0 @@
-Write in the answer only either "True" or "False". Write "True" if there are errors in the code and if there is complex code in the changes that you need to pay attention to otherwise write "False".
