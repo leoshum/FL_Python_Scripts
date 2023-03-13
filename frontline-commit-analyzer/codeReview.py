@@ -5,16 +5,16 @@ import os
 class CodeReviewProvider:
     def __init__(self):
         openai.api_key = os.environ.get("OPENAI_API_TOKEN")
-        with open("preprompt.txt", "r") as file:
+        with open(f"{os.path.dirname(__file__)}\\preprompt.txt", "r") as file:
             self.prepromt = file.read()
         
-        with open("c-sharp-issues.txt", "r") as file:
+        with open(f"{os.path.dirname(__file__)}\\c-sharp-issues.txt", "r") as file:
             self.csharp_preprompt = file.read()
 
-        with open("sql-issues.txt", "r") as file:
+        with open(f"{os.path.dirname(__file__)}\\sql-issues.txt", "r") as file:
             self.sql_preprompt = file.read()
         
-        with open("binary-answer-preprompt.txt", "r") as file:
+        with open(f"{os.path.dirname(__file__)}\\binary-answer-preprompt.txt", "r") as file:
             self.binary_prepromt = file.read()
 
     def get_bot_answer(self, prepromt, code, file_path, binary_answer=False):

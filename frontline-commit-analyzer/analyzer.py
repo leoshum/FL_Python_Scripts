@@ -110,8 +110,9 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider, s
             review = ""
             binary_answer = 1
             try:
-                review = codereview_provider.get_code_review(file.get('patch'), file.get('url'))
-                binary_answer = "True" in codereview_provider.get_binary_answer(file.get('patch'), file.get('url'))
+                url = file.get('filename')
+                review = codereview_provider.get_code_review(file.get('patch'), url)
+                binary_answer = "True" in codereview_provider.get_binary_answer(file.get('patch'), url)
                 if binary_answer:
                     binary_answer = 0
                 else:
@@ -120,7 +121,7 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider, s
                 logger.info(msg=f"error {e}")
             files.append({
                 'sha' : file['sha'],
-                'url' : file.get('url'),
+                'url' : url,
                 'name' : file['filename'],
                 'patch' : file.get('patch'),
                 'state' : binary_answer, # 0 - bad, 1 - warning, 2 - good
