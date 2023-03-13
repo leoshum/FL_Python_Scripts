@@ -42,7 +42,7 @@ async def review_commit(sha):
             for file in commit['Files']:
                 if file['sha'] == sha:
                     codereview_provider = CodeReviewProvider()
-                    review = codereview_provider.get_code_review(file['patch'])
+                    review = codereview_provider.get_code_review(file['patch'], file['url'])
                     file['review'] = review
                     write_pull_requests(pull_requests)
                     return review
