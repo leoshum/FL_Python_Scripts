@@ -120,6 +120,7 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider, s
                 logger.info(msg=f"error {e}")
             files.append({
                 'sha' : file['sha'],
+                'url' : file.get('url'),
                 'name' : file['filename'],
                 'patch' : file.get('patch'),
                 'state' : binary_answer, # 0 - bad, 1 - warning, 2 - good
