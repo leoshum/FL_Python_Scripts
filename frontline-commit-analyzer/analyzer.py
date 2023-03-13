@@ -35,6 +35,24 @@ def write_pull_requests(pull_requests):
     with open(pull_request_path,'w',encoding='UTF-8') as file:
         file.write(json.dumps(pull_requests, indent=2, ensure_ascii=False))
 
+def review_file(codereview_provider, file):    
+    review = ""
+    binary_answer = 1
+    try:
+        url = file.get('filename')
+        review = codereview_provider.get_code_review(file.get('patch'), url)
+        binary_answer = "True" in codereview_provider.get_binary_answer(file.get('patch'), url)
+        if binary_answer:
+            binary_answer = 0
+        else:
+            binary_answer = 2
+        return {
+            'review': review,
+            'state' : binary_answer
+        }
+    except Exception as e:
+        logger.info(msg=f"Review error {e}")
+
 async def review_commit(sha):
     pull_requests = read_pull_requests()
     for pull_request in pull_requests:
@@ -42,8 +60,9 @@ async def review_commit(sha):
             for file in commit['Files']:
                 if file['sha'] == sha:
                     codereview_provider = CodeReviewProvider()
-                    review = codereview_provider.get_code_review(file['patch'], file['url'])
-                    file['review'] = review
+                    review = review_file(codereview_provider, file)
+                    file['review'] = review.get('review')
+                    file['state'] = review.get('state')
                     write_pull_requests(pull_requests)
                     return review
     raise Exception(f'Not found commit with sha [{sha}].' )
@@ -107,25 +126,14 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider, s
     files = []
     for file in cmt['files']:
         if file['sha'] not in sha_exist_files:
-            review = ""
-            binary_answer = 1
-            try:
-                url = file.get('filename')
-                review = codereview_provider.get_code_review(file.get('patch'), url)
-                binary_answer = "True" in codereview_provider.get_binary_answer(file.get('patch'), url)
-                if binary_answer:
-                    binary_answer = 0
-                else:
-                    binary_answer = 2
-            except Exception as e:
-                logger.info(msg=f"error {e}")
+            review = review_file(codereview_provider, file)
             files.append({
                 'sha' : file['sha'],
-                'url' : url,
+                'filename' : file.get('filename'),
                 'name' : file['filename'],
                 'patch' : file.get('patch'),
-                'state' : binary_answer, # 0 - bad, 1 - warning, 2 - good
-                'review': review})
+                'state' : review.get('state'), # 0 - bad, 1 - warning, 2 - good
+                'review': review.get('review')})
     commit['Files'] = files
     url = f"{base_url}/commits/{commit['sha']}/pulls"
     prs = await get(url, token, session)
