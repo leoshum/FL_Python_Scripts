@@ -26,6 +26,11 @@ class CodeReviewProvider:
     def get_bot_answer(self, prepromt, code, file_path, binary_answer=False):
         model_engine = "text-davinci-003"
         file_ext = os.path.splitext(file_path)[1]
+        
+        ext_to_excluede = [".xml", ".rdlc", ".resx", ".json", ".md"]
+        if file_ext in ext_to_excluede:
+            return "Skipped"
+        
         code_issues = ""
         if file_ext == ".cs":
             code_issues = self.csharp_preprompt
