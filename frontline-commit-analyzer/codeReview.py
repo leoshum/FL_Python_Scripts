@@ -24,10 +24,10 @@ class CodeReviewProvider:
             self.binary_prepromt = file.read()
 
     def get_bot_answer(self, prepromt, code, file_path, binary_answer=False):
-        model_engine = "text-davinci-003"
+        model_engine = "gpt-3.5-turbo"
         file_ext = os.path.splitext(file_path)[1]
         
-        ext_to_excluede = [".xml", ".rdlc", ".resx", ".json", ".md"]
+        ext_to_excluede = [".xml", ".rdlc", ".resx", ".json", ".md", ".csproj", ".sln"]
         if file_ext in ext_to_excluede:
             return "Skipped"
         

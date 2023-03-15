@@ -41,7 +41,8 @@ def review_file(codereview_provider, file):
     try:
         url = file.get('filename')
         review = codereview_provider.get_code_review(file.get('patch'), url)
-        binary_answer = "True" in codereview_provider.get_binary_answer(file.get('patch'), url)
+        binary_answer = codereview_provider.get_binary_answer(file.get('patch'), url)
+        binary_answer = "True" in binary_answer or "Skipped" in binary_answer
         if binary_answer:
             binary_answer = 0
         else:
