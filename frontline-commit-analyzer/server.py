@@ -1,8 +1,7 @@
-import asyncio
 import mimetypes
 import os
 import logging
-from analyzer import analyze_commits, review_commit
+from analyzer import Analyzer
 from aiohttp import web
 
 file_name = os.path.splitext(os.path.basename(__file__))[0]
@@ -34,9 +33,9 @@ async def analyze(request):
     except ValueError as e:
         logger.error(e)
         return web.Response(status=500, text=str(e))
-    
+    analyzer = Analyzer()
     try:
-        await analyze_commits(hours)
+        await analyzer.analyze_commits(hours)
         return web.Response(status=200)
     except Exception as e:
         logger.error(e)
@@ -50,8 +49,10 @@ async def review(request):
         logger.error(e)
         return web.Response(status=500, text=str(e))
     
+    analyzer = Analyzer()
     try:
-        return web.Response(status=200, text=await review_commit(sha))
+        await analyzer.review_commit(sha)
+        return web.Response(status=200)
     except Exception as e:
         logger.info(msg=f"error {e}")
         return web.Response(status=500, text=str(e))
@@ -67,6 +68,5 @@ async def init_app():
     return app
 
 
-loop = asyncio.get_event_loop()
-app = loop.run_until_complete(init_app())
+app = init_app()
 web.run_app(app, port=3443)
