@@ -131,7 +131,7 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider, s
     files = []
     for file in cmt['files']:
         if file['sha'] not in sha_exist_files:
-            review == None
+            review = None
             review = review_file(codereview_provider, file)
             if review == None:
                 review = {}
