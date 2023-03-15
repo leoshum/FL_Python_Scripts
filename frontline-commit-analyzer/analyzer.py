@@ -54,17 +54,22 @@ def review_file(codereview_provider, file):
         logger.info(msg=f"Review error {e}")
 
 async def review_commit(sha):
-    pull_requests = read_pull_requests()
-    for pull_request in pull_requests:
-        for commit in pull_request['commits']:
-            for file in commit['Files']:
-                if file['sha'] == sha:
-                    codereview_provider = CodeReviewProvider()
-                    review = review_file(codereview_provider, file)
-                    file['review'] = review.get('review')
-                    file['state'] = review.get('state')
-                    write_pull_requests(pull_requests)
-                    return review
+    try:
+        pull_requests = read_pull_requests()
+        for pull_request in pull_requests:
+            for commit in pull_request['commits']:
+                for file in commit['Files']:
+                    if file['sha'] == sha:
+                        codereview_provider = CodeReviewProvider()
+                        review = review_file(codereview_provider, file)
+
+                        file['review'] = review.get('review')
+                        file['state'] = review.get('state')
+                        write_pull_requests(pull_requests)
+                        return review
+    except Exception as ex:
+        raise Exception(f'Error during update file {ex}.' )
+
     raise Exception(f'Not found commit with sha [{sha}].' )
 
 async def analyze_commits(hours = 12):
@@ -126,7 +131,10 @@ async def get_commit_info(commit, session, pull_requests, codereview_provider, s
     files = []
     for file in cmt['files']:
         if file['sha'] not in sha_exist_files:
+            review == None
             review = review_file(codereview_provider, file)
+            if review == None:
+                review = {}
             files.append({
                 'sha' : file['sha'],
                 'filename' : file.get('filename'),
