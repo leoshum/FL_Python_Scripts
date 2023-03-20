@@ -169,7 +169,8 @@ $.each(data, function(index, item) {
                                                 try {
                                                     const response = await fetch(url, {'cache': 'no-cache'})
                                                     if(response.ok){
-                                                        button.parent().parent().find('.review').text(await response.text());
+                                                        fill_table()
+                                                        // button.parent().parent().find('.review').text(await response.text());
                                                     }
                                                 }
                                                 catch(error){

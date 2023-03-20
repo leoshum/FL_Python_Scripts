@@ -52,7 +52,9 @@ class Analyzer:
                     for file in commit['Files']:
                         if file['sha'] == sha:
                             await self.review_file(file)
-                            self.write_pull_requests(self.pull_requests)
+                            self.write_pull_requests()
+                            
+                            return
         except Exception as ex:
             raise Exception(f'Error during update file {ex}.' )
 
@@ -87,7 +89,6 @@ class Analyzer:
     
     async def process_commits(self, start):
         async with aiohttp.ClientSession() as session:
-            codereview_provider = CodeReviewProvider()
             # Collect commit information
             page = 1
             is_continue = True

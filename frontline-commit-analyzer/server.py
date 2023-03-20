@@ -54,7 +54,7 @@ async def review(request):
         await analyzer.review_commit(sha)
         return web.Response(status=200)
     except Exception as e:
-        logger.info(msg=f"error {e}")
+        logger.info(msg=f"Review {sha} error {e}")
         return web.Response(status=500, text=str(e))
 
 async def init_app():
