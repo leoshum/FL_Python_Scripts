@@ -34,7 +34,7 @@ class Analyzer:
         self.branch = 'develop'
         self.token = os.environ.get('GITHUB_TOKEN')
 
-        self.codereview_provider = CodeReviewProvider()
+        self.codereview_provider = CodeReviewProvider(chat_completion=True)
 
     def read_pull_requests(self):
         with open(self.pull_request_path, mode='r', encoding='UTF-8') as file:

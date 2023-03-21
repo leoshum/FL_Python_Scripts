@@ -3,7 +3,8 @@ import tiktoken
 import os
 
 class CodeReviewProvider:
-    def __init__(self):
+    def __init__(self, chat_completion=False):
+        self.chat_completion = chat_completion
         openai.api_key = os.environ.get("OPENAI_API_TOKEN")
         with open(f"{os.path.dirname(__file__)}\\preprompt.txt", "r") as file:
             self.prepromt = file.read()
@@ -23,8 +24,34 @@ class CodeReviewProvider:
         with open(f"{os.path.dirname(__file__)}\\binary-answer-preprompt.txt", "r") as file:
             self.binary_prepromt = file.read()
 
-    def get_bot_answer(self, prepromt, code, file_path, binary_answer=False):
+    def get_chat_completion_answer(self, prompt):
+        response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response['choices'][0]['message']['content']
+
+    def get_completion_answer(self, prompt):
         model_engine = "text-davinci-003"
+        encoding = tiktoken.get_encoding("p50k_base")
+        max_tokens = 4097 - len(encoding.encode(prompt))
+        if max_tokens < 0:
+            max_tokens = 4097
+        completion = openai.Completion.create(
+            engine=model_engine,
+            prompt=prompt,
+            max_tokens=max_tokens,
+            temperature=0.5,
+            top_p=1,
+            frequency_penalty=0,
+            presence_penalty=0
+        )
+        return completion.choices[0].text.strip()
+
+    def get_bot_answer(self, prepromt, code, file_path, binary_answer=False):
         file_ext = os.path.splitext(file_path)[1]
         
         ext_to_excluede = [".xml", ".rdlc", ".resx", ".json", ".md", ".csproj", ".sln"]
@@ -49,20 +76,12 @@ class CodeReviewProvider:
         else:
             prompt = f"{code_issues}\n{code}"
 
-        encoding = tiktoken.get_encoding("p50k_base")
-        max_tokens = 4097 - len(encoding.encode(prompt))
-        if max_tokens < 0:
-            max_tokens = 4097
-        completion = openai.Completion.create(
-            engine=model_engine,
-            prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=0.5,
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0
-        )
-        return completion.choices[0].text.strip()
+        result = ""
+        if self.chat_completion:
+            result = self.get_chat_completion_answer(prompt)
+        else:
+            result = self.get_completion_answer(prompt)
+        return result
     
     def get_code_review(self, code, file_path):
         return self.get_bot_answer(self.prepromt, code, file_path)
@@ -75,7 +94,7 @@ def main():
     with open("code-sample.txt", "r") as file:
         codes = file.readlines()
 
-    code_review = CodeReviewProvider()
+    code_review = CodeReviewProvider(chat_completion=True)
     for code in codes:
         print(code_review.get_code_review(code, "https://api.github.com/repos/octokit/octokit.rb/contents/README.cs"))
         print(f"Attention: {code_review.get_binary_answer(code, 'https://api.github.com/repos/octokit/octokit.rb/contents/README.cs')}")
