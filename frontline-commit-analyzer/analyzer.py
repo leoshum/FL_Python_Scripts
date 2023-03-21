@@ -8,198 +8,203 @@ from codeReview import CodeReviewProvider
 
 import aiohttp
 
-file_name = os.path.splitext(os.path.basename(__file__))[0]
-root_directory = os.path.dirname(__file__)
-pull_request_path = f'{root_directory}\\static\\prs.json'
-
-input_format = '%Y-%m-%dT%H:%M:%SZ'
-time_zone = pytz.utc
-utc_now = datetime.now(time_zone)
-
-token = os.environ.get('GITHUB_TOKEN')
-
-branch = 'develop'
-github_url = 'https://api.github.com'
-repo = 'CW-0575-IEP'
-owner = 'FrontlineEducation'
-base_url = f"{github_url}/repos/{owner}/{repo}"
-
-logger = logging.getLogger(file_name)
-logging.basicConfig(level=logging.INFO)
-
-def read_pull_requests():
-    with open(pull_request_path, mode='r', encoding='UTF-8') as file:
-        return json.load(file)
-
-def write_pull_requests(pull_requests):
-    with open(pull_request_path,'w',encoding='UTF-8') as file:
-        file.write(json.dumps(pull_requests, indent=2, ensure_ascii=False))
-
-def review_file(codereview_provider, file):    
-    review = ""
-    binary_answer = 1
-    try:
-        url = file.get('filename')
-        review = codereview_provider.get_code_review(file.get('patch'), url)
-        binary_answer = codereview_provider.get_binary_answer(file.get('patch'), url)
-        binary_answer = "True" in binary_answer or "Skipped" in binary_answer
-        if binary_answer:
-            binary_answer = 0
+class Analyzer:
+    def __init__(self):
+        file_name = os.path.splitext(os.path.basename(__file__))[0]
+        self.root_directory = os.path.dirname(__file__)
+        self.pull_request_path = f'{self.root_directory}\\static\\prs.json'
+        if os.path.exists(self.pull_request_path):
+            self.read_pull_requests()
+            self.sha_exist_files = [file['sha'] for pr in self.pull_requests for commit in pr['commits'] for file in commit['Files']]
         else:
-            binary_answer = 2
-        return {
-            'review': review,
-            'state' : binary_answer
-        }
-    except Exception as e:
-        logger.info(msg=f"Review error {e}")
+            self.pull_requests = []
+            self.sha_exist_files = []
 
-async def review_commit(sha):
-    try:
-        pull_requests = read_pull_requests()
-        for pull_request in pull_requests:
+        self.logger = logging.getLogger(file_name)
+        logging.basicConfig(level=logging.INFO)
+
+        self.time_zone = pytz.utc
+        self.utc_now = datetime.now(self.time_zone)
+        self.input_format = '%Y-%m-%dT%H:%M:%SZ'
+
+        github_url = 'https://api.github.com'
+        repo = 'CW-0575-IEP'
+        owner = 'FrontlineEducation'
+        self.base_url = f"{github_url}/repos/{owner}/{repo}"
+        self.branch = 'develop'
+        self.token = os.environ.get('GITHUB_TOKEN')
+
+        self.codereview_provider = CodeReviewProvider()
+
+    def read_pull_requests(self):
+        with open(self.pull_request_path, mode='r', encoding='UTF-8') as file:
+            self.pull_requests = json.load(file)
+            
+    def write_pull_requests(self):
+        self.pull_requests.sort(key=lambda pr: datetime.strptime(pr['Merged at'], self.input_format),reverse=True)
+        with open(self.pull_request_path,'w',encoding='UTF-8') as file:
+            file.write(json.dumps(self.pull_requests, indent=2, ensure_ascii=False))
+
+    async def review_commit(self, sha):
+        try:
+            for pull_request in self.pull_requests:
+                for commit in pull_request['commits']:
+                    for file in commit['Files']:
+                        if file['sha'] == sha:
+                            await self.review_file(file)
+                            self.write_pull_requests()
+                            
+                            return
+        except Exception as ex:
+            raise Exception(f'Error during update file {ex}.' )
+
+        raise Exception(f'Not found commit with sha [{sha}].' )
+    
+    async def review_file(self, file):    
+        review = ""
+        binary_answer = 1
+        try:
+            url = file.get('filename')
+
+            loop = asyncio.get_event_loop()
+            review = await loop.run_in_executor(None, self.codereview_provider.get_code_review, file.get('patch'), url)
+            binary_answer = await loop.run_in_executor(None, self.codereview_provider.get_binary_answer, file.get('patch'), url)
+            
+            binary_answer = "True" in binary_answer or "Skipped" in binary_answer
+            if binary_answer:
+                binary_answer = 0
+            else:
+                binary_answer = 2
+            
+            file['review'] = review
+            file['state'] = binary_answer
+            self.logger.info(msg=f"Reviewed [{file['sha']}] file.")
+        except Exception as e:
+            self.logger.info(msg=f"Review error {e}")
+
+    async def analyze_commits(self, hours = 12):
+        start = self.utc_now - timedelta(hours=hours)
+        
+        await self.process_commits(start)
+    
+    async def process_commits(self, start):
+        async with aiohttp.ClientSession() as session:
+            # Collect commit information
+            page = 1
+            is_continue = True
+            tasks = []
+            while is_continue:
+                url = f"{self.base_url}/commits?page={page}&branch={self.branch}"
+                cmts = await self.get(url, self.token, session)
+                self.logger.info(msg=f"Recived [{len(cmts)}] commits from [{page}] page for [{self.branch}] branch.")
+
+                for commit in cmts:
+                    date = self.time_zone.localize(datetime.strptime(commit['commit']['committer']['date'], self.input_format))
+                    if date < start:
+                        is_continue = False
+                        break
+
+                    tasks.append(asyncio.create_task(self.get_commit_info({
+                        'sha': commit['sha'],
+                        'Upload Date': date.isoformat(sep=' ', timespec='seconds'),
+                        'Upload Date' : commit['commit']['committer']['date'],
+                        'Create Date': commit['commit']['author']['date'],
+                        'Message': commit['commit']['message'],
+                        'Author': commit['commit']['author']['name'],
+                        'Url': commit['html_url'],
+                        'Files': []
+                    }, session)))
+                page += 1
+
+            try:
+                await asyncio.wait_for(asyncio.gather(*tasks), timeout=len(tasks) * 180)
+            except asyncio.TimeoutError:
+                self.logger.warning(msg="Timeout error: one or more tasks took too long to complete.")
+        
+        self.pull_requests.sort(key=lambda pr: datetime.strptime(pr['Merged at'], self.input_format),reverse=True)
+        self.write_pull_requests()
+
+    async def get_commit_info(self, commit, session):
+        # Collect file information
+        url = f"{self.base_url}/commits/{commit['sha']}"
+        cmt = await self.get(url, self.token, session)
+        self.logger.info(msg=f"Recived [{commit['sha']}] commit.")
+        files = []
+        for file in cmt['files']:
+            if file['sha'] not in self.sha_exist_files:
+                files.append({
+                    'sha' : file['sha'],
+                    'filename' : file.get('filename'),
+                    'name' : file['filename'],
+                    'patch' : file.get('patch'),
+                    'state' : '',
+                    'review': ''})
+                self.sha_exist_files.append(file['sha'])
+        commit['Files'] = files
+        url = f"{self.base_url}/commits/{commit['sha']}/pulls"
+        prs = await self.get(url, self.token, session)
+        self.logger.info(msg=f"Recived [{len(prs)}] pull requests for [{commit['sha']}] commit.")
+
+        for pr in prs:
+            await self.update_pull_request(pr, commit=commit,base_url=self.base_url,token=self.token,  session=session)
+
+    async def update_pull_request(self, pr, commit, base_url, token, session):
+        exist_pr = [pull_request['number'] for pull_request in self.pull_requests]
+        if pr['number'] in exist_pr:
+            if commit['sha'] not in [commit['sha'] for commit in self.pull_requests[exist_pr.index(pr['number'])]['commits']]:
+                self.pull_requests[exist_pr.index(pr['number'])]['commits'].append(commit)
+        else:
+            url = f"{base_url}/pulls/{pr['number']}"
+            pull_request = await self.get(url, token, session)
+            self.logger.info(msg=f"Recived [{pr['number']}] pull requests.")
+            
+            pull_request = {
+                'number' : pull_request['number'],
+                'commits' : [commit],
+                'Merged by' : pull_request['merged_by']['login'],
+                'Merged at' : pull_request['merged_at'],
+                'Url' : pull_request['html_url'],
+                'Comments' : await self.get_reviews(pr_number = pr['number'], session = session)
+            }
+            self.pull_requests.append(pull_request)        
+            self.write_pull_requests()
+
             for commit in pull_request['commits']:
                 for file in commit['Files']:
-                    if file['sha'] == sha:
-                        codereview_provider = CodeReviewProvider()
-                        review = review_file(codereview_provider, file)
+                    await self.review_file(file)
+            
+            self.write_pull_requests()
 
-                        file['review'] = review.get('review')
-                        file['state'] = review.get('state')
-                        write_pull_requests(pull_requests)
-                        return review
-    except Exception as ex:
-        raise Exception(f'Error during update file {ex}.' )
+    async def get_reviews(self, pr_number, session):
+        url = f"{self.base_url}/pulls/{pr_number}/reviews"
+        reviews =  await self.get(url, self.token, session)
+        self.logger.info(msg=f"Recived [{len(reviews)}] reviews for [{pr_number}] pull request.")
 
-    raise Exception(f'Not found commit with sha [{sha}].' )
+        return [{
+                    'Author' : review['user']['login'],
+                    'Text': review['body'],
+                    'State' : review['state']
+                } for review in reviews]
 
-async def analyze_commits(hours = 12):
-    start = utc_now - timedelta(hours=hours)
-    
-    if os.path.exists(pull_request_path):
-        pull_requests = read_pull_requests()
-        sha_exist_files = [file['sha'] for pr in pull_requests for commit in pr['commits'] for file in commit['Files']]
-    else:
-        pull_requests = []
-        sha_exist_files = []
-    
-    await process_commits(start, pull_requests, sha_exist_files)
-
-async def process_commits(start, pull_requests, sha_exist_files):
-    async with aiohttp.ClientSession() as session:
-        codereview_provider = CodeReviewProvider()
-        # Collect commit information
-        page = 1
-        is_continue = True
-        tasks = []
-        while is_continue:
-            url = f"{base_url}/commits?page={page}&branch={branch}"
-            cmts = await get(url, token, session)
-            logger.info(msg=f"Recived [{len(cmts)}] commits from [{page}] page for [{branch}] branch.")
-
-            for commit in cmts:
-                date = time_zone.localize(datetime.strptime(commit['commit']['committer']['date'], input_format))
-                if date < start:
-                    is_continue = False
-                    break
-
-                tasks.append(asyncio.create_task(get_commit_info({
-                    'sha': commit['sha'],
-                    'Upload Date': date.isoformat(sep=' ', timespec='seconds'),
-                    'Upload Date' : commit['commit']['committer']['date'],
-                    'Create Date': commit['commit']['author']['date'],
-                    'Message': commit['commit']['message'],
-                    'Author': commit['commit']['author']['name'],
-                    'Url': commit['html_url'],
-                    'Files': []
-                }, session, pull_requests, codereview_provider, sha_exist_files)))
-            page += 1
-
-        try:
-            await asyncio.wait_for(asyncio.gather(*tasks), timeout=len(tasks) * 60)
-        except asyncio.TimeoutError:
-            logger.warning(msg="Timeout error: one or more tasks took too long to complete.")
-            await asyncio.wait_for(asyncio.gather(*tasks), timeout=len(tasks) * 60)        
-    
-    pull_requests.sort(key=lambda pr: datetime.strptime(pr['Merged at'], input_format),reverse=True)
-    write_pull_requests(pull_requests)
-
-async def get_commit_info(commit, session, pull_requests, codereview_provider, sha_exist_files):
-    # Collect file information
-    url = f"{base_url}/commits/{commit['sha']}"
-    cmt = await get(url, token, session)
-    logger.info(msg=f"Recived [{commit['sha']}] commit.")
-    files = []
-    for file in cmt['files']:
-        if file['sha'] not in sha_exist_files:
-            review = None
-            review = review_file(codereview_provider, file)
-            if review == None:
-                review = {}
-            files.append({
-                'sha' : file['sha'],
-                'filename' : file.get('filename'),
-                'name' : file['filename'],
-                'patch' : file.get('patch'),
-                'state' : review.get('state'), # 0 - bad, 1 - warning, 2 - good
-                'review': review.get('review')})
-    commit['Files'] = files
-    url = f"{base_url}/commits/{commit['sha']}/pulls"
-    prs = await get(url, token, session)
-    logger.info(msg=f"Recived [{len(prs)}] pull requests for [{commit['sha']}] commit.")
-
-    for pr in prs:
-        await update_pull_request(pr, commit=commit,pull_requests=pull_requests,base_url=base_url,token=token,  session=session)
-
-async def update_pull_request(pr, commit, pull_requests, base_url, token, session):
-    exist_pr = [pull_request['number'] for pull_request in pull_requests]
-    if pr['number'] in exist_pr:
-        if commit['sha'] not in [commit['sha'] for commit in pull_requests[exist_pr.index(pr['number'])]['commits']]:
-            pull_requests[exist_pr.index(pr['number'])]['commits'].append(commit)
-    else:
-        url = f"{base_url}/pulls/{pr['number']}"
-        pull_request = await get(url, token, session)
-        logger.info(msg=f"Recived [{pr['number']}] pull requests.")
-        
-        pull_requests.append({
-            'number' : pull_request['number'],
-            'commits' : [commit],
-            'Merged by' : pull_request['merged_by']['login'],
-            'Merged at' : pull_request['merged_at'],
-            'Url' : pull_request['html_url'],
-            'Comments' : await get_reviews(pr_number = pr['number'], session = session)
-        })
-
-async def get_reviews(pr_number, session):
-    url = f"{base_url}/pulls/{pr_number}/reviews"
-    reviews =  await get(url, token, session)
-    logger.info(msg=f"Recived [{len(reviews)}] reviews for [{pr_number}] pull request.")
-
-    return [{
-                'Author' : review['user']['login'],
-                'Text': review['body'],
-                'State' : review['state']
-            } for review in reviews]
-
-async def get(url, token, session):
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": f"token {token}"
-    }
-    attempt = 0
-    while attempt < 3:
-        try:
-            attempt += 1    
-            async with session.get(url, headers=headers) as resp:
-                if resp.status != 200:
-                    raise Exception("Error in API call: " + await resp.text())
-                return await resp.json()
-        except aiohttp.client_exceptions.ClientOSError as e:
-            print(f'Error making request: {e}')
-            await asyncio.sleep(1)
-        except aiohttp.client_exceptions.ServerDisconnectedError as e:
-            print(f'Server disconnected error: {e}')
-            await asyncio.sleep(1)
-        except Exception as e:
-            print(f'Unexpected error occurred: {e}')
-            await asyncio.sleep(1)
+    async def get(self, url, token, session):
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"token {token}"
+        }
+        attempt = 0
+        while attempt < 3:
+            try:
+                attempt += 1    
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status != 200:
+                        raise Exception("Error in API call: " + await resp.text())
+                    return await resp.json()
+            except aiohttp.client_exceptions.ClientOSError as e:
+                print(f'Error making request: {e}')
+                await asyncio.sleep(1)
+            except aiohttp.client_exceptions.ServerDisconnectedError as e:
+                print(f'Server disconnected error: {e}')
+                await asyncio.sleep(1)
+            except Exception as e:
+                print(f'Unexpected error occurred: {e}')
+                await asyncio.sleep(1)
