@@ -286,7 +286,7 @@ def main():
 					row[8].value = f"{min_save_time:.2f}"
 					row[9].value = f"{max_save_time:.2f}"
 					row[10].value = f"{mean_save_time:.2f}"
-					compare_measures(row[19], row[28], row[20])
+					compare_measures(row[19], row[27], row[20])
 					compare_measures(row[10], row[19], row[11])
 				else:
 					row[8].value = ""
