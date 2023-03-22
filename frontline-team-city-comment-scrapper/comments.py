@@ -131,8 +131,6 @@ async def main():
     book.save(filename=comments_path)
 
 async def get_build_info(builds, build, date, session):
-    if build['number'] == '3.43.0.753':
-        print()
     changes_start = 0
     changes_count = 100
     is_continue = True
