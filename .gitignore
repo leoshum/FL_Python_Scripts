@@ -3,3 +3,4 @@
 frontline-team-city-comment-scrapper/*.xlsx
 frontline-commit-analyzer/__pycache__
 frontline-commit-analyzer/static/prs.json
+broadway-parser/client/node_modules

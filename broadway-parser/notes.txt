@@ -1,0 +1,57 @@
+$.getScript(restServiceUrl + "/Performance3Djs.ashx?" + 
+                "pid=" + dataIn.ProductId + 
+                "&prf=" + dataIn.perfId + 
+                "&psi=" + dataIn.PerfSearchIndex + 
+                "&pyr=" + dataIn.perfDateYear + 
+                "&pmo=" + dataIn.perfDateMonth + 
+                "&pda=" + dataIn.perfDateDay + 
+                "&ptp=" + dataIn.perfType + 
+                "&pcs=" + dataIn.priceCodes + 
+                "&rta=" + dataIn.ReturnADASeats + 
+                "&mcs=" + dataIn.marketingCodes + 
+                "&oid=" + dataIn.OfferId + 
+                "&ou="  + dataIn.OperatorUserId + 
+                "&loc=" + dataIn.UserClientId + 
+                "&op="  + dataIn.OperatorOpCode +                 
+                "&sid=" + dataIn.SiteId,
+
+                function (script, textStatus) { }).done(function () { resolve(GetPerfSeats()); });
+        });
+
+function GetEffectivePerfSeatsPrices(perfData) {
+
+    var arr = perfData.Prices || [];
+    var prices = arr.filter(function (p) {
+        var seatIdPrefix = p.FacilityLevel + '-' + p.LogicalLevel;
+
+        var priceIsValid = perfData.Seats.some(function (s) {
+            return s.PriceCode !== null &&
+                    s.Price !== null &&
+                    s.Availability === 2 &&
+                    s.SeatId.indexOf(seatIdPrefix) === 0 &&
+                    s.PriceCode.trim() === p.PriceCode.trim() &&
+                    s.PriceSet === p.PriceSet
+        });
+
+        return priceIsValid;
+    });
+
+    return prices;
+}
+
+"1-1-CTR-A-111"
+MIDPREM, PREMIUM, PREMIUM2
+
+"1-1--A-102".split("-")
+seatArr = ['1', '1', '', 'A', '102']
+seatArr[0] //
+seatArr[1] //
+seatArr[2] //
+seatArr[3] // row
+seatArr[4] // seat
+
+The "Status" property indicates whether the seat is available or not, 
+with values such as "j" (sold), "o" (on hold), "." (unavailable), and "v" (voided).
+
+The "Availability" property provides more information about the availability of a seat, with values such as -1 (not available), 
+2 (available for purchase), 4 (available for exchange), and so on.
