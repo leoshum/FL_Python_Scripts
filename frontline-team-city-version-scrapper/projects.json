@@ -1,0 +1,84 @@
+[
+    {
+        "Environment" : "🍓 AWS PROD",
+        "Clients" : []
+    },
+    {
+        "Environment" : "🍓 AWS PROD 1",
+        "Clients" : []
+    },
+    {
+        "Environment" : "🍓 AWS PROD 2",
+        "Clients" : [
+            "TX Lakedallas"
+        ]
+    },
+    {
+        "Environment" : "🍓 AWS Training",
+        "Clients" : []
+    },
+    {
+        "Environment" : "🍓 AWS PROD 4",
+        "Clients" : []
+    },
+    {
+        "Environment" : "🍓 AWS PROD 5",
+        "Clients" : []
+    },
+    {
+        "Environment" : "🍋 AWS STAGE: stg-acc.ss.frontlineeducation.com (RC)",
+        "Clients" : []
+    },
+    {
+        "Environment" : "🍍 AWS HOTFIX: hotfix-acc.ss.frontlineeducation.com (RC)",
+        "Clients" : []
+    },
+    {
+        "Environment" : "🍍 AWS HTX: site-hotfix-acc.ss.frontlineeducation.com",
+        "Clients" : []
+    },
+    {
+        "Environment" : "💰 Sales",
+        "Clients" : []
+    },
+    {
+        "Environment" : "🍏 AWS DEV: dev-acc.ss.frontlineeducation.com (QC)",
+        "Clients" : []
+    },
+    {
+        "Environment" : "🫐 AWS PRF",
+        "Clients" : []
+    },
+    {
+        "Environment" : "⛅ AWS Sales",
+        "Clients" : []
+    },
+    {
+        "Environment" : "⛅ AWS QC",
+        "Clients" : []
+    },
+    {
+        "Environment" : "DMT",
+        "Clients" : []
+    },
+    {
+        "Environment" : "❤️ PROD: acceliplan.com",
+        "Clients" : []
+    },
+    {
+        "Environment" : "🕑 Training",
+        "Clients" : []
+    },
+    {
+        "Environment" : "💚 Demo: accelidemo.com",
+        "Clients" : []
+    },
+    {
+        "Environment" : "💛 QC: acceliqc.com",
+        "Clients" : []
+    },
+    {
+        "Environment" : "💙 RC: rc.acceliplan.com",
+        "Clients" : []
+    }
+]
