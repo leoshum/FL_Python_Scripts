@@ -4,6 +4,7 @@ from logging import INFO, basicConfig, getLogger
 from os import environ, path
 from aiohttp import ClientSession, TCPConnector, client_exceptions
 from openpyxl import Workbook
+from packaging import version
 
 class VersionScrapper:
     def __init__(self, domain) -> None:
@@ -69,8 +70,29 @@ class VersionScrapper:
         url = f'builds/id:{build}?fields={",".join(fields)}'
         return await self.get(url, session)
 
+    async def process_builds(self, builds, client, session):
+        result = []
+        major_proccessing = 0
+        last_major = version.Version('0.0')
+
+        for build in builds.get('build'):
+            builds_version = version.parse(build.get('number'))
+            if builds_version.minor != last_major.minor:
+                last_major = builds_version
+                major_proccessing += 1
+                if major_proccessing > 3:
+                    break
+            details = await self.build(build.get('id'), session)
+            result.append({
+                'client': client.get('name'),
+                'versions': build.get('number'),
+                'time': details.get('startDate')
+            })
+        return result
+
     
-    #Add date of version build
+    #Make only date without time
+    #3 Major and all minors
     async def start(self):
         result = []
 
@@ -87,13 +109,7 @@ class VersionScrapper:
 
                                 if client.get('name') == cfg_client:
                                     builds = await self.builds(client.get('id'), session)
-                                    for build in builds.get('build'):
-                                        details = await self.build(build.get('id'), session)
-                                        result.append({
-                                            'client': client.get('name'),
-                                            'versions': build.get('number'),
-                                            'time': details.get('startDate')
-                                        })
+                                    result.extend(await self.process_builds(builds, client, session))
         self.save(result)
 
     def save(self, versions):
