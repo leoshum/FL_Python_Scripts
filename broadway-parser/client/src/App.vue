@@ -10,6 +10,32 @@
         <b-form-datepicker class="datepicker" v-model="endDate"></b-form-datepicker>
         <b-button variant="success" @click="search">Search</b-button>
       </div>
+          <div class="form-group">
+            <p><b>Matinees: </b></p>
+            <div
+              class="checkbox-group"
+            >
+              <b-form-checkbox name="check1" class="check" v-model="isChecked">Sat</b-form-checkbox>
+              <b-form-checkbox name="check2" class="check" v-model="isChecked">Sun</b-form-checkbox>
+              <b-form-checkbox name="check3" class="check" v-model="isChecked">Wed</b-form-checkbox>
+              <b-form-checkbox name="check4" class="check" v-model="isChecked">Thu</b-form-checkbox>
+              <b-form-checkbox name="check5" class="check" v-model="isChecked">Fri</b-form-checkbox>
+            </div>
+          </div>
+          <div class="form-group">
+            <p><b>Evenings: </b></p>
+            <div
+              class="checkbox-group"
+            >
+              <b-form-checkbox name="check1" class="check" v-model="isChecked">Fri</b-form-checkbox>
+              <b-form-checkbox name="check2" class="check" v-model="isChecked">Sat</b-form-checkbox>
+              <b-form-checkbox name="check3" class="check" v-model="isChecked">Tue</b-form-checkbox>
+              <b-form-checkbox name="check4" class="check" v-model="isChecked">Wed</b-form-checkbox>
+              <b-form-checkbox name="check5" class="check" v-model="isChecked">Thu</b-form-checkbox>
+              <b-form-checkbox name="check5" class="check" v-model="isChecked">Sun</b-form-checkbox>
+              <b-form-checkbox name="check5" class="check" v-model="isChecked">Mon</b-form-checkbox>
+            </div>
+          </div>
       <b-table :items="items" :per-page="perPage" :current-page="currentPage" id="my-table"></b-table>
     </div>
   </div>
@@ -24,11 +50,12 @@ export default {
   },
   data() {
     return {
+      isChecked: true,
       perPage: 50,
       currentPage: 1,
       startDate: "",
       endDate: "",
-      productId: 0,
+      productId: 13800,
       items: [
       ]
     }
@@ -80,5 +107,14 @@ export default {
 }
 .pageing {
   margin: 0;
+}
+.checkbox-group {
+  display: flex;
+}
+.form-group {
+  display: flex;
+}
+.check {
+  margin-left: 5px;
 }
 </style>
