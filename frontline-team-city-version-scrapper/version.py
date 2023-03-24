@@ -3,8 +3,9 @@ from json import dumps, load
 from logging import INFO, basicConfig, getLogger
 from os import environ, path
 from aiohttp import ClientSession, TCPConnector, client_exceptions
-from openpyxl import Workbook
+import openpyxl
 from packaging import version
+from datetime import datetime
 
 class VersionScrapper:
     def __init__(self, domain) -> None:
@@ -70,7 +71,7 @@ class VersionScrapper:
         url = f'builds/id:{build}?fields={",".join(fields)}'
         return await self.get(url, session)
 
-    async def process_builds(self, builds, client, session):
+    async def process_builds(self, builds, session):
         result = []
         major_proccessing = 0
         last_major = version.Version('0.0')
@@ -82,19 +83,28 @@ class VersionScrapper:
                 major_proccessing += 1
                 if major_proccessing > 3:
                     break
+                major = {
+                    'version' : '.'.join([str(builds_version.major), str(builds_version.micro), str(builds_version.minor)]),
+                    'minors' : []
+                }
+                result.append(major)
             details = await self.build(build.get('id'), session)
-            result.append({
-                'client': client.get('name'),
-                'versions': build.get('number'),
-                'time': details.get('startDate')
+            major.get('minors').append({
+                'number' : builds_version.release[3],
+                'time' : datetime.strptime(details.get('startDate'), '%Y%m%dT%H%M%S%z')
             })
+            # result.append({
+            #     'client': client.get('name'),
+            #     'versions': build.get('number'),
+            #     'time': details.get('startDate')
+            # })
         return result
 
     
     #Make only date without time
     #3 Major and all minors
     async def start(self):
-        result = []
+        result_clients = []
 
         async with ClientSession(connector=TCPConnector(verify_ssl=False),trust_env=True) as session:
             root_projects = await self.projects('DeployNewArchitecture', session)
@@ -108,19 +118,35 @@ class VersionScrapper:
                             for cfg_client in cfg_environment.get('Clients'):
 
                                 if client.get('name') == cfg_client:
-                                    builds = await self.builds(client.get('id'), session)
-                                    result.extend(await self.process_builds(builds, client, session))
-        self.save(result)
+                                    builds = await self.builds(client.get('id'), session)                                    
+                                    result_clients.append({
+                                        "name" : cfg_client,
+                                        'majors' : await self.process_builds(builds, session)
+                                    })
+        self.save(result_clients)
 
-    def save(self, versions):
+    def save(self, clients):
         # with open('result.json', mode='w', encoding='UTF-8') as file:
         #     file.write(dumps(versions, indent=2, ensure_ascii=False))
 
-        book = Workbook()
+        book = openpyxl.Workbook()
         sheet = book.active
         sheet.title = "Versions"
-        for version in versions:
-            sheet.append([name for column, name in version.items()])
+        current_row = 1
+        for client in clients:
+            minors_length = 0
+            sheet.append([client.get('name')])
+            majors = client.get('majors')    
+            for major in majors:
+                sheet.append([major.get('version')])
+                minors = major.get('minors')            
+                for minor in minors:
+                    sheet.append([minor.get('number'), minor.get('time').strftime('%Y-%m-%d')])
+                    minors_length += 1
+            length = 1 + len(majors) + minors_length
+            sheet.row_dimensions.group(current_row, current_row + length, hidden=False)
+            current_row = length
+
         book.save(filename=self.version_path)
 
 with VersionScrapper('teams.acceliplan.com') as scrapper:
