@@ -10,7 +10,7 @@
     {
         "Environment" : "🍓 AWS PROD 2",
         "Clients" : [
-            "TX Lakedallas"
+            "TX Lakedallas", "TX Needville"
         ]
     },
     {
@@ -63,7 +63,7 @@
     },
     {
         "Environment" : "❤️ PROD: acceliplan.com",
-        "Clients" : []
+        "Clients" : ["Broward: (broward)", "Dade", "Alabama: (AL)","Colorado: (CO)"]
     },
     {
         "Environment" : "🕑 Training",

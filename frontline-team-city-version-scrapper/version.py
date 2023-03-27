@@ -84,7 +84,7 @@ class VersionScrapper:
                 if major_proccessing > 3:
                     break
                 major = {
-                    'version' : '.'.join([str(builds_version.major), str(builds_version.micro), str(builds_version.minor)]),
+                    'version' : '.'.join([str(builds_version.major), str(builds_version.minor), str(builds_version.micro)]),
                     'minors' : []
                 }
                 result.append(major)
@@ -102,7 +102,6 @@ class VersionScrapper:
 
     
     #Make only date without time
-    #3 Major and all minors
     async def start(self):
         result_clients = []
 
@@ -144,8 +143,8 @@ class VersionScrapper:
                     sheet.append([minor.get('number'), minor.get('time').strftime('%Y-%m-%d')])
                     minors_length += 1
             length = 1 + len(majors) + minors_length
-            sheet.row_dimensions.group(current_row, current_row + length, hidden=False)
-            current_row = length
+            sheet.row_dimensions.group(current_row, current_row + length - 1, hidden=False)
+            current_row += length
 
         book.save(filename=self.version_path)
 
