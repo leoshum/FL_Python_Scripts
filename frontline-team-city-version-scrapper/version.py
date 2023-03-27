@@ -1,11 +1,14 @@
-from asyncio import get_event_loop, run, sleep
-from json import dumps, load
+from asyncio import get_event_loop, sleep
+from datetime import datetime
+from json import load
 from logging import INFO, basicConfig, getLogger
 from os import environ, path
-from aiohttp import ClientSession, TCPConnector, client_exceptions
+
 import openpyxl
+from aiohttp import ClientSession, TCPConnector, client_exceptions
+from openpyxl.utils import get_column_letter
 from packaging import version
-from datetime import datetime
+
 
 class VersionScrapper:
     def __init__(self, domain) -> None:
@@ -93,15 +96,8 @@ class VersionScrapper:
                 'number' : builds_version.release[3],
                 'time' : datetime.strptime(details.get('startDate'), '%Y%m%dT%H%M%S%z')
             })
-            # result.append({
-            #     'client': client.get('name'),
-            #     'versions': build.get('number'),
-            #     'time': details.get('startDate')
-            # })
         return result
 
-    
-    #Make only date without time
     async def start(self):
         result_clients = []
 
@@ -124,9 +120,17 @@ class VersionScrapper:
                                     })
         self.save(result_clients)
 
+    
+    def updateLength(self, value, width, name):
+        length = len(value)
+        if length > width[name]:
+            width[name] = length
+
     def save(self, clients):
-        # with open('result.json', mode='w', encoding='UTF-8') as file:
-        #     file.write(dumps(versions, indent=2, ensure_ascii=False))
+        width = {
+            'Name' : 0,
+            'Time' : 0
+        }
 
         book = openpyxl.Workbook()
         sheet = book.active
@@ -135,17 +139,28 @@ class VersionScrapper:
         for client in clients:
             minors_length = 0
             sheet.append([client.get('name')])
+            sheet.append([])
+            self.updateLength(client.get('name'), width, 'Name')
+
             majors = client.get('majors')    
             for major in majors:
                 sheet.append([major.get('version')])
+                self.updateLength(major.get('version'), width, 'Name')
+
                 minors = major.get('minors')            
                 for minor in minors:
-                    sheet.append([minor.get('number'), minor.get('time').strftime('%Y-%m-%d')])
+                    time = minor.get('time').strftime('%Y-%m-%d')
+                    sheet.append([minor.get('number'), time])
+                    self.updateLength(str(minor.get('number')), width, 'Name')
+                    self.updateLength(time, width, 'Time')
                     minors_length += 1
-            length = 1 + len(majors) + minors_length
-            sheet.row_dimensions.group(current_row, current_row + length - 1, hidden=False)
-            current_row += length
+            length = len(majors) + minors_length + 1
+            sheet.row_dimensions.group(current_row + 1, current_row + length, hidden=False)
+            current_row += length + 1
 
+        
+        for i, column_width in enumerate(width.values(),1):  # ,1 to start at 1
+            sheet.column_dimensions[get_column_letter(i)].width = column_width + 3
         book.save(filename=self.version_path)
 
 with VersionScrapper('teams.acceliplan.com') as scrapper:
