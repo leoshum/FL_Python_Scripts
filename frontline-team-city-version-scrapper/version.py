@@ -7,6 +7,7 @@ from os import environ, path
 import openpyxl
 from aiohttp import ClientSession, TCPConnector, client_exceptions
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font
 from packaging import version
 
 
@@ -131,7 +132,8 @@ class VersionScrapper:
             'Name' : 0,
             'Time' : 0
         }
-
+        bold_font = Font(bold=True)
+        
         book = openpyxl.Workbook()
         sheet = book.active
         sheet.title = "Versions"
@@ -139,12 +141,15 @@ class VersionScrapper:
         for client in clients:
             minors_length = 0
             sheet.append([client.get('name')])
-            sheet.append([])
+            sheet.cell(row=sheet.max_row, column=1).font = bold_font
+
+            # sheet.append([])
             self.updateLength(client.get('name'), width, 'Name')
 
-            majors = client.get('majors')    
+            majors = client.get('majors')
             for major in majors:
                 sheet.append([major.get('version')])
+                sheet.cell(row=sheet.max_row, column=1).font = bold_font
                 self.updateLength(major.get('version'), width, 'Name')
 
                 minors = major.get('minors')            
@@ -155,7 +160,7 @@ class VersionScrapper:
                     self.updateLength(time, width, 'Time')
                     minors_length += 1
             length = len(majors) + minors_length + 1
-            sheet.row_dimensions.group(current_row + 1, current_row + length, hidden=False)
+            # sheet.row_dimensions.group(current_row + 1, current_row + length, hidden=False)
             current_row += length + 1
 
         
