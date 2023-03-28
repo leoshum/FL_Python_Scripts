@@ -1,16 +1,16 @@
 [
     {
         "Environment" : "🍓 AWS PROD",
-        "Clients" : []
+        "Clients" : ["TX Akiba Yavneh Academy of Dallas", "TX Chapel Hill", "TX Model District", "TX Sheldon", "TX Shepherd"]
     },
     {
         "Environment" : "🍓 AWS PROD 1",
-        "Clients" : []
+        "Clients" : ["TX Athens", "TX DeerPark", "TX Ferris", "TX Kennedale", "TX MountVernon", "TX NewBraunfels", "TX Palacios"]
     },
     {
         "Environment" : "🍓 AWS PROD 2",
         "Clients" : [
-            "TX Lakedallas"
+            "TX Lakedallas", "TX Needville"
         ]
     },
     {
@@ -19,7 +19,7 @@
     },
     {
         "Environment" : "🍓 AWS PROD 4",
-        "Clients" : []
+        "Clients" : ["TX A+ Academy", "TX Elgin", "TX InspiredVision","TX Somerset" ]
     },
     {
         "Environment" : "🍓 AWS PROD 5",
@@ -63,7 +63,8 @@
     },
     {
         "Environment" : "❤️ PROD: acceliplan.com",
-        "Clients" : []
+        "Clients" : ["Broward: (broward)", "Dade", "Alabama: (AL)","Colorado: (CO)", "Arizona: (AZ)", "District Columbia: (DC)", "Florida: (FL)", "Hillsborough: (hillsborough)","Illinois: (IL)", "Indiana: (IN)", "Louisiana: (LA)", "Massachusetts: (MA)", "Michigan: (MI)","Missouri: (MO)","Nevada: (NV)", "New Jersey: (NJ)","New Mexico: (NM)","New York: (NY)", "Santa Rosa: (SR)", "South Carolina: (SC)", "South Dakota: (SD)", "Texas SPM", "Virginia: (VA)"
+]
     },
     {
         "Environment" : "🕑 Training",

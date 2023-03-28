@@ -1,10 +1,15 @@
-from asyncio import get_event_loop, run, sleep
-from json import dumps, load
+from asyncio import get_event_loop, sleep
+from datetime import datetime
+from json import load
 from logging import INFO, basicConfig, getLogger
 from os import environ, path
+
+import openpyxl
 from aiohttp import ClientSession, TCPConnector, client_exceptions
-from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font
 from packaging import version
+
 
 class VersionScrapper:
     def __init__(self, domain) -> None:
@@ -70,7 +75,7 @@ class VersionScrapper:
         url = f'builds/id:{build}?fields={",".join(fields)}'
         return await self.get(url, session)
 
-    async def process_builds(self, builds, client, session):
+    async def process_builds(self, builds, session):
         result = []
         major_proccessing = 0
         last_major = version.Version('0.0')
@@ -82,19 +87,20 @@ class VersionScrapper:
                 major_proccessing += 1
                 if major_proccessing > 3:
                     break
+                major = {
+                    'version' : '.'.join([str(builds_version.major), str(builds_version.minor), str(builds_version.micro)]),
+                    'minors' : []
+                }
+                result.append(major)
             details = await self.build(build.get('id'), session)
-            result.append({
-                'client': client.get('name'),
-                'versions': build.get('number'),
-                'time': details.get('startDate')
+            major.get('minors').append({
+                'number' : builds_version.release[3],
+                'time' : datetime.strptime(details.get('startDate'), '%Y%m%dT%H%M%S%z')
             })
         return result
 
-    
-    #Make only date without time
-    #3 Major and all minors
     async def start(self):
-        result = []
+        result_clients = []
 
         async with ClientSession(connector=TCPConnector(verify_ssl=False),trust_env=True) as session:
             root_projects = await self.projects('DeployNewArchitecture', session)
@@ -108,19 +114,58 @@ class VersionScrapper:
                             for cfg_client in cfg_environment.get('Clients'):
 
                                 if client.get('name') == cfg_client:
-                                    builds = await self.builds(client.get('id'), session)
-                                    result.extend(await self.process_builds(builds, client, session))
-        self.save(result)
+                                    builds = await self.builds(client.get('id'), session)                                    
+                                    result_clients.append({
+                                        "name" : cfg_client,
+                                        'majors' : await self.process_builds(builds, session)
+                                    })
+        self.save(result_clients)
 
-    def save(self, versions):
-        # with open('result.json', mode='w', encoding='UTF-8') as file:
-        #     file.write(dumps(versions, indent=2, ensure_ascii=False))
+    
+    def updateLength(self, value, width, name):
+        length = len(value)
+        if length > width[name]:
+            width[name] = length
 
-        book = Workbook()
+    def save(self, clients):
+        width = {
+            'Name' : 0,
+            'Time' : 0
+        }
+        bold_font = Font(bold=True)
+        
+        book = openpyxl.Workbook()
         sheet = book.active
         sheet.title = "Versions"
-        for version in versions:
-            sheet.append([name for column, name in version.items()])
+        current_row = 1
+        for client in clients:
+            minors_length = 0
+            sheet.append([client.get('name')])
+            sheet.cell(row=sheet.max_row, column=1).font = bold_font
+
+            # sheet.append([])
+            self.updateLength(client.get('name'), width, 'Name')
+
+            majors = client.get('majors')
+            for major in majors:
+                sheet.append([major.get('version')])
+                sheet.cell(row=sheet.max_row, column=1).font = bold_font
+                self.updateLength(major.get('version'), width, 'Name')
+
+                minors = major.get('minors')            
+                for minor in minors:
+                    time = minor.get('time').strftime('%Y-%m-%d')
+                    sheet.append([minor.get('number'), time])
+                    self.updateLength(str(minor.get('number')), width, 'Name')
+                    self.updateLength(time, width, 'Time')
+                    minors_length += 1
+            length = len(majors) + minors_length + 1
+            # sheet.row_dimensions.group(current_row + 1, current_row + length, hidden=False)
+            current_row += length + 1
+
+        
+        for i, column_width in enumerate(width.values(),1):  # ,1 to start at 1
+            sheet.column_dimensions[get_column_letter(i)].width = column_width + 3
         book.save(filename=self.version_path)
 
 with VersionScrapper('teams.acceliplan.com') as scrapper:
