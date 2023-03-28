@@ -187,6 +187,8 @@ def main():
 	
 	wb = load_workbook(input_file, data_only=True)
 	wb_sheet = wb.active
+	wb_sheet.cell(row=1, column=29).value = "."
+	wb_sheet.cell(row=1, column=29).value = ""
 	specify_sheet_layout(wb_sheet)
 	driver = webdriver.Chrome()
 	#driver.execute_cdp_cmd("Network.setCacheDisabled", {"cacheDisabled":True})
