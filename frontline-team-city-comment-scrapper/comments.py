@@ -22,8 +22,8 @@ if token is None:
 ticket_match = "https://frontlinetechnologies.atlassian.net/browse/CW0575-"
 ticket_number_length = 5
 
-root_directory = path.dirname(argv[0])
-configuration_path = f".{root_directory}\\configuration.json"
+root_directory = path.dirname(__file__)
+configuration_path = f"{root_directory}\\configuration.json"
 if not path.exists(configuration_path):
     logging.error(msg=f"Configuration file not found in [{configuration_path}] path!")
     exit()
@@ -57,7 +57,7 @@ for version_name in configuration[version_key]['release_date']:
     release_dates[version_name] = datetime.strptime(configuration[version_key]['release_date'][version_name], '%Y-%m-%dT%H:%M:%SZ')
 
 
-comments_path = f".{root_directory}\\{from_version.__str__()}-{to_version.__str__()}.xlsx"
+comments_path = f"{root_directory}\\{from_version.__str__()}-{to_version.__str__()}.xlsx"
 
 host_key = 'host'
 if host_key not in configuration:
@@ -112,7 +112,9 @@ async def main():
             logger.info(f"Detect [{len(list_builds['build'])}] builds for [{job_id}] job, started from [{start}].")
             
             for build in list_builds['build']:
-                current_version = version.parse(build['number'])
+                number = build.get('number')
+                if not number: continue
+                current_version = version.parse(number)
                 if current_version < from_version or current_version > to_version: continue
                 
                 tasks.append(create_task(get_build_info(builds, build, release_dates['.'.join([str(current_version.major), str(current_version.minor)])], session)))
