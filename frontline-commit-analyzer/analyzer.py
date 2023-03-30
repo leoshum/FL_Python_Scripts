@@ -45,20 +45,23 @@ class Analyzer:
         with open(self.pull_request_path,'w',encoding='UTF-8') as file:
             file.write(json.dumps(self.pull_requests, indent=2, ensure_ascii=False))
 
-    async def review_commit(self, sha):
-        try:
-            for pull_request in self.pull_requests:
+    def find_file(self, sha):
+        for pull_request in self.pull_requests:
                 for commit in pull_request['commits']:
                     for file in commit['Files']:
                         if file['sha'] == sha:
-                            await self.review_file(file)
-                            self.write_pull_requests()
-                            
-                            return
-        except Exception as ex:
-            raise Exception(f'Error during update file {ex}.' )
+                            return file
+                        
+        raise Exception(f'Not found commit with sha [{sha}].')
 
-        raise Exception(f'Not found commit with sha [{sha}].' )
+    async def review_commit(self, sha):
+        try:
+            await self.review_file(self.find_file(sha))
+            self.write_pull_requests()
+            
+            return                            
+        except Exception as ex:
+            raise Exception(f'Error during update file {ex}.')
     
     async def review_file(self, file):    
         review = ""
