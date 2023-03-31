@@ -1,8 +1,8 @@
 const base_url = 'http://localhost:3443'
 const prs_path = `prs.json`;
+const file_path = `/file?sha=`;
 
-async function get_prs(){
-    const url = prs_path;
+async function get_json(url){
     try {
         const response = await fetch(url, {'cache': 'no-cache'})
         if(response.ok){
@@ -11,7 +11,33 @@ async function get_prs(){
     }
     catch(error){
         console.log(error)
+    }    
+}
+
+async function get_prs(){
+    const url = prs_path;
+    return await get_json(url)
+}
+
+async function get_file(sha){
+    const url = file_path + sha;
+    return await get_json(url)
+}
+
+function icon(file){
+    var iconClass;
+    switch (file.state) {
+        case 0:
+            iconClass = 'bi-x-circle-fill bad-state-icon'; // Bad icon
+            break;
+        case 1:
+            iconClass = 'bi-exclamation-triangle-fill warning-state-icon'; // Warning icon
+            break;
+        case 2:
+            iconClass = 'bi-check-circle-fill good-state-icon'; // Good icon
+            break;
     }
+    return $('<span>', { class: 'bi ' + iconClass });
 }
 
 function fill_table(){
@@ -144,19 +170,7 @@ $.each(data, function(index, item) {
                                         ),
                                         $('<div>', { class : 'col-md-1 review-status-container'}).append(
                                             $('<div>', { class : 'review-status'}).append(function() {
-                                                var iconClass;
-                                                switch (file.state) {
-                                                    case 0:
-                                                        iconClass = 'bi-x-circle-fill bad-state-icon'; // Bad icon
-                                                        break;
-                                                    case 1:
-                                                        iconClass = 'bi-exclamation-triangle-fill warning-state-icon'; // Warning icon
-                                                        break;
-                                                    case 2:
-                                                        iconClass = 'bi-check-circle-fill good-state-icon'; // Good icon
-                                                        break;
-                                                }
-                                                return $('<span>', { class: 'bi ' + iconClass });
+                                                return icon(file)
                                             }),
                                             $('<button>', { class: 'btn btn-primary refresh-review', sha: file.sha }).append(
                                                 $('<i>', { class: 'bi bi-arrow-clockwise' })                                        
@@ -169,8 +183,15 @@ $.each(data, function(index, item) {
                                                 try {
                                                     const response = await fetch(url, {'cache': 'no-cache'})
                                                     if(response.ok){
-                                                        fill_table()
-                                                        // button.parent().parent().find('.review').text(await response.text());
+                                                        let file = await get_file(sha)
+                                                        if (!file){
+                                                            throw "Can't find file with sha" + sha
+                                                        }
+                                                        let parent = button.parent().parent();
+                                                        parent.find('.review').text(file.review);
+                                                        let status = parent.find('.review-status');
+                                                        status.children().remove();
+                                                        status.append(icon(file));
                                                     }
                                                 }
                                                 catch(error){
