@@ -3,7 +3,8 @@ import time
 import numpy as np
 import validators
 import argparse
-import speedtest  
+import speedtest
+import logging
 from collections import namedtuple
 from datetime import datetime
 from urllib.parse import urlparse 
@@ -166,6 +167,11 @@ def compare_measures(curr_cell, prev_cell, diff_cell):
 		diff_cell.fill = PatternFill(start_color="FF0000", fill_type = "solid")
 
 def main():
+	logger = logging.getLogger('main')
+	logger.setLevel(logging.DEBUG)
+	fh = logging.FileHandler('script-errors.log')
+	fh.setLevel(logging.DEBUG)
+	logger.addHandler(fh)
 	timestamp = datetime.now().strftime("%m-%d-%y_%H-%M")
 	start_time = time.time()
 	parser = argparse.ArgumentParser()
@@ -193,7 +199,7 @@ def main():
 	driver = webdriver.Chrome()
 	#driver.execute_cdp_cmd("Network.setCacheDisabled", {"cacheDisabled":True})
 	options = Options()
-	options.headless = True
+	#options.headless = True
 
 	driver = webdriver.Chrome(options=options)
 	head_cell_top = wb_sheet["D1"]
@@ -258,6 +264,13 @@ def main():
 				(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
 				mark_form_as_invalid(row)
 
+			try:
+				page_title = driver.find_element(By.CSS_SELECTOR, "h1.page-title").text.strip()
+				if page_title == "Error" or page_title == "Access Restricted":
+					mark_form_as_invalid(row, color="0000FF")
+					logger.debug(f"Error detected '{page_title}' in {url}")
+			except:
+				pass
 			error_in_save = False
 			if is_form_page_url and not disable_save:
 				try:
@@ -265,12 +278,14 @@ def main():
 				except TimeoutException:
 					mark_form_as_invalid(row)
 					error_in_save = True
+					logger.debug(f"There is no saving button in {url}")
 				except ElementClickInterceptedException:
 					mark_form_as_invalid(row, color="9933FF")
 					error_in_save = True
 				except NoSuchElementException:
 					mark_form_as_invalid(row, color="991100")
 					error_in_save = True
+					logger.debug(f"There is no saving button in {url}")
 				except StaleElementReferenceException:
 					mark_form_as_invalid(row, color="550000")
 					error_in_save = True
