@@ -113,7 +113,8 @@ async def main():
             
             for build in list_builds['build']:
                 number = build.get('number')
-                if not number: continue
+                finish_date = build.get('finishOnAgentDate')
+                if not number or not finish_date: continue
                 current_version = version.parse(number)
                 if current_version < from_version or current_version > to_version: continue
                 
