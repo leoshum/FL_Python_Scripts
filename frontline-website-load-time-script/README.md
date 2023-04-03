@@ -5,6 +5,7 @@
 #### --path - A path or a list of paths
 #### --recurse - Allows to get files and nested files from a directory
 #### --disable_save
+#### --idm_auth
 #### --loops
 ### python bootstrapper.py --path . --disable_save
 ### python bootstrapper.py --path . --disable_save --recurse

@@ -220,12 +220,14 @@ def main():
 	parser.add_argument("input_file", type=str)
 	parser.add_argument("--loops", type=int, default=3)
 	parser.add_argument("--disable_save", action="store_true")
+	parser.add_argument("--idm_auth", action="store_true", default=False)
 	my_namespace = parser.parse_args()
 	print(f"Input file: {my_namespace.input_file}")
 	network_speed = measure_network_speed()
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
 	disable_save = my_namespace.disable_save
+	idm_auth = my_namespace.idm_auth
 	threshold = 6
 	timeout = 30
 
@@ -262,7 +264,7 @@ def main():
 		print(url)
 		base_url = extract_base_url(url)
 		if prev_base_url != base_url or is_first_row:
-			if requests.get(base_url).status_code == 406:
+			if idm_auth:
 				idm_login_user(driver)
 				time.sleep(3)
 				idm_open_website(driver, base_url, "PMGMT")
