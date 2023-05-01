@@ -1,0 +1,12 @@
+aiohttp==3.8.4
+beautifulsoup4==4.12.2
+fastapi==0.95.1
+numpy==1.24.0
+openai==0.27.5
+openpyxl==3.1.2
+packaging==23.1
+pytz==2022.7
+Requests==2.29.0
+selenium==4.9.0
+speedtest==0.0.1
+tiktoken==0.3.3
