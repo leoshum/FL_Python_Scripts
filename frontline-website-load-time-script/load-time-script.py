@@ -119,17 +119,23 @@ def idm_open_website(driver, url, user):
 def measure_form_page_load(url, driver, timeout):
 	start_time = time.time()
 	driver.get(url)
-	WebDriverWait(driver, timeout).until(
+	wait = WebDriverWait(driver, timeout)
+	element = wait.until(
 		EC.any_of(
-			EC.presence_of_element_located((By.ID, "pnlForm")),
-			EC.presence_of_element_located((By.ID, "pnlEventContent")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-forms-details")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-progress-report")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-forms-details")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-event-exceptionalities-view"))
+			EC.visibility_of_element_located((By.ID, "pnlForm")),
+			EC.visibility_of_element_located((By.ID, "pnlEventContent")),
+			EC.visibility_of_element_located((By.TAG_NAME, "accelify-forms-details")),
+			EC.visibility_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
+			EC.visibility_of_element_located((By.TAG_NAME, "accelify-progress-report")),
+			EC.visibility_of_element_located((By.TAG_NAME, "accelify-forms-details")),
+			EC.visibility_of_element_located((By.TAG_NAME, "accelify-event-exceptionalities-view"))
 		)
 	)
+	temp_start_time = time.time()
+	while time.time() - temp_start_time < timeout:
+		if driver.execute_script("return arguments[0].textContent.trim().length > 0;", element):
+			break
+		time.sleep(1)
 	return time.time() - start_time
 
 
@@ -318,7 +324,7 @@ def main():
 
 		try:
 			page_title = driver.find_element(By.CSS_SELECTOR, "h1.page-title").text.strip()
-			if page_title == "Error" or page_title == "Access Restricted":
+			if "Error" in page_title or page_title == "Access Restricted":
 				mark_form_as_invalid(row, color="0000FF")
 				logger.debug(f"Error detected '{page_title}' in {url}")
 		except:
