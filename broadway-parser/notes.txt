@@ -5,7 +5,7 @@ $.getScript(restServiceUrl + "/Performance3Djs.ashx?" +
                 "&pyr=" + dataIn.perfDateYear + 
                 "&pmo=" + dataIn.perfDateMonth + 
                 "&pda=" + dataIn.perfDateDay + 
-                "&ptp=" + dataIn.perfType + 
+                "&ptp=" + dataIn.perfType + // "D" or "E" (Day or Evening)
                 "&pcs=" + dataIn.priceCodes + 
                 "&rta=" + dataIn.ReturnADASeats + 
                 "&mcs=" + dataIn.marketingCodes + 
@@ -55,3 +55,14 @@ with values such as "j" (sold), "o" (on hold), "." (unavailable), and "v" (voide
 
 The "Availability" property provides more information about the availability of a seat, with values such as -1 (not available), 
 2 (available for purchase), 4 (available for exchange), and so on.
+
+CurrentPerformance JSON is a array of three values (PerformanceDate, PerformanceType and FFA Status) respectively.   
+
+PageMethods.InquireTickets("LevelChangeInquire", currentPerformanceDateTime,
+                selectedLevelIdAndSTARAreaMask, SeatingChartSelected.SeatingChart3D,
+                currentPerformanceFFAStatus, TicketSearchResultsType,
+                InquireTickets_Callback, NewTransactionInitiationFailure_Callback);
+
+
+https://www.telecharge.com/FindTickets.aspx/GetPerformanceDateSelectionControlHTML
+

@@ -153,6 +153,23 @@ def measure_standard_page_load(url, driver, timeout):
 	return time.time() - start_time
 
 
+def wait_save_popup(url, driver, timeout):
+	script = ""
+	if "planng" in url:
+		script = "return $(\"kendo-notification\").text()"
+	else:
+		script = "return $(\"div[role='alert']\").text()"
+	
+	temp_start_time = time.time()
+	while time.time() - temp_start_time < timeout:
+		script_result = driver.execute_script(script)
+		print(script_result)
+		if script_result != None and "Form has been updated successfully" in script_result:
+			break
+		time.sleep(1)
+	return time.time() - temp_start_time
+	
+
 def measure_form_save(url, driver, timeout):
 	measure_form_page_load(url, driver, timeout)
 	loader_locator = unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
@@ -166,10 +183,11 @@ def measure_form_save(url, driver, timeout):
 			save_btn_elem = save_btn
 			break
 		
-	if save_btn_elem != None:
-		start_time = time.time()
+	start_time = time.time()
+	if save_btn_elem != None:		
 		save_btn_elem.click()
-		WebDriverWait(driver, timeout).until(loader_locator)
+		#WebDriverWait(driver, timeout).until(loader_locator)
+		wait_save_popup(url, driver, timeout)
 	else:
 		raise NoSuchElementException()
 	return time.time() - start_time
