@@ -1,0 +1,9 @@
+{
+    "repository_path" : "C:\\Development\\CW-0575-IEP",
+    "jira_host" : "frontlinetechnologies.atlassian.net",
+    "jira_login" : "lshum@frontlineed.com",
+    "teamcity_host" : "teams.acceliplan.com",
+    "teamCity_build_id" : "BuildNewArchitecture_Main_BuildVersion",
+    "git_branch" : "main",
+    "ssh_key_path" : "~/.ssh/id_ed25519"
+}

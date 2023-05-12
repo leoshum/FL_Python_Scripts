@@ -6,65 +6,72 @@ import subprocess
 import aiohttp
 import asyncio
 
+import pandas as pd
+from openpyxl import load_workbook
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 import pandas as pd
 
+def configure():
+    token_name = 'TEAM_CITY_TOKEN'
+    teamcity_token = environ.get(token_name)
+    if teamcity_token is None:
+        print(f"TeamCity access token not found in environments variable with name [{token_name}]!")
+        exit()
+    
+    token_name = 'JIRA_TOKEN'
+    jira_token = environ.get(token_name)
+    if jira_token is None:
+        print(f"Jira access token not found in environments variable with name [{token_name}]!")
+        exit()
 
-branch_name = 'main'
-repository_path = 'C:\\Users\\mykha\\source\\repos\\CW-0575-IEP'
-token_name = 'JIRA_TOKEN'
-jira_token = environ.get(token_name)
-#JIRA query: you can try this search in zendesk - jira_escalated brand:plan status:new status:hold status:open status:pending (edited) 
+    root_directory = path.dirname(__file__)
+    configuration_path = f"{root_directory}\\configuration.json"
+    if not path.exists(configuration_path):
+        print(msg=f"Configuration file not found in [{configuration_path}] path!")
+        exit()
+    with open(configuration_path) as configuration_file:
+        configuration = json.loads(configuration_file.read())
+    
+    configuration['jira_url'] = f'https://{configuration.get("jira_host")}/rest/api/2/search'
+    configuration['teamcity_url'] = f'https://{configuration.get("teamcity_host")}/app/rest'
+    
+    configuration['jira_token'] = jira_token
+    configuration['teamcity_token'] = teamcity_token
 
+    configuration['find_script_path'] = f"{root_directory}\\find_tickets.ps1"
+    configuration['switch_script_path'] = f"{root_directory}\\switch_and_update_branch.ps1"
+    configuration['result_path'] = f"{root_directory}\\result.xlsx"
+    configuration['result_json_path'] = f"{root_directory}\\result.json"
 
-token_name = 'TEAM_CITY_TOKEN'
-teamcity_token = environ.get(token_name)
-if teamcity_token is None:
-    print(f"TeamCity bearer token not found in environments variable with name [{token_name}]!")
-    exit()
+    print('Application configured')
+    return configuration
 
-#Service
-jira_url = 'https://frontlinetechnologies.atlassian.net/rest/api/2/search'
-teamcity_url = 'https://teams.acceliplan.com'
-root_directory = path.dirname(__file__)
-find_script_path = f"{root_directory}\\find_tickets.ps1"
-switch_script_path = f"{root_directory}\\switch_and_update_branch.ps1"
-result_path = f"{root_directory}\\result.json"
-
-async def get_tickets_from_jira(session):
+async def get_issues_from_jira(session, jira_url, login, jira_token):
     # Authenticate with Jira
-    auth = aiohttp.BasicAuth(login='mtolstikhin@frontlineed.com', password=jira_token)
-    # Set up the API request
+    auth = aiohttp.BasicAuth(login=login, password=jira_token)
     
-    # exclude
-    # waiting for response
-    # open
-    # devready
-    # in progress
-    
-    jql_query = 'labels=jira_escalated and project="CW-0575 (Accelify)"'
+    jql_query = 'labels=jira_escalated and project="CW-0575 (Accelify)" and status not in ("waiting for response", open, DevReady, "in progress")'
     start_at = 0
     max_results = 50
     headers = {'Accept': 'application/json'}
-
-
     result = []
-    # Make the initial API call to get the total number of issues
-    url = f'{jira_url}?jql={jql_query}&startAt={start_at}&maxResults={max_results}'
-    async with session.get(url, headers=headers, auth=auth) as response:
-        if response.status == 200:
-            data = await response.json()
-            total_issues = data['total']
-            result.extend(data['issues'])
-            print(f'Get [{start_at}] - [{start_at + max_results - 1}] issues.')
-            start_at += max_results
-        else:
-            print(f'Request failed with status {response.status}: {response.reason}')
-            return
 
+    # Make the initial API call to get the total number of issues
+    # url = f'{jira_url}?jql={jql_query}&startAt={start_at}&maxResults={max_results}'
+    # async with session.get(url, headers=headers, auth=auth) as response:
+    #     if response.status == 200:
+    #         data = await response.json()
+    #         total_issues = data['total']
+    #         result.extend(data['issues'])
+    #         print(f'Get [{start_at}] - [{start_at + max_results - 1}] issues.')
+    #         start_at += max_results
+    #     else:
+    #         print(f'Request failed with status {response.status}: {response.reason}')
+    #         return
+    total_issues = 1
     # Loop through the paginated API responses
-    while start_at < total_issues and start_at < 50:
+    while start_at < total_issues and start_at < 500:# and start_at < 50
         # Set up the API request with the appropriate startAt and maxResults values
         url = f'{jira_url}?jql={jql_query}&startAt={start_at}&maxResults={max_results}'
 
@@ -72,40 +79,104 @@ async def get_tickets_from_jira(session):
         async with session.get(url, headers=headers, auth=auth) as response:
             if response.status == 200:
                 data = await response.json()
+                if total_issues == 1 and data.get('total') != 1:
+                    total_issues = data['total']
+
                 result.extend(data['issues'])
-                print(f'Get [{start_at}] - [{start_at + max_results - 1}] issues.')
+                print(f'Get [{start_at}] - [{start_at + max_results - 1}] issues from Jira.')
+                for issue in data.get('issues'): yield issue                 
             else:
                 print(f'Request failed with status {response.status}: {response.reason}')
                 return
 
         # Increment the startAt value to get the next page of results
         start_at += max_results
-    return [issue['key'] for issue in result]
-
-def find_in_git(ticket_numbers):
-    tickets = []
-    not_founded = []
-    result = subprocess.run(['powershell', '-File', switch_script_path, '-Repository_path', repository_path, '-Branch_name', branch_name])
-    if result.returncode != 0:
-        output = json.loads(result.stdout.decode('utf-8'))
-        raise f'Can not switch branch [{output}]'
+        
+    # with open(result_path, mode='w', encoding='UTF-8') as file:
+    #     file.write(json.dumps([issue['fields']['status']['name'] for issue in result], indent=2, ensure_ascii=False))
+    # return [{ 'key': issue['key'], 'status' : issue['fields']['status']['name']} for issue in result]
 
 
-    for ticket_number in ticket_numbers:
-        result = subprocess.run(['powershell', '-File', find_script_path, '-Repository_path', repository_path, '-Ticket_number', ticket_number], capture_output=True)
-        if result.returncode != 0:
-            not_founded.append({                
-                'number' : ticket_number
-            })
-            print(f'Ticket [{ticket_number}] not founded')
-        else:
-            output = json.loads(result.stdout.decode('utf-8'))
-            tickets.append({
-                'number' : ticket_number,
-                'commits' : output
-            })
-            print(f'Ticket [{ticket_number}] founded')
-    return tickets
+async def configure_git(script_path, repository_path, branch_name, key_path):
+    process = await asyncio.create_subprocess_exec(
+        'powershell', '-File', script_path, '-Repository_path', repository_path, '-Branch_name', branch_name, '-Key_Path', key_path,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+
+    # read the stdout and stderr asynchronously
+    stdout, stderr = await process.communicate()
+    print(stdout.decode(), stderr.decode())
+
+async def find_in_git(ticket, script_path, repository_path):
+    process = await asyncio.create_subprocess_exec(
+        'powershell', '-File', script_path, '-Repository_path', repository_path, '-Ticket_number', ticket['key'],
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        print(f'Ticket [{ticket["key"]}] not found in Git')
+        return None
+    
+    print(f'Ticket [{ticket["key"]}] found in Git')
+    return json.loads(stdout.decode('utf-8'))[0]
+    # task_result = subprocess.run(['powershell', '-File', script_path, '-Repository_path', repository_path, '-Ticket_number', ticket['key']], capture_output=True)
+    # if task_result.returncode != 0:
+    #     result.append({
+    #         'number' : ticket['key'],
+    #         'status' : ticket['status'],
+    #         'commits' : []
+    #     })
+    #     not_founded.append({                
+    #         'number' : ticket['key']
+    #     })
+    #     print(f'Ticket [{ticket["key"]}] not founded')
+    # else:
+    #     output = json.loads(task_result.stdout.decode('utf-8'))
+    #     result.append({
+    #         'number' : ticket['key'],
+    #         'status' : ticket['status'],
+    #         'commits' : output
+    #     })
+    #     print(f'Ticket [{ticket["key"]}] founded')
+
+# def find_in_git(tickets, find_script_path, switch_script_path, repository_path, branch_name, key_path):
+#     result = []
+#     not_founded = []
+#     task_result = subprocess.run(['powershell', '-File', switch_script_path, '-Repository_path', repository_path, '-Branch_name', branch_name, '-Key_Path', key_path])
+#     if task_result.returncode != 0:
+#         output = json.loads(task_result.stdout.decode('utf-8'))
+#         raise f'Can not switch branch [{output}]'
+
+
+#     for ticket in tickets:
+#         task_result = subprocess.run(['powershell', '-File', find_script_path, '-Repository_path', repository_path, '-Ticket_number', ticket['key']], capture_output=True)
+#         if task_result.returncode != 0:
+#             result.append({
+#                 'number' : ticket['key'],
+#                 'status' : ticket['status'],
+#                 'commits' : []
+#             })
+#             not_founded.append({                
+#                 'number' : ticket['key']
+#             })
+#             print(f'Ticket [{ticket["key"]}] not founded')
+#         else:
+#             output = json.loads(task_result.stdout.decode('utf-8'))
+#             result.append({
+#                 'number' : ticket['key'],
+#                 'status' : ticket['status'],
+#                 'commits' : output
+#             })
+#             print(f'Ticket [{ticket["key"]}] founded')
+#     return result
+
+def parse_commit(commit):
+    commit_regex = re.compile(r"^commit\s+(\w+)")
+    mathces = re.findall(commit_regex, commit[0])
+    return mathces[0]
 
 def parse_tickets(tickets):
     commit_regex = re.compile(r"^commit\s+(\w+)") #'^commit [0-9a-f]{40}$'
@@ -113,6 +184,7 @@ def parse_tickets(tickets):
     email_regex = re.compile(r"^Author:\s+.*\s+<(.*)>")
     date_regex = re.compile(r"^Date:\s+(.*)")
     for ticket in tickets:
+        if not ticket.get('commits'): continue
         for index, commit in enumerate(ticket.get('commits')):
             parsed_commit = {
                 'sha' : None,
@@ -169,40 +241,93 @@ def parse_tickets(tickets):
 
 def parse_line(commit, key, line, regex):
     if not commit.get(key):
-        mathces = re.findall(regex, line)
-        if len(mathces) != 0:
-            commit[key] = mathces[0]
+         
             return True
     return False
-            
 
+async def get_builds(session, teamcity_url, teamcity_token, build_id):
+    headers = {
+        'Accept': 'application/json',
+        'Authorization' : f'Bearer {teamcity_token}'
+    }
+    builds = []
 
-async def find_build(session, tickets):
+    url = f'{teamcity_url}/builds?locator=defaultFilter:false,buildType:{build_id}'
+    async with session.get(url, headers=headers) as response:
+        if response.status == 200:
+            data = await response.json()
+            for build in data['build']:
+                builds.append(build)
+                url = f"{teamcity_url}/changes?locator=build:(id:{build['id']})&fields=change(version)"
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        build['changes'] = data['change']
+                        # for change in data['change']:
+                        #     changes[change['version']] = build['number']
+    
+    result = { change['version']: build['number'] for build in builds for change in build['changes'] }
+    print(f'[{len(result)}] Builds received from the TeamCity')
+    return result
+
+async def find_build(session, tickets, teamcity_url, teamcity_token, build_id):
     headers = {
         'Accept': 'application/json',
         'Authorization' : f'Bearer {teamcity_token}'
     }
 
+    changes = {}
+    url = f'{teamcity_url}/builds?locator=defaultFilter:false,buildType:{build_id}'
+    async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        for build in data['build']:
+                            url = f"{teamcity_url}/changes?locator=build:(id:{build['id']})&fields=change(version)"
+                            async with session.get(url, headers=headers) as response:
+                                if response.status == 200:
+                                    data = await response.json()
+                                    for change in data['change']:
+                                        changes[change['version']] = build['number']
+                        #     url = f'{teamcity_url}/builds?locator=defaultFilter:false,buildType:{build_id}'
+                        # builds = data.get('build')
+                        # if builds:
+                        #     commit['build'] = []
+                        #     for build in builds:
+                        #         commit['build'].append(build.get('number'))
+                        # else:
+                        #     commit['build'] = None
+                    else:
+                        print(f'Request failed with status {response.status}: {response.reason}')
+
+    
+
+
     for ticket in tickets:
+        if not ticket.get('commits'): continue
         for commit in ticket.get('commits'):
             sha = commit.get('sha')
-            url = f'{teamcity_url}/app/rest/builds?locator=revision:{sha}'
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    builds = data.get('build')
-                    if builds:
-                        commit['build'] = []
-                        for build in builds:
-                            commit['build'].append(build.get('number'))
-                    else:
-                        commit['build'] = None
-                else:
-                    print(f'Request failed with status {response.status}: {response.reason}')
+            commit['build'] = changes.get(sha)
+            #https://teams.acceliplan.com/app/rest/builds/?locator=buildType:BuildNewArchitecture_Main_BuildVersion,changes:change:(version:81f74c1a923f4cfc00f27dd1abeca87a85e86ce7)
+            #https://teams.acceliplan.com/httpAuth/app/rest/builds/?locator=buildType:BuildNewArchitecture_Main_BuildVersion,revision:81f74c1a923f4cfc00f27dd1abeca87a85e86ce7
+            # url = f'{teamcity_url}/changes?locator=build:(id:{build_id})'
+            
+            # url = f'{teamcity_url}/changes?locator=?locator=buildType:{build_id},version:{sha}'
+            # async with session.get(url, headers=headers) as response:
+            #     if response.status == 200:
+            #         data = await response.json()
+            #         builds = data.get('build')
+            #         if builds:
+            #             commit['build'] = []
+            #             for build in builds:
+            #                 commit['build'].append(build.get('number'))
+            #         else:
+            #             commit['build'] = None
+            #     else:
+            #         print(f'Request failed with status {response.status}: {response.reason}')
 
-import pandas as pd
-from openpyxl import load_workbook
-def write_to_excel(tickets):
+def write_to_excel(tickets, path):
+                                            
+                                            #add status ticket!!!!!!!!!!!!!!!!!
 
     # Load Excel file
 
@@ -246,24 +371,69 @@ def write_to_excel(tickets):
     #         adjusted_height = max_height * 15
     #         writer.sheets[sheet_name].row_dimensions[row[0].row].height = adjusted_height
 
+    df = pd.DataFrame(tickets)
 
-    df = pd.json_normalize(tickets, record_path=['commits'], meta=['number'])
-    df.to_excel('output.xlsx', index=False)
+    # write the DataFrame to an Excel file
+    df.to_excel(path, index=False)
+    # df = pd.json_normalize(tickets, record_path=['commits'], meta=['number', 'status'])
+    # df.to_excel(path, index=False)
     
 
+
 async def main():
-    async with aiohttp.ClientSession() as session:
-        tickets = await get_tickets_from_jira(session)
-        print(f'Founded [{len(tickets)}] tickets in Jira')
-        result = find_in_git(tickets)
-        parse_tickets(result)
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False),trust_env=True) as session: #verify_
+    tickets = []
+    configuration = configure()
+    async with aiohttp.ClientSession() as jira_session:
+        issues = get_issues_from_jira(jira_session, configuration.get('jira_url'), configuration.get('jira_login'), configuration.get('jira_token'))
+        await configure_git(configuration.get('switch_script_path'), configuration.get('repository_path'), configuration.get('git_branch'), configuration.get('ssh_key_path'))
         
-        await find_build(session, result)
-        write_to_excel(result)
-        with open(result_path, mode='w', encoding='UTF-8') as file:
-            file.write(json.dumps(result, indent=2, ensure_ascii=False))
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False),trust_env=True) as teamcity_session:
+            builds = await get_builds(teamcity_session, configuration.get('teamcity_url'), configuration.get('teamcity_token'), configuration.get('teamCity_build_id'),)
+            async for ticket in issues:
+                output = await find_in_git(ticket, configuration.get('find_script_path'), configuration.get('repository_path'))
+                if not output:
+                    tickets.append({
+                        'number' : ticket['key'],
+                        'status' : ticket['fields']['status']['name'],
+                        'version' : None
+                    })
+                    continue
+                sha = parse_commit(output)
+                
+                tickets.append({
+                    'number' : ticket['key'],
+                    'status' : ticket['fields']['status']['name'],
+                    'version' :  builds.get(sha)
+                })
+    write_to_excel(tickets, configuration.get('result_path'),)
+    with open(configuration.get('result_json_path'), mode='w', encoding='UTF-8') as file:
+        file.write(json.dumps(tickets, indent=2, ensure_ascii=False))
+
+
+    #     print(f'Founded [{len(issues)}] tickets in Jira')
+    #     result = find_in_git(issues, configuration.get('find_script_path'), configuration.get('switch_script_path'), configuration.get('repository_path'), configuration.get('git_branch'), configuration.get('ssh_key_path'))
+    #     parse_tickets(result)
+    # async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False),trust_env=True) as jira_session: #verify_
+        
+    #     await find_build(jira_session, result, configuration.get('teamcity_url'), configuration.get('teamcity_token'), configuration.get('teamCity_build_id'))
+    #     write_to_excel(result, configuration.get('result_path'),)
+    #     with open(configuration.get('result_json_path'), mode='w', encoding='UTF-8') as file:
+    #         file.write(json.dumps(result, indent=2, ensure_ascii=False))
 
 
 # Run the script
 asyncio.run(main())
+
+
+    # build_id = configuration.get('teamCity_build_id') #'BuildNewArchitecture_Main_BuildVersion'
+    # login = configuration.get('jira_login') #'mtolstikhin@frontlineed.com'#lshum
+    # ssh_key_path = configuration.get('ssh_key_path') #'~/.ssh/a2c'
+    # branch_name = configuration.get('git_branch') #'main'
+
+    # #repository_path = configuration.get('repository_path') #'C:\\Users\\mykha\\source\\repos\\CW-0575-IEP'        
+    # #root_directory = path.dirname(__file__)
+    # find_script_path = f"{root_directory}\\find_tickets.ps1"
+    # switch_script_path = f"{root_directory}\\switch_and_update_branch.ps1"
+    # result_path = f"{root_directory}\\result.json"
+
+    #JIRA query: you can try this search in zendesk - jira_escalated brand:plan status:new status:hold status:open status:pending (edited) 
