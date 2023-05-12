@@ -5,6 +5,7 @@ import validators
 import argparse
 import speedtest
 import logging
+import requests
 from collections import namedtuple
 from datetime import datetime
 from urllib.parse import urlparse 
@@ -30,6 +31,7 @@ class unpresence_of_element(object):
 		except:
 			return True
 
+
 def is_excel_file_opened(filename):
 	try:
 		wb = load_workbook(filename)
@@ -38,20 +40,25 @@ def is_excel_file_opened(filename):
 	except:
 		return True
 
+
 def is_form_page(url):
 	return "Forms" in url or ("ViewEvent" in url and urlparse(url).fragment)
+
 
 def extract_base_url(url):
 	url_parts = urlparse(url)
 	return f"{url_parts.scheme}://{url_parts.netloc}"
 
+
 def mark_form_as_invalid(row, color="FF0000"):
 	row[0].font = Font(color=color)
 	row[1].font = Font(color=color)
 
+
 def measure_network_speed():
 	st = speedtest.Speedtest()
 	return st.download() / 1000000
+
 
 def specify_sheet_layout(sheet):
 	sheet.move_range("M1:M1", rows=0, cols=9)
@@ -59,14 +66,17 @@ def specify_sheet_layout(sheet):
 	sheet.move_range("M2:M2", rows=0, cols=9)
 	sheet.move_range("D2:D2", rows=0, cols=9)
 
+
 def reset_styles(cells):
 	for cell in cells:
 		cell.style = "Normal"
+
 
 def flag_high_load_time(cells, threshold):
 	for cell in cells:
 		if cell.value != None and cell.value != "" and float(cell.value) > threshold:
 			cell.font = Font(color="FF0000")
+
 
 def login_user(driver, url):
 	driver.get(url)
@@ -79,21 +89,55 @@ def login_user(driver, url):
 	password_field.send_keys("8Huds(3d")
 	submit_btn.click()
 
+
+def idm_login_user(driver):
+	driver.get("https://support-tech.acceliplan.com/login")
+	username_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='username'] input")
+	password_field = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
+	submit_btn = driver.find_element(By.CSS_SELECTOR, "form button")
+	username_field.send_keys("SupportAdmin")
+	password_field.send_keys("tkztNANK3dLxD2XyJt")
+	submit_btn.click()
+	
+
+def idm_open_website(driver, url, user):
+	username_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='username'] input")
+	host_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='host'] input")
+	navigate_button = driver.find_element(By.CSS_SELECTOR, ".k-buttons-end button")
+	host_field.clear()
+	username_field.clear()
+	username_field.send_keys(user)
+	host_field.send_keys(url)
+	navigate_button.click()
+	time.sleep(2)
+	child = driver.window_handles[1]
+	driver.switch_to.window(driver.window_handles[0])
+	driver.close()
+	driver.switch_to.window(child)
+
+
 def measure_form_page_load(url, driver, timeout):
 	start_time = time.time()
 	driver.get(url)
-	WebDriverWait(driver, timeout).until(
+	wait = WebDriverWait(driver, timeout)
+	element = wait.until(
 		EC.any_of(
-			EC.presence_of_element_located((By.ID, "pnlForm")),
-			EC.presence_of_element_located((By.ID, "pnlEventContent")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-forms-details")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-progress-report")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-forms-details")),
-			EC.presence_of_element_located((By.TAG_NAME, "accelify-event-exceptionalities-view"))
+			EC.visibility_of_element_located((By.ID, "pnlForm")),
+			EC.visibility_of_element_located((By.ID, "pnlEventContent")),
+			EC.visibility_of_element_located((By.TAG_NAME, "accelify-forms-details")),
+			EC.visibility_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
+			EC.visibility_of_element_located((By.TAG_NAME, "accelify-progress-report")),
+			EC.visibility_of_element_located((By.TAG_NAME, "accelify-forms-details")),
+			EC.visibility_of_element_located((By.TAG_NAME, "accelify-event-exceptionalities-view"))
 		)
 	)
+	temp_start_time = time.time()
+	while time.time() - temp_start_time < timeout:
+		if driver.execute_script("return arguments[0].textContent.trim().length > 0;", element):
+			break
+		time.sleep(1)
 	return time.time() - start_time
+
 
 def measure_standard_page_load(url, driver, timeout):
 	start_time = time.time()
@@ -108,6 +152,24 @@ def measure_standard_page_load(url, driver, timeout):
 	)
 	return time.time() - start_time
 
+
+def wait_save_popup(url, driver, timeout):
+	script = ""
+	if "planng" in url:
+		script = "return $(\"kendo-notification\").text()"
+	else:
+		script = "return $(\"div[role='alert']\").text()"
+	
+	temp_start_time = time.time()
+	while time.time() - temp_start_time < timeout:
+		script_result = driver.execute_script(script)
+		print(script_result)
+		if script_result != None and "Form has been updated successfully" in script_result:
+			break
+		time.sleep(1)
+	return time.time() - temp_start_time
+	
+
 def measure_form_save(url, driver, timeout):
 	measure_form_page_load(url, driver, timeout)
 	loader_locator = unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
@@ -121,13 +183,15 @@ def measure_form_save(url, driver, timeout):
 			save_btn_elem = save_btn
 			break
 		
-	if save_btn_elem != None:
-		start_time = time.time()
+	start_time = time.time()
+	if save_btn_elem != None:		
 		save_btn_elem.click()
-		WebDriverWait(driver, timeout).until(loader_locator)
+		#WebDriverWait(driver, timeout).until(loader_locator)
+		wait_save_popup(url, driver, timeout)
 	else:
 		raise NoSuchElementException()
 	return time.time() - start_time
+
 
 def measure_load_time(driver, url, timeout, loops, scenario):
 	measure_result = namedtuple("MeasureResult", ["first_measure", "min", "max", "mean"])
@@ -141,6 +205,7 @@ def measure_load_time(driver, url, timeout, loops, scenario):
 			is_first_measure = False
 			first_measure = measured_time
 	return measure_result(first_measure, np.min(totals), np.max(totals), np.mean(totals))
+
 
 def compare_measures(curr_cell, prev_cell, diff_cell):
 	if curr_cell.value == None or prev_cell.value == None:
@@ -166,6 +231,7 @@ def compare_measures(curr_cell, prev_cell, diff_cell):
 	else:
 		diff_cell.fill = PatternFill(start_color="FF0000", fill_type = "solid")
 
+
 def main():
 	logger = logging.getLogger('main')
 	logger.setLevel(logging.DEBUG)
@@ -178,12 +244,14 @@ def main():
 	parser.add_argument("input_file", type=str)
 	parser.add_argument("--loops", type=int, default=3)
 	parser.add_argument("--disable_save", action="store_true")
+	parser.add_argument("--idm_auth", action="store_true", default=False)
 	my_namespace = parser.parse_args()
 	print(f"Input file: {my_namespace.input_file}")
 	network_speed = measure_network_speed()
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
 	disable_save = my_namespace.disable_save
+	idm_auth = my_namespace.idm_auth
 	threshold = 6
 	timeout = 30
 
@@ -214,110 +282,118 @@ def main():
 	is_first_row = True
 	for row in wb_sheet.iter_rows(min_row=5):
 		url = row[1].value
-		if url != None and validators.url(url):
-			print(url)
-			base_url = extract_base_url(url)
-			if prev_base_url != base_url or is_first_row:
+		if url == None or not validators.url(url):
+			continue
+
+		print(url)
+		base_url = extract_base_url(url)
+		if prev_base_url != base_url or is_first_row:
+			if idm_auth:
+				idm_login_user(driver)
+				time.sleep(3)
+				idm_open_website(driver, base_url, "PMGMT")
+				driver.get(url)
+			else:
 				login_user(driver, base_url)
-				build_version = driver.find_element(By.CSS_SELECTOR, "span.version").text.replace("Version ", "")
-				is_first_row = False
-			row[21].value = row[12].value
-			row[22].value = row[13].value
-			row[23].value = row[14].value
-			row[24].value = row[15].value
+			build_version = driver.find_element(By.CSS_SELECTOR, "span.version").text.replace("Version ", "")
+			is_first_row = False
+		row[21].value = row[12].value
+		row[22].value = row[13].value
+		row[23].value = row[14].value
+		row[24].value = row[15].value
 
-			row[25].value = row[17].value
-			row[26].value = row[18].value
-			row[27].value = row[19].value
+		row[25].value = row[17].value
+		row[26].value = row[18].value
+		row[27].value = row[19].value
 
-			reset_styles([row[12], row[13], row[14], 
-		 				  row[15], row[21], row[22], 
-						  row[23], row[24], row[25],
-						  row[17], row[18], row[19],
-						  row[7], row[11], row[16],
-						  row[26], row[27], row[20]])
+		reset_styles([row[12], row[13], row[14], 
+					  row[15], row[21], row[22], 
+					  row[23], row[24], row[25],
+					  row[17], row[18], row[19],
+					  row[7], row[11], row[16],
+					  row[26], row[27], row[20]])
 
-			row[12].value = row[3].value
-			row[13].value = row[4].value
-			row[14].value = row[5].value
-			row[15].value = row[6].value
+		row[12].value = row[3].value
+		row[13].value = row[4].value
+		row[14].value = row[5].value
+		row[15].value = row[6].value
 
-			row[17].value = row[8].value
-			row[18].value = row[9].value
-			row[19].value = row[10].value
+		row[17].value = row[8].value
+		row[18].value = row[9].value
+		row[19].value = row[10].value
 
-			flag_high_load_time([row[12], row[13], row[14], 
-		 				  		 row[15], row[21], row[22], 
-						  		 row[23], row[24], row[25],
-						  		 row[17], row[18], row[19],
-						  		 row[26], row[27]], threshold)
+		flag_high_load_time([row[12], row[13], row[14], 
+					  		 row[15], row[21], row[22], 
+					  		 row[23], row[24], row[25],
+					  		 row[17], row[18], row[19],
+					  		 row[26], row[27]], threshold)
 
-			scenario = measure_form_page_load
-			is_form_page_url = is_form_page(url)
-			if not is_form_page_url:
-					scenario = measure_standard_page_load
+		scenario = measure_form_page_load
+		is_form_page_url = is_form_page(url)
+		if not is_form_page_url:
+				scenario = measure_standard_page_load
 
+		try:
+			(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, timeout, loops, scenario)
+			reset_styles([row[0], row[1]])
+		except TimeoutException:
+			(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
+			mark_form_as_invalid(row)
+
+		try:
+			page_title = driver.find_element(By.CSS_SELECTOR, "h1.page-title").text.strip()
+			if "Error" in page_title or page_title == "Access Restricted":
+				mark_form_as_invalid(row, color="0000FF")
+				logger.debug(f"Error detected '{page_title}' in {url}")
+		except:
+			pass
+		error_in_save = False
+		if is_form_page_url and not disable_save:
 			try:
-				(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, timeout, loops, scenario)
-				reset_styles([row[0], row[1]])
+				(first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, timeout, loops, measure_form_save)
 			except TimeoutException:
-				(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
 				mark_form_as_invalid(row)
+				error_in_save = True
+				logger.debug(f"There is no saving button in {url}")
+			except ElementClickInterceptedException:
+				mark_form_as_invalid(row, color="9933FF")
+				error_in_save = True
+			except NoSuchElementException:
+				mark_form_as_invalid(row, color="991100")
+				error_in_save = True
+				logger.debug(f"There is no saving button in {url}")
+			except StaleElementReferenceException:
+				mark_form_as_invalid(row, color="550000")
+				error_in_save = True
 
-			try:
-				page_title = driver.find_element(By.CSS_SELECTOR, "h1.page-title").text.strip()
-				if page_title == "Error" or page_title == "Access Restricted":
-					mark_form_as_invalid(row, color="0000FF")
-					logger.debug(f"Error detected '{page_title}' in {url}")
-			except:
-				pass
-			error_in_save = False
-			if is_form_page_url and not disable_save:
-				try:
-					(first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, timeout, loops, measure_form_save)
-				except TimeoutException:
-					mark_form_as_invalid(row)
-					error_in_save = True
-					logger.debug(f"There is no saving button in {url}")
-				except ElementClickInterceptedException:
-					mark_form_as_invalid(row, color="9933FF")
-					error_in_save = True
-				except NoSuchElementException:
-					mark_form_as_invalid(row, color="991100")
-					error_in_save = True
-					logger.debug(f"There is no saving button in {url}")
-				except StaleElementReferenceException:
-					mark_form_as_invalid(row, color="550000")
-					error_in_save = True
+		row[3].value = f"{first_load_time:.2f}"
+		row[4].value = f"{min_time:.2f}"
+		row[5].value = f"{max_time:.2f}"
+		row[6].value = f"{mean_time:.2f}"
 
-			row[3].value = f"{first_load_time:.2f}"
-			row[4].value = f"{min_time:.2f}"
-			row[5].value = f"{max_time:.2f}"
-			row[6].value = f"{mean_time:.2f}"
+		compare_measures(row[15], row[24], row[16])
+		compare_measures(row[6], row[15], row[7])
 
-			compare_measures(row[15], row[24], row[16])
-			compare_measures(row[6], row[15], row[7])
-
-			if is_form_page_url and not disable_save:
-				if not error_in_save:
-					row[8].value = f"{min_save_time:.2f}"
-					row[9].value = f"{max_save_time:.2f}"
-					row[10].value = f"{mean_save_time:.2f}"
-					compare_measures(row[19], row[27], row[20])
-					compare_measures(row[10], row[19], row[11])
-				else:
-					row[8].value = ""
-					row[9].value = ""
-					row[10].value = ""
-
-			if disable_save:
+		if is_form_page_url and not disable_save:
+			if not error_in_save:
+				row[8].value = f"{min_save_time:.2f}"
+				row[9].value = f"{max_save_time:.2f}"
+				row[10].value = f"{mean_save_time:.2f}"
+				compare_measures(row[19], row[27], row[20])
+				compare_measures(row[10], row[19], row[11])
+			else:
 				row[8].value = ""
 				row[9].value = ""
 				row[10].value = ""
 
-			reset_styles([row[3], row[4], row[5], row[6], row[8], row[9], row[10]])
-			flag_high_load_time([row[3], row[4], row[5], row[6], row[8], row[9], row[10]], threshold)
-			prev_base_url = base_url
+		if disable_save:
+			row[8].value = ""
+			row[9].value = ""
+			row[10].value = ""
+
+		reset_styles([row[3], row[4], row[5], row[6], row[8], row[9], row[10]])
+		flag_high_load_time([row[3], row[4], row[5], row[6], row[8], row[9], row[10]], threshold)
+		prev_base_url = base_url
 	head_cell_top.value = f"{build_version} {timestamp}"
 	head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed:.2f}mb/s, loops: {loops}"
 	wb.save(input_file)

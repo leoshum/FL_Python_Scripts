@@ -17,6 +17,7 @@ def login_user(driver):
 	password_field.send_keys("tkztNANK3dLxD2XyJt")
 	submit_btn.click()
 	
+
 def open_website(driver, url, user):
 	username_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='username'] input")
 	host_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='host'] input")
@@ -27,9 +28,12 @@ def open_website(driver, url, user):
 	host_field.send_keys(url)
 	navigate_button.click()
 
+
 def get_website_version(driver, tab):
 	driver.switch_to.window(tab)
 	return WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#plcContent_ctlPageFooter_lblVersion, #lblVersion"))).text.replace("Version ", "")
+
+
 def main():
     options = Options()
     options.headless = True
@@ -55,5 +59,7 @@ def main():
             driver.close()
             driver.switch_to.window(parent)
     wb.save(sys.argv[1])
+
+    
 if __name__ == "__main__":
 	main()

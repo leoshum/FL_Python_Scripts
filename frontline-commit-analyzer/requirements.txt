@@ -1,0 +1,4 @@
+aiohttp==3.8.3
+openai==0.27.2
+pytz==2022.7
+tiktoken==0.2.0
