@@ -121,7 +121,7 @@ def idm_open_website(driver, url, user):
 
 def measure_form_page_load(url, driver, timeout):
 	start_time = time.time()
-	driver.get(url)
+	driver.execute_script("location.reload(true);")
 	wait = WebDriverWait(driver, timeout)
 	element = wait.until(
 		EC.any_of(
@@ -138,7 +138,6 @@ def measure_form_page_load(url, driver, timeout):
 		if driver.execute_script("return $(arguments[0]).find('input').length > 0;", element):
 			break
 		time.sleep(1)
-	print(time.time() - start_time)
 	return time.time() - start_time
 
 
@@ -196,6 +195,7 @@ def measure_form_save(url, driver, timeout):
 
 
 def measure_load_time(driver, url, timeout, loops, scenario):
+	driver.get(url)
 	measure_result = namedtuple("MeasureResult", ["first_measure", "min", "max", "mean"])
 	totals = np.zeros(loops)
 	is_first_measure = True
@@ -337,6 +337,13 @@ def main():
 					  		 row[17], row[18], row[19],
 					  		 row[26], row[27]], threshold)
 
+		prev_tab = driver.window_handles[0]
+		driver.execute_script("window.open('');")
+		driver.switch_to.window(prev_tab)
+		curr_tab = driver.window_handles[1]
+		driver.close()
+		driver.switch_to.window(curr_tab)
+
 		scenario = measure_form_page_load
 		is_form_page_url = is_form_page(url)
 		if not is_form_page_url:
@@ -356,6 +363,7 @@ def main():
 				logger.debug(f"Error detected '{page_title}' in {url}")
 		except:
 			pass
+
 		error_in_save = False
 		if is_form_page_url and not disable_save:
 			try:
