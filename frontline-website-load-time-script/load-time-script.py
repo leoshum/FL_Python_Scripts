@@ -56,8 +56,11 @@ def mark_form_as_invalid(row, color="FF0000"):
 
 
 def measure_network_speed():
-	st = speedtest.Speedtest()
-	return st.download() / 1000000
+	try:
+		st = speedtest.Speedtest()
+		return round(st.download() / 1000000, 2)
+	except:
+		return -1
 
 
 def specify_sheet_layout(sheet):
@@ -127,15 +130,15 @@ def measure_form_page_load(url, driver, timeout):
 			EC.visibility_of_element_located((By.TAG_NAME, "accelify-forms-details")),
 			EC.visibility_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
 			EC.visibility_of_element_located((By.TAG_NAME, "accelify-progress-report")),
-			EC.visibility_of_element_located((By.TAG_NAME, "accelify-forms-details")),
 			EC.visibility_of_element_located((By.TAG_NAME, "accelify-event-exceptionalities-view"))
 		)
 	)
 	temp_start_time = time.time()
 	while time.time() - temp_start_time < timeout:
-		if driver.execute_script("return arguments[0].textContent.trim().length > 0;", element):
+		if driver.execute_script("return $(arguments[0]).find('input').length > 0;", element):
 			break
 		time.sleep(1)
+	print(time.time() - start_time)
 	return time.time() - start_time
 
 
@@ -163,7 +166,6 @@ def wait_save_popup(url, driver, timeout):
 	temp_start_time = time.time()
 	while time.time() - temp_start_time < timeout:
 		script_result = driver.execute_script(script)
-		print(script_result)
 		if script_result != None and "Form has been updated successfully" in script_result:
 			break
 		time.sleep(1)
@@ -246,8 +248,7 @@ def main():
 	parser.add_argument("--disable_save", action="store_true")
 	parser.add_argument("--idm_auth", action="store_true", default=False)
 	my_namespace = parser.parse_args()
-	print(f"Input file: {my_namespace.input_file}")
-	network_speed = measure_network_speed()
+
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
 	disable_save = my_namespace.disable_save
@@ -255,10 +256,15 @@ def main():
 	threshold = 6
 	timeout = 30
 
+	print(f"Input file: {input_file}")
+	if not os.path.isfile(input_file):
+		print("Input file doesn't exist.")
+		return
 	if is_excel_file_opened(input_file):
 		print(f"Close opened {input_file} file!")
 		return
 	
+	network_speed = measure_network_speed()
 	wb = load_workbook(input_file, data_only=True)
 	wb_sheet = wb.active
 	wb_sheet.cell(row=1, column=29).value = "."
@@ -267,6 +273,9 @@ def main():
 	driver = webdriver.Chrome()
 	#driver.execute_cdp_cmd("Network.setCacheDisabled", {"cacheDisabled":True})
 	options = Options()
+	options.add_argument('--disable-cache')
+	options.add_argument('--disable-features=NetworkService')
+	options.add_argument('--disable-session-storage')
 	#options.headless = True
 
 	driver = webdriver.Chrome(options=options)
@@ -336,7 +345,7 @@ def main():
 		try:
 			(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, timeout, loops, scenario)
 			reset_styles([row[0], row[1]])
-		except TimeoutException:
+		except:
 			(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
 			mark_form_as_invalid(row)
 
@@ -395,7 +404,7 @@ def main():
 		flag_high_load_time([row[3], row[4], row[5], row[6], row[8], row[9], row[10]], threshold)
 		prev_base_url = base_url
 	head_cell_top.value = f"{build_version} {timestamp}"
-	head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed:.2f}mb/s, loops: {loops}"
+	head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed}mb/s, loops: {loops}"
 	wb.save(input_file)
 
 if __name__ == "__main__":
