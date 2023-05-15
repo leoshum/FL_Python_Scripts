@@ -66,6 +66,18 @@ class SeleniumHelper:
             time.sleep(1)
         return time.time() - temp_start_time
 
+    @staticmethod
+    def login_user(url: str, driver: webdriver.Chrome, username: str, password: str) -> None:
+        driver.get(url)
+        if "AcceliTrack" in driver.current_url:
+            return
+        username_field = driver.find_element("id", "UserName")
+        password_field = driver.find_element("id", "Password")
+        submit_btn = driver.find_element("id", "lnkLogin")
+        username_field.send_keys(username)
+        password_field.send_keys(password)
+        submit_btn.click()
+
 
 class unpresence_of_element(object):
     def __init__(self, locator):

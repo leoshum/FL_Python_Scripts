@@ -82,18 +82,6 @@ def flag_high_load_time(cells, threshold):
 			cell.font = Font(color="FF0000")
 
 
-def login_user(driver, url):
-	driver.get(url)
-	if "AcceliTrack" in driver.current_url:
-		return
-	username_field = driver.find_element("id", "UserName")
-	password_field = driver.find_element("id", "Password")
-	submit_btn = driver.find_element("id", "lnkLogin")
-	username_field.send_keys("PMGMT")
-	password_field.send_keys("8Huds(3d")
-	submit_btn.click()
-
-
 def idm_login_user(driver):
 	driver.get("https://support-tech.acceliplan.com/login")
 	username_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='username'] input")
@@ -136,6 +124,7 @@ def measure_standard_page_load(url, driver, timeout):
 
 def measure_form_save(url, driver, timeout):
 	measure_form_page_load(url, driver, timeout)
+	# TODO: Do we really need to wait until loader dissapear?
 	loader_locator = unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
 	WebDriverWait(driver, timeout).until(loader_locator)
 	WebDriverWait(driver, timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")))
@@ -264,7 +253,7 @@ def main():
 				idm_open_website(driver, base_url, "PMGMT")
 				driver.get(url)
 			else:
-				login_user(driver, base_url)
+				SeleniumHelper.login_user(base_url, driver, "PMGMT", "8Huds(3d")
 			build_version = SeleniumHelper.get_build_version(driver)
 			is_first_row = False
 		row[21].value = row[12].value
