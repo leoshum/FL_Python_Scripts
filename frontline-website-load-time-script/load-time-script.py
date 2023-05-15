@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import numpy as np
 import validators
@@ -20,6 +21,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
 
+package_path = os.path.abspath('..')
+sys.path.append(package_path)
+from frontline_selenium.selenium_helper import SeleniumHelper
+
 class unpresence_of_element(object):
 	def __init__(self, locator):
 		self.locator = locator
@@ -39,10 +44,6 @@ def is_excel_file_opened(filename):
 		return False
 	except:
 		return True
-
-
-def is_form_page(url):
-	return "Forms" in url or ("ViewEvent" in url and urlparse(url).fragment)
 
 
 def extract_base_url(url):
@@ -122,53 +123,15 @@ def idm_open_website(driver, url, user):
 def measure_form_page_load(url, driver, timeout):
 	start_time = time.time()
 	driver.execute_script("location.reload(true);")
-	wait = WebDriverWait(driver, timeout)
-	element = wait.until(
-		EC.any_of(
-			EC.visibility_of_element_located((By.ID, "pnlForm")),
-			EC.visibility_of_element_located((By.ID, "pnlEventContent")),
-			EC.visibility_of_element_located((By.TAG_NAME, "accelify-forms-details")),
-			EC.visibility_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
-			EC.visibility_of_element_located((By.TAG_NAME, "accelify-progress-report")),
-			EC.visibility_of_element_located((By.TAG_NAME, "accelify-event-exceptionalities-view"))
-		)
-	)
-	temp_start_time = time.time()
-	while time.time() - temp_start_time < timeout:
-		if driver.execute_script("return $(arguments[0]).find('input').length > 0;", element):
-			break
-		time.sleep(1)
+	SeleniumHelper.wait_for_form_page_load(driver)
 	return time.time() - start_time
 
 
 def measure_standard_page_load(url, driver, timeout):
 	start_time = time.time()
 	driver.get(url)
-	WebDriverWait(driver, timeout).until(
-		EC.any_of(
-			unpresence_of_element((By.CLASS_NAME, "loading-wrapper")),
-			unpresence_of_element((By.CLASS_NAME, "blockUI")),
-			unpresence_of_element((By.CLASS_NAME, "blockMsg")),
-			unpresence_of_element((By.CLASS_NAME, "blockPage"))
-		)
-	)
+	SeleniumHelper.wait_for_standard_page_load(driver)
 	return time.time() - start_time
-
-
-def wait_save_popup(url, driver, timeout):
-	script = ""
-	if "planng" in url:
-		script = "return $(\"kendo-notification\").text()"
-	else:
-		script = "return $(\"div[role='alert']\").text()"
-	
-	temp_start_time = time.time()
-	while time.time() - temp_start_time < timeout:
-		script_result = driver.execute_script(script)
-		if script_result != None and "Form has been updated successfully" in script_result:
-			break
-		time.sleep(1)
-	return time.time() - temp_start_time
 	
 
 def measure_form_save(url, driver, timeout):
@@ -187,8 +150,7 @@ def measure_form_save(url, driver, timeout):
 	start_time = time.time()
 	if save_btn_elem != None:		
 		save_btn_elem.click()
-		#WebDriverWait(driver, timeout).until(loader_locator)
-		wait_save_popup(url, driver, timeout)
+		SeleniumHelper.wait_for_form_save_popup(url, driver)
 	else:
 		raise NoSuchElementException()
 	return time.time() - start_time
@@ -271,7 +233,6 @@ def main():
 	wb_sheet.cell(row=1, column=29).value = ""
 	specify_sheet_layout(wb_sheet)
 	driver = webdriver.Chrome()
-	#driver.execute_cdp_cmd("Network.setCacheDisabled", {"cacheDisabled":True})
 	options = Options()
 	options.add_argument('--disable-cache')
 	options.add_argument('--disable-features=NetworkService')
@@ -304,7 +265,7 @@ def main():
 				driver.get(url)
 			else:
 				login_user(driver, base_url)
-			build_version = driver.find_element(By.CSS_SELECTOR, "span.version").text.replace("Version ", "")
+			build_version = SeleniumHelper.get_build_version(driver)
 			is_first_row = False
 		row[21].value = row[12].value
 		row[22].value = row[13].value
@@ -345,7 +306,7 @@ def main():
 		driver.switch_to.window(curr_tab)
 
 		scenario = measure_form_page_load
-		is_form_page_url = is_form_page(url)
+		is_form_page_url = SeleniumHelper.is_form_page_url(url)
 		if not is_form_page_url:
 				scenario = measure_standard_page_load
 
