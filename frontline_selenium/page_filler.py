@@ -1,5 +1,4 @@
 from selenium import webdriver
-from selenium_helper import SeleniumHelper
 
 class PageFormFiller:
     @staticmethod

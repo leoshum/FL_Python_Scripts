@@ -1,10 +1,12 @@
 import time
+from frontline_selenium.page_filler import PageFormFiller
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
+from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
 from urllib.parse import urlparse
+
 class SeleniumHelper:
     timeout: float = 30
 
@@ -51,9 +53,9 @@ class SeleniumHelper:
         )
     
     @staticmethod
-    def wait_for_form_save_popup(url: str, driver: webdriver.Chrome) -> None:
+    def wait_for_form_save_popup(driver: webdriver.Chrome) -> None:
         script = ""
-        if SeleniumHelper.is_plan_page_url(url):
+        if SeleniumHelper.is_plan_page_url(driver.current_url):
             script = "return $(\"div[role='alert']\").text()"
         else:
             script = "return $(\"kendo-notification\").text()"
@@ -78,7 +80,45 @@ class SeleniumHelper:
         password_field.send_keys(password)
         submit_btn.click()
 
-
+    @staticmethod
+    def measure_form_page_load_time(driver: webdriver.Chrome) -> float:
+        start_time = time.time()
+        driver.execute_script("location.reload(true);")
+        SeleniumHelper.wait_for_form_page_load(driver)
+        return time.time() - start_time
+    
+    @staticmethod
+    def measure_standard_page_load_time(driver: webdriver.Chrome) -> float:
+        start_time = time.time()
+        driver.execute_script("location.reload(true);")
+        SeleniumHelper.wait_for_standard_page_load(driver)
+        return time.time() - start_time
+    
+    @staticmethod
+    def measure_form_save_time(driver: webdriver.Chrome) -> float:
+        SeleniumHelper.wait_for_form_page_load(driver)
+        # TODO: Do we really need to wait until loader dissapear?
+        loader_locator = unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
+        WebDriverWait(driver, SeleniumHelper.timeout).until(loader_locator)
+        WebDriverWait(driver, SeleniumHelper.timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")))
+        save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")
+        save_btn_elem = None
+        for save_btn in save_btns:
+            if save_btn.text == "Save Form":
+                save_btn_elem = save_btn
+                break
+            
+        start_time = time.time()
+        if save_btn_elem != None:
+            if SeleniumHelper.is_plan_page_url(driver.current_url):
+                PageFormFiller.fill_form(driver)		
+            save_btn_elem.click()
+            SeleniumHelper.wait_for_form_save_popup(driver)
+        else:
+            raise NoSuchElementException()
+        return time.time() - start_time
+    
+    
 class unpresence_of_element(object):
     def __init__(self, locator):
         self.locator = locator

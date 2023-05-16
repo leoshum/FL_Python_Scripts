@@ -6,35 +6,20 @@ import validators
 import argparse
 import speedtest
 import logging
-import requests
 from collections import namedtuple
 from datetime import datetime
 from urllib.parse import urlparse 
-from openpyxl.workbook import Workbook
 from openpyxl.styles import Alignment
 from openpyxl import load_workbook
-from openpyxl.styles import PatternFill, colors, Font
+from openpyxl.styles import PatternFill, Font
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
 
 package_path = os.path.abspath('..')
 sys.path.append(package_path)
 from frontline_selenium.selenium_helper import SeleniumHelper
-
-class unpresence_of_element(object):
-	def __init__(self, locator):
-		self.locator = locator
-
-	def __call__(self, driver):
-		try:
-			driver.find_element(*self.locator)
-			return False
-		except:
-			return True
 
 
 def is_excel_file_opened(filename):
@@ -108,51 +93,14 @@ def idm_open_website(driver, url, user):
 	driver.switch_to.window(child)
 
 
-def measure_form_page_load(url, driver, timeout):
-	start_time = time.time()
-	driver.execute_script("location.reload(true);")
-	SeleniumHelper.wait_for_form_page_load(driver)
-	return time.time() - start_time
-
-
-def measure_standard_page_load(url, driver, timeout):
-	start_time = time.time()
-	driver.get(url)
-	SeleniumHelper.wait_for_standard_page_load(driver)
-	return time.time() - start_time
-	
-
-def measure_form_save(url, driver, timeout):
-	measure_form_page_load(url, driver, timeout)
-	# TODO: Do we really need to wait until loader dissapear?
-	loader_locator = unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
-	WebDriverWait(driver, timeout).until(loader_locator)
-	WebDriverWait(driver, timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")))
-	save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")
-	start_time = None
-	save_btn_elem = None
-	for save_btn in save_btns:
-		if save_btn.text == "Save Form":
-			save_btn_elem = save_btn
-			break
-		
-	start_time = time.time()
-	if save_btn_elem != None:		
-		save_btn_elem.click()
-		SeleniumHelper.wait_for_form_save_popup(url, driver)
-	else:
-		raise NoSuchElementException()
-	return time.time() - start_time
-
-
-def measure_load_time(driver, url, timeout, loops, scenario):
+def measure_load_time(driver, url, loops, scenario):
 	driver.get(url)
 	measure_result = namedtuple("MeasureResult", ["first_measure", "min", "max", "mean"])
 	totals = np.zeros(loops)
 	is_first_measure = True
 	first_measure = 0
 	for j in range(loops):
-		measured_time = scenario(url, driver, timeout)
+		measured_time = scenario(driver)
 		totals[j] = measured_time
 		if is_first_measure:
 			is_first_measure = False
@@ -294,13 +242,13 @@ def main():
 		driver.close()
 		driver.switch_to.window(curr_tab)
 
-		scenario = measure_form_page_load
+		scenario = SeleniumHelper.measure_form_page_load_time
 		is_form_page_url = SeleniumHelper.is_form_page_url(url)
 		if not is_form_page_url:
-				scenario = measure_standard_page_load
+				scenario = SeleniumHelper.measure_standard_page_load_time
 
 		try:
-			(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, timeout, loops, scenario)
+			(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, loops, scenario)
 			reset_styles([row[0], row[1]])
 		except:
 			(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
@@ -317,7 +265,7 @@ def main():
 		error_in_save = False
 		if is_form_page_url and not disable_save:
 			try:
-				(first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, timeout, loops, measure_form_save)
+				(first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, loops, SeleniumHelper.measure_form_save_time)
 			except TimeoutException:
 				mark_form_as_invalid(row)
 				error_in_save = True
