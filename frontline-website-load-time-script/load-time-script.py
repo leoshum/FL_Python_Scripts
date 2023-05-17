@@ -20,6 +20,7 @@ from selenium.common.exceptions import TimeoutException, ElementClickIntercepted
 package_path = os.path.abspath('..')
 sys.path.append(package_path)
 from frontline_selenium.selenium_helper import SeleniumHelper
+from frontline_selenium.support_tech_helper import SupportTech
 
 
 def is_excel_file_opened(filename):
@@ -65,32 +66,6 @@ def flag_high_load_time(cells, threshold):
 	for cell in cells:
 		if cell.value != None and cell.value != "" and float(cell.value) > threshold:
 			cell.font = Font(color="FF0000")
-
-
-def idm_login_user(driver):
-	driver.get("https://support-tech.acceliplan.com/login")
-	username_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='username'] input")
-	password_field = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
-	submit_btn = driver.find_element(By.CSS_SELECTOR, "form button")
-	username_field.send_keys("SupportAdmin")
-	password_field.send_keys("tkztNANK3dLxD2XyJt")
-	submit_btn.click()
-	
-
-def idm_open_website(driver, url, user):
-	username_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='username'] input")
-	host_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='host'] input")
-	navigate_button = driver.find_element(By.CSS_SELECTOR, ".k-buttons-end button")
-	host_field.clear()
-	username_field.clear()
-	username_field.send_keys(user)
-	host_field.send_keys(url)
-	navigate_button.click()
-	time.sleep(2)
-	child = driver.window_handles[1]
-	driver.switch_to.window(driver.window_handles[0])
-	driver.close()
-	driver.switch_to.window(child)
 
 
 def measure_load_time(driver, url, loops, scenario):
@@ -196,9 +171,9 @@ def main():
 		base_url = extract_base_url(url)
 		if prev_base_url != base_url or is_first_row:
 			if idm_auth:
-				idm_login_user(driver)
+				SupportTech.login(driver)
 				time.sleep(3)
-				idm_open_website(driver, base_url, "PMGMT")
+				SupportTech.open_website(driver, base_url, "PMGMT")
 				driver.get(url)
 			else:
 				SeleniumHelper.login_user(base_url, driver, "PMGMT", "8Huds(3d")

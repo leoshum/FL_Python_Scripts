@@ -1,1 +1,1 @@
-__all__ = ["selenium_helper", "page_filler"]
+__all__ = ["selenium_helper", "page_filler", "support_tech_helper"]
