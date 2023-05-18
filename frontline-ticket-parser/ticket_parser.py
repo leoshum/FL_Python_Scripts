@@ -1,10 +1,13 @@
-import datetime
+from datetime import datetime, timedelta
 import json
 from os import environ, path
+import os
 import re
 import subprocess
 import aiohttp
 import asyncio
+import types
+import pytz
 
 import pandas as pd
 from openpyxl import load_workbook
@@ -43,11 +46,13 @@ def configure():
     configuration['switch_script_path'] = f"{root_directory}\\switch_and_update_branch.ps1"
     configuration['result_path'] = f"{root_directory}\\result.xlsx"
     configuration['result_json_path'] = f"{root_directory}\\result.json"
+    configuration['builds_path'] = f"{root_directory}\\{configuration.get('builds_file')}"
+    
 
     print('Application configured')
     return configuration
 
-async def get_issues_from_jira(session, jira_url, login, jira_token):
+async def get_issues_from_jira(session, jira_url, login, jira_token, stored_issues):
     # Authenticate with Jira
     auth = aiohttp.BasicAuth(login=login, password=jira_token)
     
@@ -55,7 +60,14 @@ async def get_issues_from_jira(session, jira_url, login, jira_token):
     start_at = 0
     max_results = 50
     headers = {'Accept': 'application/json'}
-    result = []
+    numbers = [issue.get('number') for issue in stored_issues]
+    date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
+    # Calculate the date six months ago
+    end_date = datetime.now(pytz.utc) - timedelta(days=30*4)
+    total_issues = 1
+    # result = []
+    # number_regex = re.compile(r"^CW0575-(\d+)$")
+    # last_number = re.findall(number_regex, stored_issues[0].get('number'))[0]
 
     # Make the initial API call to get the total number of issues
     # url = f'{jira_url}?jql={jql_query}&startAt={start_at}&maxResults={max_results}'
@@ -69,9 +81,8 @@ async def get_issues_from_jira(session, jira_url, login, jira_token):
     #     else:
     #         print(f'Request failed with status {response.status}: {response.reason}')
     #         return
-    total_issues = 1
     # Loop through the paginated API responses
-    while start_at < total_issues and start_at < 500:# and start_at < 50
+    while start_at < total_issues:# and start_at < 50
         # Set up the API request with the appropriate startAt and maxResults values
         url = f'{jira_url}?jql={jql_query}&startAt={start_at}&maxResults={max_results}'
 
@@ -82,9 +93,14 @@ async def get_issues_from_jira(session, jira_url, login, jira_token):
                 if total_issues == 1 and data.get('total') != 1:
                     total_issues = data['total']
 
-                result.extend(data['issues'])
+                # result.extend(data['issues'])
                 print(f'Get [{start_at}] - [{start_at + max_results - 1}] issues from Jira.')
-                for issue in data.get('issues'): yield issue                 
+                for issue in data.get('issues'):
+                    if issue.get('key') in numbers:
+                        if datetime.strptime(issue.get('fields').get('updated'), date_format) < end_date: return
+                        continue
+                    # if last_number >= re.findall(number_regex, issue.get('key'))[0]: return
+                    yield issue                 
             else:
                 print(f'Request failed with status {response.status}: {response.reason}')
                 return
@@ -95,7 +111,6 @@ async def get_issues_from_jira(session, jira_url, login, jira_token):
     # with open(result_path, mode='w', encoding='UTF-8') as file:
     #     file.write(json.dumps([issue['fields']['status']['name'] for issue in result], indent=2, ensure_ascii=False))
     # return [{ 'key': issue['key'], 'status' : issue['fields']['status']['name']} for issue in result]
-
 
 async def configure_git(script_path, repository_path, branch_name, key_path):
     process = await asyncio.create_subprocess_exec(
@@ -142,36 +157,35 @@ async def find_in_git(ticket, script_path, repository_path):
     #     })
     #     print(f'Ticket [{ticket["key"]}] founded')
 
-# def find_in_git(tickets, find_script_path, switch_script_path, repository_path, branch_name, key_path):
-#     result = []
-#     not_founded = []
-#     task_result = subprocess.run(['powershell', '-File', switch_script_path, '-Repository_path', repository_path, '-Branch_name', branch_name, '-Key_Path', key_path])
-#     if task_result.returncode != 0:
-#         output = json.loads(task_result.stdout.decode('utf-8'))
-#         raise f'Can not switch branch [{output}]'
+    # def find_in_git(tickets, find_script_path, switch_script_path, repository_path, branch_name, key_path):
+    #     result = []
+    #     not_founded = []
+    #     task_result = subprocess.run(['powershell', '-File', switch_script_path, '-Repository_path', repository_path, '-Branch_name', branch_name, '-Key_Path', key_path])
+    #     if task_result.returncode != 0:
+    #         output = json.loads(task_result.stdout.decode('utf-8'))
+    #         raise f'Can not switch branch [{output}]'
 
-
-#     for ticket in tickets:
-#         task_result = subprocess.run(['powershell', '-File', find_script_path, '-Repository_path', repository_path, '-Ticket_number', ticket['key']], capture_output=True)
-#         if task_result.returncode != 0:
-#             result.append({
-#                 'number' : ticket['key'],
-#                 'status' : ticket['status'],
-#                 'commits' : []
-#             })
-#             not_founded.append({                
-#                 'number' : ticket['key']
-#             })
-#             print(f'Ticket [{ticket["key"]}] not founded')
-#         else:
-#             output = json.loads(task_result.stdout.decode('utf-8'))
-#             result.append({
-#                 'number' : ticket['key'],
-#                 'status' : ticket['status'],
-#                 'commits' : output
-#             })
-#             print(f'Ticket [{ticket["key"]}] founded')
-#     return result
+    #     for ticket in tickets:
+    #         task_result = subprocess.run(['powershell', '-File', find_script_path, '-Repository_path', repository_path, '-Ticket_number', ticket['key']], capture_output=True)
+    #         if task_result.returncode != 0:
+    #             result.append({
+    #                 'number' : ticket['key'],
+    #                 'status' : ticket['status'],
+    #                 'commits' : []
+    #             })
+    #             not_founded.append({                
+    #                 'number' : ticket['key']
+    #             })
+    #             print(f'Ticket [{ticket["key"]}] not founded')
+    #         else:
+    #             output = json.loads(task_result.stdout.decode('utf-8'))
+    #             result.append({
+    #                 'number' : ticket['key'],
+    #                 'status' : ticket['status'],
+    #                 'commits' : output
+    #             })
+    #             print(f'Ticket [{ticket["key"]}] founded')
+    #     return result
 
 def parse_commit(commit):
     commit_regex = re.compile(r"^commit\s+(\w+)")
@@ -197,7 +211,7 @@ def parse_tickets(tickets):
                 if parse_line(parsed_commit, 'sha', line, commit_regex): continue
                 if parse_line(parsed_commit, 'author', line, author_regex) and parse_line(parsed_commit, 'email', line, email_regex): continue
                 if parse_line(parsed_commit, 'date', line, date_regex):
-                    parsed_commit['date'] = datetime.datetime.strptime(parsed_commit.get('date'), "%a %b %d %H:%M:%S %Y %z").isoformat(sep=' ', timespec='seconds')
+                    parsed_commit['date'] = datetime.strptime(parsed_commit.get('date'), "%a %b %d %H:%M:%S %Y %z").isoformat(sep=' ', timespec='seconds')
                     continue
                 parsed_commit['description'].append(line)
             parsed_commit['description'] = '\r\n'.join(parsed_commit.get('description'))
@@ -245,27 +259,53 @@ def parse_line(commit, key, line, regex):
             return True
     return False
 
-async def get_builds(session, teamcity_url, teamcity_token, build_id):
+async def get_builds(session, teamcity_url, teamcity_token, build_id, builds_path):
+    if os.path.exists(builds_path):
+        with open(builds_path,mode='r',encoding='UTF-8') as file:
+            stored = json.load(file)
+    else: stored = None
+
     headers = {
         'Accept': 'application/json',
         'Authorization' : f'Bearer {teamcity_token}'
     }
     builds = []
+    start = 0
+    count = 100
+    stop = False
+    team_city_time_format = '%Y%m%dT%H%M%S%z'
 
-    url = f'{teamcity_url}/builds?locator=defaultFilter:false,buildType:{build_id}'
-    async with session.get(url, headers=headers) as response:
-        if response.status == 200:
-            data = await response.json()
-            for build in data['build']:
-                builds.append(build)
-                url = f"{teamcity_url}/changes?locator=build:(id:{build['id']})&fields=change(version)"
-                async with session.get(url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        build['changes'] = data['change']
-                        # for change in data['change']:
-                        #     changes[change['version']] = build['number']
+    while not stop:
+        url = f'{teamcity_url}/builds?locator=defaultFilter:false,buildType:{build_id},count:{count},start:{start},status:SUCCESS,running:false'
+        async with session.get(url, headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data.get('count') == 0: 
+                    stop = True
+                    break
+                for build in data.get('build'):
+                    if stored and len(stored) > 0 and datetime.strptime(build.get('finishOnAgentDate'), team_city_time_format) <= datetime.strptime(stored[0].get('finishOnAgentDate'), team_city_time_format):
+                        builds.extend(stored)
+                        stop = True
+                        break
+                    builds.append(build)
+                    change_start = 0
+                    build['changes'] = []
+                    while True:
+                        url = f"{teamcity_url}/changes?build={build['id']}&fields=change(version,date)&start={change_start}&count:{count}"
+                        async with session.get(url, headers=headers) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                build['changes'].extend(data.get('change'))
+                                if len(data.get('change')) < 100 or datetime.strptime(data.get('change')[0].get('date'), team_city_time_format).year < 2020:
+                                    break
+                                # for change in data['change']:
+                                #     changes[change['version']] = build['number']
+                        change_start += count
+        start += count
     
+    with open(builds_path,mode='w',encoding='UTF-8') as file:
+        file.write(json.dumps(builds,indent=2,ensure_ascii=False))
     result = { change['version']: build['number'] for build in builds for change in build['changes'] }
     print(f'[{len(result)}] Builds received from the TeamCity')
     return result
@@ -377,34 +417,45 @@ def write_to_excel(tickets, path):
     df.to_excel(path, index=False)
     # df = pd.json_normalize(tickets, record_path=['commits'], meta=['number', 'status'])
     # df.to_excel(path, index=False)
-    
-
 
 async def main():
     tickets = []
     configuration = configure()
+    with open(configuration.get('result_json_path'), mode='r', encoding='UTF-8') as file:
+        stored_issues = json.load(file)
+    stored_issues = stored_issues[100:len(stored_issues)]
     async with aiohttp.ClientSession() as jira_session:
-        issues = get_issues_from_jira(jira_session, configuration.get('jira_url'), configuration.get('jira_login'), configuration.get('jira_token'))
+        issues = get_issues_from_jira(jira_session, configuration.get('jira_url'), configuration.get('jira_login'), configuration.get('jira_token'), stored_issues)
+        # with open("C:\\Users\\mykha\\source\\repos\\fl_python\\FL_Python_Scripts\\frontline-ticket-parser\\tickets.json", mode='r',encoding='UTF-8') as file:
+        #     issues = json.load(file)
+        # for index, ticket in enumerate(issues):
+        #     issues[index] = {
+        #         "key" : ticket.replace(" ", ""),
+        #         'fields' : { 'status' : {'name':'...'}}
+        #     }
         await configure_git(configuration.get('switch_script_path'), configuration.get('repository_path'), configuration.get('git_branch'), configuration.get('ssh_key_path'))
         
         async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False),trust_env=True) as teamcity_session:
-            builds = await get_builds(teamcity_session, configuration.get('teamcity_url'), configuration.get('teamcity_token'), configuration.get('teamCity_build_id'),)
+            builds = get_builds(teamcity_session, configuration.get('teamcity_url'), configuration.get('teamcity_token'), configuration.get('teamCity_build_id'), configuration.get('builds_path'))
+            # builds = await builds
             async for ticket in issues:
                 output = await find_in_git(ticket, configuration.get('find_script_path'), configuration.get('repository_path'))
                 if not output:
                     tickets.append({
-                        'number' : ticket['key'],
+                        'number' : f'https://frontlinetechnologies.atlassian.net/browse/{ticket.get("key")}',
                         'status' : ticket['fields']['status']['name'],
                         'version' : None
                     })
                     continue
                 sha = parse_commit(output)
-                
+                if type(builds) is types.CoroutineType:
+                    builds = await builds
                 tickets.append({
                     'number' : ticket['key'],
                     'status' : ticket['fields']['status']['name'],
                     'version' :  builds.get(sha)
                 })
+    tickets.extend(stored_issues)
     write_to_excel(tickets, configuration.get('result_path'),)
     with open(configuration.get('result_json_path'), mode='w', encoding='UTF-8') as file:
         file.write(json.dumps(tickets, indent=2, ensure_ascii=False))

@@ -1,0 +1,9 @@
+ python bootstrapper.py --path TX-STG\STG_EXPRESS_TX_loading_test.xlsx --disable_save --loops 3
+TX-STG\STG_EXPRESS_TX_loading_test.xlsx
+TX-STG\STG_FULL_TX_loading_test.xlsx
+TX-HOTFIX\HTX_Lake_Dallas_loading_test.xlsx
+FULL
+ python bootstrapper.py --path TX-STG\STG_FULL_TX_loading_test.xlsx --disable_save --loops 3
+
+HTX - LAKE DALLAS
+ python bootstrapper.py --path TX-HOTFIX\HTX_Lake_Dallas_loading_test.xlsx --disable_save --loops 1

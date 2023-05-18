@@ -1,0 +1,64 @@
+
+<div class="container">
+    <div class="form-group">
+        <label for="pathSelect">Physical Path:</label>
+        <!-- <select class="form-control" id="pathSelect" [(ngModel)]="selectedPath">
+            <option *ngFor="let path of paths" [value]="environments">{{ environments }}</option>
+        </select> -->
+    </div>
+      
+    <div class="tree">
+        <ul>
+            <li *ngFor="let path of paths | keyvalue">
+                <i class="fa fa-folder-open"></i> {{ path.key }}
+                <ul>                    
+                    <li class="pointer" (mouseover)="overFile($event)" (mouseout)="leaveFile($event)" (click)="selectedPathChange(path.key + '\\' + file, $event)" *ngFor="let file of path.value">
+                        {{ file }}
+                    </li>
+                </ul>
+            </li>
+            <!-- <li *ngFor="let path of paths">{{ path }}</li> -->
+          <!-- <li><i class="fa fa-folder-open"></i> Project
+            <ul>
+              <li><i class="fa fa-folder-open"></i> Opened Folder <span>- 15kb</span>
+                <ul>
+                  <li><i class="fa fa-folder-open"></i> css
+                    <ul>
+                      <li><i class="fa fa-code"></i> CSS Files <span>- 3kb</span>
+                      </li>
+
+                    </ul>
+                  </li>
+                  <li><i class="fa fa-folder"></i> Folder close <span>- 10kb</span>
+                  </li>
+                  <li><i class="fab fa-html5"></i> index.html</li>
+                  <li><i class="fa fa-picture-o"></i> favicon.ico</li>
+                </ul>
+              </li>
+              <li><i class="fa fa-folder"></i> Folder close <span>- 420kb</span>
+
+              </li>
+            </ul>
+          </li> -->
+        </ul>
+      </div>
+
+    <div class="form-group">
+        <div class="form-check">
+            <label class="form-check-label" for="disableCheckbox">Disable Save</label>
+            <input type="checkbox" class="form-check-input" id="disableCheckbox" [(ngModel)]="isDisabled">
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="loopsInput">Loops:</label>
+        <input type="number" class="form-control" id="loopsInput" [(ngModel)]="numLoops">
+    </div>
+    
+    <div class="form-group">
+        <button type="button" class="btn btn-primary" (click)="sendPostRequest()">Run</button>
+      </div>
+      
+</div>
+
+  
