@@ -22,7 +22,13 @@ class PageFormFiller:
     @staticmethod
     def fill_form_rich_text_editors(driver: webdriver.Chrome) -> None:
         if SeleniumHelper.is_plan_page_url(driver.current_url):
-            driver.execute_script("$(\".k-editor[data-role='text-editor']\").each(function() { $(this).data('kendoEditor').value('test'); })")
+            driver.execute_script("""
+                $(\".k-editor[data-role='text-editor']\").each(function() { 
+                        var editor = $(this).data('kendoEditor');
+                        editor.value('test11111111111111111111111111111111111111');
+                        editor.trigger('change');
+                    });
+            """)
         else:
             pass
 
@@ -97,7 +103,12 @@ class PageFormFiller:
         if SeleniumHelper.is_plan_page_url(driver.current_url):
             driver.execute_script("""
             $(".form input[data-role='datePicker']").each(function() {
-                $(this).data("kendoDatePicker").value(new Date());
+                var datepicker = $(this).data("kendoDatePicker");
+                var minDate = new Date(datepicker.options.min).getTime();
+                var maxDate = new Date(datepicker.options.max).getTime();
+                var randomTimestamp = minDate + Math.random() * (maxDate - minDate);
+                datepicker.value(new Date(randomTimestamp));
+                datepicker.trigger('change');
             })
             """)
         else:
@@ -107,18 +118,18 @@ class PageFormFiller:
     def fill_form_multiple_selects(driver: webdriver.Chrome) -> None:
         if SeleniumHelper.is_plan_page_url(driver.current_url):
             driver.execute_script("""
-            $(".form select[data-role='multiSelect']").each(function() { 
-                var values = []
-                $(this).find("option").each(function() {
-                    values.push($(this).val())
+                $(".form select[data-role='multiSelect']").each(function() { 
+                    var values = []
+                    $(this).find("option").each(function() {
+                        values.push($(this).val())
+                    });
+                    var randomIndex1 = Math.floor(Math.random() * values.length);
+                    var randomIndex2 = Math.floor(Math.random() * values.length);
+                    while (randomIndex2 === randomIndex1) {
+                        randomIndex2 = Math.floor(Math.random() * values.length);
+                    }
+                    $(this).data("kendoMultiSelect").value([values[randomIndex1], values[randomIndex2]]);
                 });
-                var randomIndex1 = Math.floor(Math.random() * values.length);
-                var randomIndex2 = Math.floor(Math.random() * values.length);
-                while (randomIndex2 === randomIndex1) {
-                    randomIndex2 = Math.floor(Math.random() * values.length);
-                }
-                $(this).data("kendoMultiSelect").value([values[randomIndex1], values[randomIndex2]]);
-            });
             """)
         else:
             pass
