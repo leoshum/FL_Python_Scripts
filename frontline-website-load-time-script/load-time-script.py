@@ -1,35 +1,26 @@
 import os
+import sys
 import time
 import numpy as np
 import validators
 import argparse
 import speedtest
 import logging
-import requests
 from collections import namedtuple
 from datetime import datetime
 from urllib.parse import urlparse 
-from openpyxl.workbook import Workbook
 from openpyxl.styles import Alignment
 from openpyxl import load_workbook
-from openpyxl.styles import PatternFill, colors, Font
+from openpyxl.styles import PatternFill, Font
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
 
-class unpresence_of_element(object):
-	def __init__(self, locator):
-		self.locator = locator
-
-	def __call__(self, driver):
-		try:
-			driver.find_element(*self.locator)
-			return False
-		except:
-			return True
+package_path = os.path.abspath('..')
+sys.path.append(package_path)
+from frontline_selenium.selenium_helper import SeleniumHelper
+from frontline_selenium.support_tech_helper import SupportTech
 
 
 def is_excel_file_opened(filename):
@@ -39,10 +30,6 @@ def is_excel_file_opened(filename):
 		return False
 	except:
 		return True
-
-
-def is_form_page(url):
-	return "Forms" in url or ("ViewEvent" in url and urlparse(url).fragment)
 
 
 def extract_base_url(url):
@@ -56,8 +43,11 @@ def mark_form_as_invalid(row, color="FF0000"):
 
 
 def measure_network_speed():
-	st = speedtest.Speedtest()
-	return st.download() / 1000000
+	try:
+		st = speedtest.Speedtest()
+		return round(st.download() / 1000000, 2)
+	except:
+		return -1
 
 
 def specify_sheet_layout(sheet):
@@ -78,128 +68,14 @@ def flag_high_load_time(cells, threshold):
 			cell.font = Font(color="FF0000")
 
 
-def login_user(driver, url):
+def measure_load_time(driver, url, loops, scenario):
 	driver.get(url)
-	if "AcceliTrack" in driver.current_url:
-		return
-	username_field = driver.find_element("id", "UserName")
-	password_field = driver.find_element("id", "Password")
-	submit_btn = driver.find_element("id", "lnkLogin")
-	username_field.send_keys("PMGMT")
-	password_field.send_keys("8Huds(3d")
-	submit_btn.click()
-
-
-def idm_login_user(driver):
-	driver.get("https://support-tech.acceliplan.com/login")
-	username_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='username'] input")
-	password_field = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
-	submit_btn = driver.find_element(By.CSS_SELECTOR, "form button")
-	username_field.send_keys("SupportAdmin")
-	password_field.send_keys("tkztNANK3dLxD2XyJt")
-	submit_btn.click()
-	
-
-def idm_open_website(driver, url, user):
-	username_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='username'] input")
-	host_field = driver.find_element(By.CSS_SELECTOR, "kendo-textbox[formcontrolname='host'] input")
-	navigate_button = driver.find_element(By.CSS_SELECTOR, ".k-buttons-end button")
-	host_field.clear()
-	username_field.clear()
-	username_field.send_keys(user)
-	host_field.send_keys(url)
-	navigate_button.click()
-	time.sleep(2)
-	child = driver.window_handles[1]
-	driver.switch_to.window(driver.window_handles[0])
-	driver.close()
-	driver.switch_to.window(child)
-
-
-def measure_form_page_load(url, driver, timeout):
-	start_time = time.time()
-	driver.get(url)
-	wait = WebDriverWait(driver, timeout)
-	element = wait.until(
-		EC.any_of(
-			EC.visibility_of_element_located((By.ID, "pnlForm")),
-			EC.visibility_of_element_located((By.ID, "pnlEventContent")),
-			EC.visibility_of_element_located((By.TAG_NAME, "accelify-forms-details")),
-			EC.visibility_of_element_located((By.TAG_NAME, "accelify-event-eligiblity-determination")),
-			EC.visibility_of_element_located((By.TAG_NAME, "accelify-progress-report")),
-			EC.visibility_of_element_located((By.TAG_NAME, "accelify-forms-details")),
-			EC.visibility_of_element_located((By.TAG_NAME, "accelify-event-exceptionalities-view"))
-		)
-	)
-	temp_start_time = time.time()
-	while time.time() - temp_start_time < timeout:
-		if driver.execute_script("return arguments[0].textContent.trim().length > 0;", element):
-			break
-		time.sleep(1)
-	return time.time() - start_time
-
-
-def measure_standard_page_load(url, driver, timeout):
-	start_time = time.time()
-	driver.get(url)
-	WebDriverWait(driver, timeout).until(
-		EC.any_of(
-			unpresence_of_element((By.CLASS_NAME, "loading-wrapper")),
-			unpresence_of_element((By.CLASS_NAME, "blockUI")),
-			unpresence_of_element((By.CLASS_NAME, "blockMsg")),
-			unpresence_of_element((By.CLASS_NAME, "blockPage"))
-		)
-	)
-	return time.time() - start_time
-
-
-def wait_save_popup(url, driver, timeout):
-	script = ""
-	if "planng" in url:
-		script = "return $(\"kendo-notification\").text()"
-	else:
-		script = "return $(\"div[role='alert']\").text()"
-	
-	temp_start_time = time.time()
-	while time.time() - temp_start_time < timeout:
-		script_result = driver.execute_script(script)
-		print(script_result)
-		if script_result != None and "Form has been updated successfully" in script_result:
-			break
-		time.sleep(1)
-	return time.time() - temp_start_time
-	
-
-def measure_form_save(url, driver, timeout):
-	measure_form_page_load(url, driver, timeout)
-	loader_locator = unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
-	WebDriverWait(driver, timeout).until(loader_locator)
-	WebDriverWait(driver, timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")))
-	save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")
-	start_time = None
-	save_btn_elem = None
-	for save_btn in save_btns:
-		if save_btn.text == "Save Form":
-			save_btn_elem = save_btn
-			break
-		
-	start_time = time.time()
-	if save_btn_elem != None:		
-		save_btn_elem.click()
-		#WebDriverWait(driver, timeout).until(loader_locator)
-		wait_save_popup(url, driver, timeout)
-	else:
-		raise NoSuchElementException()
-	return time.time() - start_time
-
-
-def measure_load_time(driver, url, timeout, loops, scenario):
 	measure_result = namedtuple("MeasureResult", ["first_measure", "min", "max", "mean"])
 	totals = np.zeros(loops)
 	is_first_measure = True
 	first_measure = 0
 	for j in range(loops):
-		measured_time = scenario(url, driver, timeout)
+		measured_time = scenario(driver)
 		totals[j] = measured_time
 		if is_first_measure:
 			is_first_measure = False
@@ -246,8 +122,7 @@ def main():
 	parser.add_argument("--disable_save", action="store_true")
 	parser.add_argument("--idm_auth", action="store_true", default=False)
 	my_namespace = parser.parse_args()
-	print(f"Input file: {my_namespace.input_file}")
-	network_speed = measure_network_speed()
+
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
 	disable_save = my_namespace.disable_save
@@ -255,18 +130,25 @@ def main():
 	threshold = 6
 	timeout = 30
 
+	print(f"Input file: {input_file}")
+	if not os.path.isfile(input_file):
+		print("Input file doesn't exist.")
+		return
 	if is_excel_file_opened(input_file):
 		print(f"Close opened {input_file} file!")
 		return
 	
+	network_speed = measure_network_speed()
 	wb = load_workbook(input_file, data_only=True)
 	wb_sheet = wb.active
 	wb_sheet.cell(row=1, column=29).value = "."
 	wb_sheet.cell(row=1, column=29).value = ""
 	specify_sheet_layout(wb_sheet)
 	driver = webdriver.Chrome()
-	#driver.execute_cdp_cmd("Network.setCacheDisabled", {"cacheDisabled":True})
 	options = Options()
+	options.add_argument('--disable-cache')
+	options.add_argument('--disable-features=NetworkService')
+	options.add_argument('--disable-session-storage')
 	#options.headless = True
 
 	driver = webdriver.Chrome(options=options)
@@ -289,13 +171,13 @@ def main():
 		base_url = extract_base_url(url)
 		if prev_base_url != base_url or is_first_row:
 			if idm_auth:
-				idm_login_user(driver)
+				SupportTech.login(driver)
 				time.sleep(3)
-				idm_open_website(driver, base_url, "PMGMT")
+				SupportTech.open_website(driver, base_url, "PMGMT")
 				driver.get(url)
 			else:
-				login_user(driver, base_url)
-			build_version = driver.find_element(By.CSS_SELECTOR, "span.version").text.replace("Version ", "")
+				SeleniumHelper.login_user(base_url, driver, "superlion", "CTAKAH613777")
+			build_version = SeleniumHelper.get_build_version(driver)
 			is_first_row = False
 		row[21].value = row[12].value
 		row[22].value = row[13].value
@@ -328,15 +210,22 @@ def main():
 					  		 row[17], row[18], row[19],
 					  		 row[26], row[27]], threshold)
 
-		scenario = measure_form_page_load
-		is_form_page_url = is_form_page(url)
+		prev_tab = driver.window_handles[0]
+		driver.execute_script("window.open('');")
+		driver.switch_to.window(prev_tab)
+		curr_tab = driver.window_handles[1]
+		driver.close()
+		driver.switch_to.window(curr_tab)
+
+		scenario = SeleniumHelper.measure_form_page_load_time
+		is_form_page_url = SeleniumHelper.is_form_page_url(url)
 		if not is_form_page_url:
-				scenario = measure_standard_page_load
+				scenario = SeleniumHelper.measure_standard_page_load_time
 
 		try:
-			(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, timeout, loops, scenario)
+			(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, loops, scenario)
 			reset_styles([row[0], row[1]])
-		except TimeoutException:
+		except:
 			(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
 			mark_form_as_invalid(row)
 
@@ -347,10 +236,11 @@ def main():
 				logger.debug(f"Error detected '{page_title}' in {url}")
 		except:
 			pass
+
 		error_in_save = False
 		if is_form_page_url and not disable_save:
 			try:
-				(first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, timeout, loops, measure_form_save)
+				(first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, loops, SeleniumHelper.measure_form_save_time)
 			except TimeoutException:
 				mark_form_as_invalid(row)
 				error_in_save = True
@@ -395,7 +285,7 @@ def main():
 		flag_high_load_time([row[3], row[4], row[5], row[6], row[8], row[9], row[10]], threshold)
 		prev_base_url = base_url
 	head_cell_top.value = f"{build_version} {timestamp}"
-	head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed:.2f}mb/s, loops: {loops}"
+	head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed}mb/s, loops: {loops}"
 	wb.save(input_file)
 
 if __name__ == "__main__":
