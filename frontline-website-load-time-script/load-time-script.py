@@ -16,6 +16,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
+from faker import Faker
 
 package_path = os.path.abspath('..')
 sys.path.append(package_path)
@@ -108,14 +109,23 @@ def compare_measures(curr_cell, prev_cell, diff_cell):
 		diff_cell.fill = PatternFill(start_color="FF0000", fill_type = "solid")
 
 
-def main():
-	logger = logging.getLogger('main')
+def configure_logger(file_name: str) -> logging.Logger:
+	logger = logging.getLogger("main")
 	logger.setLevel(logging.DEBUG)
-	fh = logging.FileHandler('script-errors.log')
+
+	formatter = logging.Formatter("%(asctime)s - %(message)s", datefmt="%m-%d-%y_%H:%M")
+	fh = logging.FileHandler(file_name)
 	fh.setLevel(logging.DEBUG)
+	fh.setFormatter(formatter)
+
 	logger.addHandler(fh)
+	return logger
+
+
+def main():
 	timestamp = datetime.now().strftime("%m-%d-%y_%H-%M")
 	start_time = time.time()
+
 	parser = argparse.ArgumentParser()
 	parser.add_argument("input_file", type=str)
 	parser.add_argument("--loops", type=int, default=3)
@@ -123,6 +133,7 @@ def main():
 	parser.add_argument("--idm_auth", action="store_true", default=False)
 	my_namespace = parser.parse_args()
 
+	logger = configure_logger(f"script-log_{timestamp}.log")
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
 	disable_save = my_namespace.disable_save
@@ -139,18 +150,18 @@ def main():
 		return
 	
 	network_speed = measure_network_speed()
+
 	wb = load_workbook(input_file, data_only=True)
 	wb_sheet = wb.active
 	wb_sheet.cell(row=1, column=29).value = "."
 	wb_sheet.cell(row=1, column=29).value = ""
 	specify_sheet_layout(wb_sheet)
-	driver = webdriver.Chrome()
+
 	options = Options()
 	options.add_argument('--disable-cache')
 	options.add_argument('--disable-features=NetworkService')
 	options.add_argument('--disable-session-storage')
 	#options.headless = True
-
 	driver = webdriver.Chrome(options=options)
 	head_cell_top = wb_sheet["D1"]
 	head_cell_top.alignment = Alignment(horizontal='center')
