@@ -1,6 +1,7 @@
 import os
 from selenium import webdriver
 from frontline_selenium.selenium_helper import SeleniumHelper
+from frontline_selenium.random_html_generator import RandomHtmlGenerator
 from faker import Faker
 
 class PageFormFiller:
@@ -49,9 +50,7 @@ class PageFormFiller:
     
     @staticmethod
     def fill_form_rich_text_editors(driver: webdriver.Chrome) -> None:
-        Faker.seed(0)
-        fake = Faker()
-        text = fake.text(max_nb_chars=600).replace("\n", "\\n")
+        text = RandomHtmlGenerator.generate_random_html()
         script = PageFormFiller.create_script("rich_text_editor.js", {
             "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower(),
             "{{text}}": f"\"{text}\""
