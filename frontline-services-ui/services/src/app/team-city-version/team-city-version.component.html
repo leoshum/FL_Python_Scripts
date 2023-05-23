@@ -1,1 +1,8 @@
-<p>team-city-version works!</p>
+<div class="versions">
+    <input type="text" class="form-control" [(ngModel)]="first_version">
+    <input type="text" class="form-control" [(ngModel)]="last_version">
+    <label for="pathSelect">Physical Path:</label>
+    <select class="form-control" id="pathSelect" [(ngModel)]="branch">
+        <option *ngFor="let branch of branches" [value]="branch">{{ branch }}</option>
+    </select>
+</div>

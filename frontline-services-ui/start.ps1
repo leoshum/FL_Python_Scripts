@@ -1,3 +1,5 @@
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
 $Path = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'services'
 $StartAngular = { ng serve }
 

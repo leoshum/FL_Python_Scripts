@@ -56,7 +56,7 @@
     </div>
     
     <div class="form-group">
-        <button type="button" class="btn btn-primary" (click)="sendPostRequest()">Run</button>
+        <button type="button" class="btn btn-primary" [disabled]="isRequesting" [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}" (click)="sendPostRequest()">Run</button>
       </div>
       
 </div>
