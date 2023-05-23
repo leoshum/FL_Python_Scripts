@@ -58,13 +58,15 @@ export class WebsiteLoadTimeComponent {
   paths = {};
   //paths = ['TX-STG\\STG_EXPRESS_TX_loading_test.xlsx', 'TX-STG\\STG_FULL_TX_loading_test.xlsx', 'TX-HOTFIX\\HTX_Lake_Dallas_loading_test.xlsx'];
 
+  isRequesting = false;
   constructor(private http: HttpClient) {}
 
   async sendPostRequest(): Promise<void> {
+    this.isRequesting = true;
     const url = API_URL + 'execute';
-    let command_params = `--path ${this.selectedPath} --loops ${this.numLoops}`
+    let command_params = `-p ${this.selectedPath} --loops ${this.numLoops}`
     if (this.isDisabled) {
-      command_params += '--disable_save'
+      command_params += ' --disable_save'
     }
     const body = { script: 'websiteloadtime', parameters: command_params };
     
@@ -75,6 +77,7 @@ export class WebsiteLoadTimeComponent {
     } catch (error) {
       console.error(error);
     }
+    this.isRequesting = false;
   }
 
   async onButtonClick(): Promise<void> {
