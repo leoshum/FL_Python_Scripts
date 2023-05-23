@@ -33,7 +33,6 @@ class PageFormFiller:
         text = fake.sentence()
         if SeleniumHelper.is_plan_page_url(driver.current_url):
             script = PageFormFiller.create_script("textbox.js", {
-                "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower(),
                 "{{text}}": f"\"{text}\""
             })
             driver.execute_script(script)
