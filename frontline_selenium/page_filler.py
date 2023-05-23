@@ -1,5 +1,6 @@
 import os
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 from frontline_selenium.selenium_helper import SeleniumHelper
 from frontline_selenium.random_html_generator import RandomHtmlGenerator
 from faker import Faker
@@ -11,11 +12,11 @@ class PageFormFiller:
     def fill_form(driver: webdriver.Chrome) -> None:
         PageFormFiller.fill_form_radio_buttons(driver)
         PageFormFiller.fill_form_checkboxes(driver)
+        PageFormFiller.fill_form_drop_down_lists(driver)
+        PageFormFiller.fill_form_multiple_selects(driver)
         PageFormFiller.fill_form_textboxes(driver)
         PageFormFiller.fill_form_textareas(driver)
         PageFormFiller.fill_form_rich_text_editors(driver)
-        PageFormFiller.fill_form_drop_down_lists(driver)
-        PageFormFiller.fill_form_multiple_selects(driver)
         PageFormFiller.fill_form_date_time_pickes(driver)
     
     def create_script(file_name: str, params: dict) -> str:
@@ -30,11 +31,17 @@ class PageFormFiller:
         Faker.seed(0)
         fake = Faker()
         text = fake.sentence()
-        script = PageFormFiller.create_script("textbox.js", {
-            "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower(),
-            "{{text}}": f"\"{text}\""
-        })
-        driver.execute_script(script)
+        if SeleniumHelper.is_plan_page_url(driver.current_url):
+            script = PageFormFiller.create_script("textbox.js", {
+                "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower(),
+                "{{text}}": f"\"{text}\""
+            })
+            driver.execute_script(script)
+        else:
+            textboxes = driver.find_elements(By.CSS_SELECTOR, ".k-textbox")
+            for textbox in textboxes:
+                textbox.clear()
+                textbox.send_keys(text)
 
     @staticmethod
     def fill_form_textareas(driver: webdriver.Chrome) -> None:
