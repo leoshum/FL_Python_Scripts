@@ -26,6 +26,12 @@ export class WebsiteLoadTimeComponent {
       (response: any) => {
         //this.environments = Object.keys(response);
         this.paths = response; // Set the fetched data to the `paths` variable
+        Object.keys(this.paths).forEach(key => {
+          if (this.paths[key].length > 0 && !this.selectedPath) {
+            this.selectedPath = key + '\\' + this.paths[key][0];
+            return;
+          }
+        });
       },
       error => {
         console.error(error); // Handle any errors that occur
@@ -55,7 +61,7 @@ export class WebsiteLoadTimeComponent {
   }
 
   environments: string[] = [];
-  paths = {};
+  paths: MyDict = {};
   //paths = ['TX-STG\\STG_EXPRESS_TX_loading_test.xlsx', 'TX-STG\\STG_FULL_TX_loading_test.xlsx', 'TX-HOTFIX\\HTX_Lake_Dallas_loading_test.xlsx'];
 
   isRequesting = false;
@@ -70,7 +76,7 @@ export class WebsiteLoadTimeComponent {
     }
     const body = { script: 'websiteloadtime', parameters: command_params };
     
-    const params = new HttpParams().set('params', command_params);//.set('script', 'websiteloadtime');
+    //const params = new HttpParams().set('params', command_params);//.set('script', 'websiteloadtime');
     try {
       const response = await this.http.post(url, body).toPromise();
       console.log(response);
@@ -102,4 +108,9 @@ export class WebsiteLoadTimeComponent {
     //   console.log(`stdout: ${stdout}`);
     // });
   }
+}
+
+
+interface MyDict {
+  [key: string]: any;
 }

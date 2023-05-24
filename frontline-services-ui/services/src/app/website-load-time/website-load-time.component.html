@@ -12,7 +12,7 @@
             <li *ngFor="let path of paths | keyvalue">
                 <i class="fa fa-folder-open"></i> {{ path.key }}
                 <ul>                    
-                    <li class="pointer" (mouseover)="overFile($event)" (mouseout)="leaveFile($event)" (click)="selectedPathChange(path.key + '\\' + file, $event)" *ngFor="let file of path.value">
+                    <li class="pointer" [ngStyle]="{'opacity': selectedPath === path.key + '\\' + file ? '0.5' : '1', 'cursor': selectedPath === path.key + '\\' + file ? 'not-allowed' : 'pointer'}" (mouseover)="overFile($event)" (mouseout)="leaveFile($event)" (click)="selectedPathChange(path.key + '\\' + file, $event)" *ngFor="let file of path.value">
                         {{ file }}
                     </li>
                 </ul>
@@ -56,8 +56,8 @@
     </div>
     
     <div class="form-group">
-        <button type="button" class="btn btn-primary" [disabled]="isRequesting" [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}" (click)="sendPostRequest()">Run</button>
-      </div>
+      <button type="button" class="btn btn-primary" [disabled]="isRequesting" [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}" (click)="sendPostRequest()">Run</button>
+    </div>
       
 </div>
 

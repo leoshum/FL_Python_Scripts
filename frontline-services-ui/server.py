@@ -41,11 +41,13 @@ def get_files_for_websiteloadtime(request):
                 directory.append(file)
     return web.Response(body=json.dumps(files_and_folders),status=200)
 
-def get_version_tickets_configuration(request):
+def open_version_tickets_configuration():
     configuration_file = path.join(version_tickets_folder, 'configuration.json')
     with open(configuration_file, 'r', encoding='utf-8') as configuration_file:
-        configuration = json.loads(configuration_file.read())
+        return json.loads(configuration_file.read())
 
+def get_version_tickets_configuration(request):
+    configuration = open_version_tickets_configuration()
     configuration = {
         "branch" : configuration.get('branch'),
         "first_version" : configuration.get('version').get('first'),
@@ -54,11 +56,27 @@ def get_version_tickets_configuration(request):
     }
     return web.Response(body=json.dumps(configuration),status=200)
 
-def update_version_tickets_configuration(configuration):
+def update_version_tickets_configuration(config):
+    configuration = open_version_tickets_configuration()
+    
+    configuration['branch'] = config.get('branch')
+    configuration['version']['first'] = config.get('first_version')
+    configuration['version']['last'] = config.get('last_version')
+
     configuration_file = path.join(version_tickets_folder, 'configuration.json')
     with open(configuration_file, 'w', encoding='utf-8') as configuration_file:
-        configuration_file.write(json.dumps(configuration))
+        configuration_file.write(json.dumps(configuration,ensure_ascii=False,indent=4))
 
+async def execute_script(parameters):
+    process = await asyncio.create_subprocess_exec(
+        *parameters,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    print(stdout.decode())
+    print(stderr.decode())
+    return process.returncode
 
 async def execute(request):
     body = (await request.read()).decode()
@@ -67,25 +85,16 @@ async def execute(request):
     # parameters = request.query.get('params', None)#.split(',')
     script_name = info.get('script')
     if script_name == website_load:
-        process = await asyncio.create_subprocess_exec(
-            'python', website_load_script, info.get('parameters'),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        print(stdout.decode())
-        print(stderr.decode())
-        if process.returncode != 0:
-            return web.Response(status=500)
-        return web.Response(status=200)
+        os.chdir(website_load_folder)
+        code = await execute_script(['powershell', 'python', website_load_script, info.get('parameters')])
     elif script_name == version_tickets:
-        process = await asyncio.create_subprocess_exec(
-            'python', version_tickets_script, info.get('parameters'),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+        update_version_tickets_configuration(info.get('configuration'))
+        code = await execute_script(['python', version_tickets_script])
     else:
         return web.Response(status=404)
+    if code != 0:
+        return web.Response(status=500)
+    return web.Response(status=200)
 
 
     # filename = request.path[1:]

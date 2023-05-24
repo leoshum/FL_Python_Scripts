@@ -10,14 +10,14 @@ import { API_URL } from '../constants';
 })
 export class TeamCityVersionComponent {
   constructor(private http: HttpClient) {}
-  fetchFilesForWebsiteLoadTime(): Observable<any> {
+  fetchConfiguration(): Observable<any> {
     const url = API_URL + 'version_tickets_configuration';
   
     return this.http.get(url);
   }
   
   ngOnInit() {
-    this.fetchFilesForWebsiteLoadTime().subscribe(
+    this.fetchConfiguration().subscribe(
       (response: any) => {
         this.first_version = response['first_version'];
         this.last_version = response['last_version'];
@@ -25,12 +25,34 @@ export class TeamCityVersionComponent {
         this.branches = response['branch_template'];
       },
       error => {
-        console.error(error); // Handle any errors that occur
+        console.error(error);
       }
     );
   }
+
   first_version = '1.0.0';
   last_version = '1.0.0';
   branch = 'development';
   branches = [];
+  isRequesting = false;
+
+  async sendPostRequest(): Promise<void> {
+    this.isRequesting = true;
+    const url = API_URL + 'execute';
+    let configuration = {
+      first_version: this.first_version,
+      last_version: this.last_version,
+      branch: this.branch
+    }
+
+    const body = { script: 'version_tickets', configuration: configuration };
+    
+    try {
+      const response = await this.http.post(url, body).toPromise();
+      console.log(response);
+    } catch (error) {
+      console.error(error);
+    }
+    this.isRequesting = false;
+  }
 }
