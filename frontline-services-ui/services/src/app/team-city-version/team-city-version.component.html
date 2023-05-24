@@ -5,4 +5,8 @@
     <select class="form-control" id="pathSelect" [(ngModel)]="branch">
         <option *ngFor="let branch of branches" [value]="branch">{{ branch }}</option>
     </select>
+    
+    <div class="form-group">
+        <button type="button" class="btn btn-primary" [disabled]="isRequesting" [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}" (click)="sendPostRequest()">Run</button>
+      </div>
 </div>
