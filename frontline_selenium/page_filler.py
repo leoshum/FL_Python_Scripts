@@ -1,4 +1,5 @@
 import os
+import random
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from frontline_selenium.selenium_helper import SeleniumHelper
@@ -79,10 +80,22 @@ class PageFormFiller:
     
     @staticmethod
     def fill_form_drop_down_lists(driver: webdriver.Chrome) -> None:
-        script = PageFormFiller.create_script("drop_down_list.js", {
-            "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower()
-        })
-        driver.execute_script(script)
+        if SeleniumHelper.is_plan_page_url(driver.current_url):
+            script = PageFormFiller.create_script("drop_down_list.js", {})
+            driver.execute_script(script)
+        else:
+            comboboxes = driver.find_elements(By.CSS_SELECTOR, "kendo-combobox")
+            for combobox in comboboxes:
+                data_keys = combobox.get_attribute("datakeys").split(";")
+                input = combobox.find_element(By.CSS_SELECTOR, "kendo-searchbar>input")
+                try:
+                    input.clear()
+                    input.send_keys(data_keys[random.randint(0, len(data_keys) - 1)])
+                except:
+                    pass
+                
+            
+
 
     @staticmethod
     def fill_form_date_time_pickes(driver: webdriver.Chrome) -> None:
