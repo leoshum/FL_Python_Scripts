@@ -1,17 +1,12 @@
-var isPlanPage = {{isPlanPage}}; // used for substitution from python side
-if (isPlanPage) {
-    $("input[data-role='textBox']").each(function() {
-        if ($(this).attr("data-mask")) {
-            console.log($(this).attr("data-mask"));
-            $(this).val(generateMaskedValue($(this).attr("data-mask")));
-        }else {
-            $(this).val({{text}});
-        }
-        $(this).trigger('change');
-    });
-}else {
-
-}
+$("input[data-role='textBox']").each(function() {
+    if ($(this).attr("data-mask")) {
+        console.log($(this).attr("data-mask"));
+        $(this).val(generateMaskedValue($(this).attr("data-mask")));
+    }else {
+        $(this).val({{text}});
+    }
+    $(this).trigger('change');
+});
 
 function generateMaskedValue(mask) {
     let value = '';

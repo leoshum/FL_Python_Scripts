@@ -187,7 +187,7 @@ def main():
 				SupportTech.open_website(driver, base_url, "PMGMT")
 				driver.get(url)
 			else:
-				SeleniumHelper.login_user(base_url, driver, "superlion", "CTAKAH613777")
+				SeleniumHelper.login_user(base_url, driver, "PMGMT", "8Huds(3d")
 			build_version = SeleniumHelper.get_build_version(driver)
 			is_first_row = False
 		row[21].value = row[12].value
