@@ -94,8 +94,16 @@ class PageFormFiller:
                 except:
                     pass
                 
-            
-
+            dropdownlists = driver.find_elements(By.CSS_SELECTOR, "kendo-dropdownlist")
+            for dropdownlist in dropdownlists:
+                dropdownlist.click()
+                try:
+                    popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
+                    print(popup.get_attribute('innerHTML'))
+                    options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
+                    options[random.randint(0, len(options) - 1)].click()
+                except:
+                    pass
 
     @staticmethod
     def fill_form_date_time_pickes(driver: webdriver.Chrome) -> None:
