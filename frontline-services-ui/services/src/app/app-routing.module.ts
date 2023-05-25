@@ -4,8 +4,8 @@ import { WebsiteLoadTimeComponent } from './website-load-time/website-load-time.
 import { TeamCityVersionComponent } from './team-city-version/team-city-version.component';
 
 const routes: Routes = [
-  // { path: '', component: HomeComponent },
   { path: 'websiteloadtime', component: WebsiteLoadTimeComponent },
+  { path: '', component: WebsiteLoadTimeComponent },
   { path: 'teamcityversions', component: TeamCityVersionComponent }
 ];
 

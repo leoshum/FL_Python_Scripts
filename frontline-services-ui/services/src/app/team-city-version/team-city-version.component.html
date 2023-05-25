@@ -1,12 +1,20 @@
-<div class="versions">
-    <input type="text" class="form-control" [(ngModel)]="first_version">
-    <input type="text" class="form-control" [(ngModel)]="last_version">
-    <label for="pathSelect">Physical Path:</label>
-    <select class="form-control" id="pathSelect" [(ngModel)]="branch">
+<div class="form_field">
+    <label for="first_version">First version:</label>
+    <input type="text" class="input" [(ngModel)]="first_version">
+</div>
+
+<div class="form_field">
+    <label for="last_version">Last version:</label>
+    <input type="text" class="input" [(ngModel)]="last_version">
+</div>
+
+<div class="form_field">
+    <label for="branch">Branch:</label>
+    <select class="input" id="pathSelect" [(ngModel)]="branch">
         <option *ngFor="let branch of branches" [value]="branch">{{ branch }}</option>
     </select>
+</div>
     
-    <div class="form-group">
-        <button type="button" class="btn btn-primary" [disabled]="isRequesting" [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}" (click)="sendPostRequest()">Run</button>
-      </div>
+<div class="form_field">
+    <button type="button" class="button" [disabled]="isRequesting" [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}" (click)="sendPostRequest()">Run</button>
 </div>

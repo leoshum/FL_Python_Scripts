@@ -4,12 +4,10 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 	# Exit the current PowerShell process
 	Exit
 }
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+#Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 $Path = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'services'
 $StartAngular = { ng serve }
 
 Start-Process powershell.exe -WorkingDirectory $Path -ArgumentList "-NoExit", $StartAngular
 
 python "$(Split-Path -Parent $MyInvocation.MyCommand.Path)\server.py"
-
-$host.UI.RawUI.ReadKey("NoEcho, IncludeKeyUp")
