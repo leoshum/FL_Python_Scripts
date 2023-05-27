@@ -32,7 +32,6 @@ class PageFormFiller:
     
     @staticmethod
     def fill_form_textboxes(driver: webdriver.Chrome) -> None:
-        Faker.seed(0)
         fake = Faker()
         text = fake.sentence()
         if SeleniumHelper.is_plan_page_url(driver.current_url):
@@ -48,7 +47,6 @@ class PageFormFiller:
 
     @staticmethod
     def fill_form_textareas(driver: webdriver.Chrome) -> None:
-        Faker.seed(0)
         fake = Faker()
         text = fake.text(max_nb_chars=600).replace("\n", "\\n")
         script = ""
