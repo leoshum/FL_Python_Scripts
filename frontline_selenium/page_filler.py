@@ -102,7 +102,6 @@ class PageFormFiller:
                     dropdownlist.click()
                     popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
                     options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
-                    print(options)
                     options[random.randint(0, len(options) - 1)].click()
                 except:
                     pass
