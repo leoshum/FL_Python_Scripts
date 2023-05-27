@@ -23,7 +23,7 @@ class PageFormFiller:
         PageFormFiller.fill_form_rich_text_editors(driver)
         PageFormFiller.fill_form_date_time_picker(driver)
     
-    def create_script(file_name: str, params: dict) -> str:
+    def create_script(file_name: str, params: dict={}) -> str:
         with open(PageFormFiller.scripts_directory + file_name, "r") as script_file:
             script = script_file.read()
             for key in params.keys():
@@ -84,7 +84,7 @@ class PageFormFiller:
     @staticmethod
     def fill_form_drop_down_lists(driver: webdriver.Chrome) -> None:
         if SeleniumHelper.is_plan_page_url(driver.current_url):
-            script = PageFormFiller.create_script("drop_down_list.js", {})
+            script = PageFormFiller.create_script("drop_down_list.js")
             driver.execute_script(script)
         else:
             comboboxes = driver.find_elements(By.CSS_SELECTOR, "kendo-combobox")
@@ -109,7 +109,7 @@ class PageFormFiller:
     @staticmethod
     def fill_form_date_time_picker(driver: webdriver.Chrome) -> None:
         if SeleniumHelper.is_plan_page_url(driver.current_url):
-            script = PageFormFiller.create_script("date_time_picker.js", {})
+            script = PageFormFiller.create_script("date_time_picker.js")
             driver.execute_script(script)
         else:
             date_pickers = driver.find_elements(By.CSS_SELECTOR, "kendo-datepicker")
