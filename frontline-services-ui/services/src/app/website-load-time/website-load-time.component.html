@@ -45,19 +45,26 @@
 </div>
 
 <div class="form_field">
-  <div class="form-check">
+  <div class="form-check flex">
     <label class="form-check-label" for="disableCheckbox">Disable Save</label>
-    <input type="checkbox" class="form-check-input" id="disableCheckbox" [(ngModel)]="isDisabled">
+    <div class="checkbox-wrapper">
+      <input class="tgl tgl-ios" id="cb2-7" type="checkbox" [(ngModel)]="isDisabled"/>
+      <label class="tgl-btn" for="cb2-7"></label>
+    </div>
   </div>
 </div>
 
 <div class="form_field">
   <label for="loopsInput">Loops:</label>
-  <input type="number" class="form-control" id="loopsInput" [(ngModel)]="numLoops">
+  <div class="flex control">
+    <button type="button" class="button_minus" (click)="minus()">-</button>
+    <button type="button" class="button_plus" (click)="plus()">+</button>
+    <input type="number" class="loops" id="loopsInput" [(ngModel)]="numLoops">
+  </div>
 </div>
 
 <div class="form_field">
-  <button type="button" class="btn btn-primary" [disabled]="isRequesting"
+  <button type="button" class="start" [disabled]="isRequesting"
     [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}"
     (click)="sendPostRequest()">Run</button>
 </div>

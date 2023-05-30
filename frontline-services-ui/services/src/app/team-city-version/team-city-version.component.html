@@ -1,20 +1,26 @@
 <div class="form_field">
-    <label for="first_version">First version:</label>
-    <input type="text" class="input" [(ngModel)]="first_version">
+    <div class="right">
+        <input class="toggle right" type="checkbox" [(ngModel)]="isHideEmptyEnvironments" data-tg-off="Hide empty" data-tg-on="Show hidden"/>
+        <input class="toggle" type="checkbox" (click)="collapse_all()" [(ngModel)]="isCollapsed" data-tg-off="Collapse" data-tg-on="Expand"/>
+    </div>
+    <ul>
+        <ng-container *ngFor="let config of configuration">
+          <li *ngIf="config.Clients.length > 0 || !isHideEmptyEnvironments" (click)="collapse(config)">
+            <label for="pathSelect">{{ config.Environment }}</label>
+            <ng-container *ngIf="!config.Collapse">
+                <ul>
+                  <li *ngFor="let client of config.Clients">
+                    {{ client }}
+                  </li>
+                </ul>
+            </ng-container>
+          </li>
+        </ng-container>
+      </ul>
 </div>
 
 <div class="form_field">
-    <label for="last_version">Last version:</label>
-    <input type="text" class="input" [(ngModel)]="last_version">
-</div>
-
-<div class="form_field">
-    <label for="branch">Branch:</label>
-    <select class="input" id="pathSelect" [(ngModel)]="branch">
-        <option *ngFor="let branch of branches" [value]="branch">{{ branch }}</option>
-    </select>
-</div>
-    
-<div class="form_field">
-    <button type="button" class="button" [disabled]="isRequesting" [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}" (click)="sendPostRequest()">Run</button>
+    <button class="start" [disabled]="isRequesting" [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}">
+        Run
+    </button>
 </div>

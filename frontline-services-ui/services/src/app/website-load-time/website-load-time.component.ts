@@ -89,24 +89,13 @@ export class WebsiteLoadTimeComponent {
   async onButtonClick(): Promise<void> {
     await this.sendPostRequest();
   }
+  
+  minus(): void {
+    this.numLoops--;
+  }
 
-  runLoadTime() {
-    
-    // let command = `python /../../frontline-website-load-time-script/bootstrapper.py --path ${this.selectedPath} --loops ${this.numLoops}`
-    // if (this.isDisabled) {
-    //   command += '--disable_save'
-    // }
-    // exec(command, (err, stdout, stderr) => {
-    //   if (err) {
-    //     console.error(`Error: ${err.message}`);
-    //     return;
-    //   }
-    //   if (stderr) {
-    //     console.error(`stderr: ${stderr}`);
-    //     return;
-    //   }
-    //   console.log(`stdout: ${stdout}`);
-    // });
+  plus(): void {
+    this.numLoops++;
   }
 }
 
