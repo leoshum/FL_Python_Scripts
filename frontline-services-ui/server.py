@@ -108,7 +108,7 @@ async def execute(request):
         code = await execute_script(['powershell', 'python', website_load_script, info.get('parameters')])
     elif script_name == version_tickets:
         first_version, last_version = update_version_tickets_configuration(info.get('configuration'))
-        code = 1#await execute_script(['python', version_tickets_script])
+        code = await execute_script(['python', version_tickets_script])
         await open_result(f'{version_tickets_folder}\\{first_version}-{last_version}.xlsx')
     else:
         return web.Response(status=404)
