@@ -1,0 +1,57 @@
+<div class="form_field">
+    <div class="version">
+        <div class="column control">
+            <label>Major</label>
+            <div >
+                <button type="button" class="button_minus" (click)="minus_major('first')">-</button>
+                <button type="button" class="button_plus" (click)="plus_major('first')">+</button> 
+                <!-- plus_major('first') -->
+            </div>
+        </div>
+        <div class="column">
+            <label for="first_version">First version</label>
+            <input type="text" class="input" [(ngModel)]="first_version">
+        </div>
+        <div class="column control">
+            <label>Minor</label>
+            <div>
+                <button type="button" class="button_minus" (click)="minus_minor('first')">-</button>
+                <button type="button" class="button_plus" (click)="plus_minor('first')">+</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="form_field">
+    <div class="version">
+        <div class="column control">
+            <label>Major</label>
+            <div >
+                <button type="button" class="button_minus" (click)="minus_major('second')">-</button>
+                <button type="button" class="button_plus" (click)="plus_major('second')">+</button>
+            </div>
+        </div>
+        <div class="column">
+            <label for="last_version">Last version:</label>
+            <input type="text" class="input" [(ngModel)]="last_version">
+        </div>
+        <div class="column control">
+            <label>Minor</label>
+            <div>
+                <button type="button" class="button_minus" (click)="minus_minor('second')">-</button>
+                <button type="button" class="button_plus" (click)="plus_minor('second')">+</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="form_field">
+    <label for="branch">Branch:</label>
+    <select class="input" id="pathSelect" [(ngModel)]="branch">
+        <option *ngFor="let branch of branches" [value]="branch">{{ branch }}</option>
+    </select>
+</div>
+    
+<div class="form_field">
+    <button type="button" class="start" [disabled]="isRequesting" [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}" (click)="sendPostRequest()">Run</button>
+</div>

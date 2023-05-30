@@ -1,6 +1,5 @@
+import { HttpClient } from '@angular/common/http';
 import { Component } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
 import { API_URL } from '../constants';
 
 @Component({
@@ -10,19 +9,23 @@ import { API_URL } from '../constants';
 })
 export class TeamCityVersionComponent {
   constructor(private http: HttpClient) {}
-  fetchConfiguration(): Observable<any> {
-    const url = API_URL + 'version_tickets_configuration';
-  
-    return this.http.get(url);
-  }
+
+  isRequesting = false;
+  isCollapsed = true;
+  isHideEmptyEnvironments = true;
+  configuration: any;
   
   ngOnInit() {
-    this.fetchConfiguration().subscribe(
+    const url = API_URL + 'version_configuration';
+    this.http.get(url).subscribe(
       (response: any) => {
-        this.first_version = response['first_version'];
-        this.last_version = response['last_version'];
-        this.branch = response['branch'];
-        this.branches = response['branch_template'];
+        this.configuration = response.map((environment: any) => {
+          return {
+            Environment: environment.Environment,
+            Clients: environment.Clients,
+            Collapse: true
+          };
+        });
       },
       error => {
         console.error(error);
@@ -30,29 +33,25 @@ export class TeamCityVersionComponent {
     );
   }
 
-  first_version = '1.0.0';
-  last_version = '1.0.0';
-  branch = 'development';
-  branches = [];
-  isRequesting = false;
+  collapse_all(){
+    let all_wrong = true;
+    this.configuration.forEach((environment: any) => {
+      if (environment.Clients.length > 0 || !this.isHideEmptyEnvironments){
+        if (all_wrong && environment.Collapse == this.isCollapsed) {
+          all_wrong = false;
+        }
+      }
+    });
+    this.configuration.forEach((environment: any) => {
+      if (all_wrong) {
+        this.isCollapsed = this.isCollapsed;
+      } else {
+        environment.Collapse = !this.isCollapsed;
+      }
+    });
+  }
 
-  async sendPostRequest(): Promise<void> {
-    this.isRequesting = true;
-    const url = API_URL + 'execute';
-    let configuration = {
-      first_version: this.first_version,
-      last_version: this.last_version,
-      branch: this.branch
-    }
-
-    const body = { script: 'version_tickets', configuration: configuration };
-    
-    try {
-      const response = await this.http.post(url, body).toPromise();
-      console.log(response);
-    } catch (error) {
-      console.error(error);
-    }
-    this.isRequesting = false;
+  collapse(environment:any){
+    environment.Collapse = !environment.Collapse;
   }
 }

@@ -1,88 +1,117 @@
-/* Navbar styling */
-.navbar {
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
-}
 
-.navbar-brand {
-  font-weight: bold;
+.checkbox-wrapper .tgl {
+  display: none;
 }
-
-.navbar-nav {
-  margin-left: auto;
+.checkbox-wrapper .tgl,
+.checkbox-wrapper .tgl:after,
+.checkbox-wrapper .tgl:before,
+.checkbox-wrapper .tgl *,
+.checkbox-wrapper .tgl *:after,
+.checkbox-wrapper .tgl *:before,
+.checkbox-wrapper .tgl + .tgl-btn {
+  box-sizing: border-box;
 }
-
-/* Form styling */
-.form-group {
-  margin-bottom: 1rem;
+.checkbox-wrapper .tgl::-moz-selection,
+.checkbox-wrapper .tgl:after::-moz-selection,
+.checkbox-wrapper .tgl:before::-moz-selection,
+.checkbox-wrapper .tgl *::-moz-selection,
+.checkbox-wrapper .tgl *:after::-moz-selection,
+.checkbox-wrapper .tgl *:before::-moz-selection,
+.checkbox-wrapper .tgl + .tgl-btn::-moz-selection,
+.checkbox-wrapper .tgl::selection,
+.checkbox-wrapper .tgl:after::selection,
+.checkbox-wrapper .tgl:before::selection,
+.checkbox-wrapper .tgl *::selection,
+.checkbox-wrapper .tgl *:after::selection,
+.checkbox-wrapper .tgl *:before::selection,
+.checkbox-wrapper .tgl + .tgl-btn::selection {
+  background: none;
 }
-
-label {
+.checkbox-wrapper .tgl + .tgl-btn {
+  outline: 0;
   display: block;
-  margin-bottom: 0.5rem;
-}
-
-input[type="number"],
-select {
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.25rem;
-  border: 1px solid #ced4da;
-  font-size: 1rem;
-  line-height: 1.5;
-  width: 100%;
-}
-
-input[type="checkbox"] {
-  margin-right: 0.5rem;
-}
-
-.btn {
-  background-color: #007bff;
-  border: none;
-  border-radius: 0.25rem;
-  color: #fff;
+  width: 4em;
+  height: 2em;
+  position: relative;
   cursor: pointer;
-  font-size: 1rem;
-  font-weight: bold;
-  padding: 0.5rem 1rem;
-  transition: background-color 0.3s ease-in-out;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+      -ms-user-select: none;
+          user-select: none;
+}
+.checkbox-wrapper .tgl + .tgl-btn:after,
+.checkbox-wrapper .tgl + .tgl-btn:before {
+  position: relative;
+  display: block;
+  content: "";
+  width: 50%;
+  height: 100%;
+}
+.checkbox-wrapper .tgl + .tgl-btn:after {
+  left: 0;
+}
+.checkbox-wrapper .tgl + .tgl-btn:before {
+  display: none;
+}
+.checkbox-wrapper .tgl:checked + .tgl-btn:after {
+  left: 50%;
 }
 
-.btn:hover {
-  background-color: #0069d9;
+.checkbox-wrapper .tgl-ios + .tgl-btn {
+  background: #fbfbfb;
+  border-radius: 2em;
+  padding: 2px;
+  transition: all 0.4s ease;
+  border: 1px solid #e8eae9;
+}
+.checkbox-wrapper .tgl-ios + .tgl-btn:after {
+  border-radius: 2em;
+  background: #fbfbfb;
+  transition: left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), padding 0.3s ease, margin 0.3s ease;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 4px 0 rgba(0, 0, 0, 0.08);
+}
+.checkbox-wrapper .tgl-ios + .tgl-btn:hover:after {
+  will-change: padding;
+}
+.checkbox-wrapper .tgl-ios + .tgl-btn:active {
+  box-shadow: inset 0 0 0 2em #e8eae9;
+}
+.checkbox-wrapper .tgl-ios + .tgl-btn:active:after {
+  padding-right: 0.8em;
+}
+.checkbox-wrapper .tgl-ios:checked + .tgl-btn {
+  background: rgba(124, 137, 255, 0.999);
+}
+.checkbox-wrapper .tgl-ios:checked + .tgl-btn:active {
+  box-shadow: none;
+}
+.checkbox-wrapper .tgl-ios:checked + .tgl-btn:active:after {
+  margin-left: -0.8em;
 }
 
-.btn:active,
-.btn:focus {
-  outline: none;
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
-
-.container {
-    margin: 0 auto;
-    max-width: 960px;
-    margin-top: 1%;
-    padding: 0 15px;
+/* Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
 }
 
-body {
-  font-size: 1rem;
-  background: #f5f5f5;
+.form-check {
+  
+  justify-content: space-between;
 }
 
 .tree {
   position: relative;
-  background: white;
-  margin-top: 20px;
-  padding: 30px;
-  font-family: 'Roboto Mono', monospace;
-  font-size: .85rem;
   font-weight: 400;
   line-height: 1.5;
   color: #212529;
   
   span {
-    font-size: 13px;
     font-style: italic;
     letter-spacing: .4px;
     color: #a8a8a8;

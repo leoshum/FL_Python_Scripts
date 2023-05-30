@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import sys
 sys.path.insert(0, 'C:\\Users\\mykha\\source\\repos\\fl_python\\FL_Python_Scripts\\frontline_website_load_time_script')
 import asyncio
@@ -24,6 +25,8 @@ path_to_files_for_websiteloadtime = path.join(website_load_folder, 'NEED TO KNOW
 path_to_files_for_websiteloadtime = 'C:\\Users\\mykha\\source\\repos\\fl_python\\FL_Python_Scripts\\frontline-commit-analyzer'
 
 version_tickets_folder, version_tickets_script = set_paths(root_folder, 'frontline-team-city-comment-scrapper', 'comments.py')
+
+version_folder, version_script = set_paths(root_folder, 'frontline-team-city-version-scrapper', 'version.py')
 
 static_folder = 'static'
 website_load = 'websiteloadtime'
@@ -67,6 +70,13 @@ def update_version_tickets_configuration(config):
     with open(configuration_file, 'w', encoding='utf-8') as configuration_file:
         configuration_file.write(json.dumps(configuration,ensure_ascii=False,indent=4))
 
+    return config.get('first_version'), config.get('last_version')
+
+def get_version_configuration(request):
+    with open(path.join(version_folder, 'projects.json'), 'r', encoding='utf-8') as configuration_file:
+        configuration = json.load(configuration_file)
+    return web.Response(body=json.dumps(configuration,ensure_ascii=False),status=200)
+
 async def execute_script(parameters):
     process = await asyncio.create_subprocess_exec(
         *parameters,
@@ -78,6 +88,15 @@ async def execute_script(parameters):
     print(stderr.decode())
     return process.returncode
 
+async def open_result(filename):
+    # subprocess.run(['powershell', filename])
+    await asyncio.create_subprocess_exec(
+        'powershell',
+        filename,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+
 async def execute(request):
     body = (await request.read()).decode()
     info = json.loads(body)
@@ -88,8 +107,9 @@ async def execute(request):
         os.chdir(website_load_folder)
         code = await execute_script(['powershell', 'python', website_load_script, info.get('parameters')])
     elif script_name == version_tickets:
-        update_version_tickets_configuration(info.get('configuration'))
+        first_version, last_version = update_version_tickets_configuration(info.get('configuration'))
         code = await execute_script(['python', version_tickets_script])
+        await open_result(f'{version_tickets_folder}\\{first_version}-{last_version}.xlsx')
     else:
         return web.Response(status=404)
     if code != 0:
@@ -122,6 +142,7 @@ async def init():
     cors.add(app.router.add_post('/execute', execute))
     cors.add(app.router.add_get('/get_files_for_websiteloadtime', get_files_for_websiteloadtime))
     cors.add(app.router.add_get('/version_tickets_configuration', get_version_tickets_configuration))
+    cors.add(app.router.add_get('/version_configuration', get_version_configuration))
     return app
 
 loop = asyncio.get_event_loop()

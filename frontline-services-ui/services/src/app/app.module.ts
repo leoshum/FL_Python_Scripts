@@ -8,13 +8,15 @@ import { AppComponent } from './app.component';
 import { NavbarComponent } from './navbar/navbar.component';
 import { WebsiteLoadTimeComponent } from './website-load-time/website-load-time.component';
 import { TeamCityVersionComponent } from './team-city-version/team-city-version.component';
+import { TeamCityCommentComponent } from './team-city-comment/team-city-comment.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     NavbarComponent,
     WebsiteLoadTimeComponent,
-    TeamCityVersionComponent
+    TeamCityVersionComponent,
+    TeamCityCommentComponent
   ],
   imports: [
     BrowserModule,

@@ -1,0 +1,23 @@
+.version {
+    display: flex;
+}
+
+// .version_control label {
+//     margin-right: 1rem
+// }
+.column {
+    margin-right: 1rem;
+    width: max-content;
+}
+.column:last-child {
+    margin-right: 0rem;
+}
+
+.row {
+    display: flex;
+    margin-bottom: 0.5rem;
+}
+
+.row:last-child {
+    margin-bottom: 0rem;
+}

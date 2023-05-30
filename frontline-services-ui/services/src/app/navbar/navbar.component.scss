@@ -1,24 +1,31 @@
 nav {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    background-color: #333;
+    background: linear-gradient(34deg, rgb(34, 34, 34) 0%,rgb(43, 43, 43) 100%);
     color: #fff;
-    padding: 1rem;
+    padding: 1.5rem;
+    box-shadow: #555 0px 0px 15px;
   
     a {
       color: #fff;
       text-decoration: none;
-      padding: 0.5rem;
+      margin-right: 2rem;
       transition: all 0.2s;
   
       &:hover {
-        background-color: #555;
+        color:rgba(124, 137, 255, 0.999);
+        text-shadow: #ffffff59 1px 1px 5px;
+        // background-color: #555;
       }
   
       &.active {
-        background-color: #555;
+        color:rgba(124, 137, 255, 0.999);
+        // background-color: #555;
       }
+    }
+    
+    a:last-child {
+      margin-right: 0rem;
     }
   }
   
