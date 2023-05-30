@@ -1,6 +1,7 @@
 import os
 import random
 import time
+import logging
 import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -11,12 +12,17 @@ from faker import Faker
 
 class PageFormFiller:
     scripts_directory: str = os.path.dirname(os.path.abspath(__file__)) + "\\filling_scripts\\"
-    
+    logger: logging.Logger = None
+
+    @staticmethod
+    def setup_logger(logger: logging.Logger):
+        PageFormFiller.logger = logger
+
     @staticmethod
     def fill_form(driver: webdriver.Chrome) -> None:
         PageFormFiller.fill_form_radio_buttons(driver)
         PageFormFiller.fill_form_checkboxes(driver)
-        PageFormFiller.fill_form_drop_down_lists(driver)
+        #PageFormFiller.fill_form_drop_down_lists(driver)
         PageFormFiller.fill_form_multiple_selects(driver)
         PageFormFiller.fill_form_textboxes(driver)
         PageFormFiller.fill_form_textareas(driver)
@@ -40,10 +46,13 @@ class PageFormFiller:
             })
             driver.execute_script(script)
         else:
-            textboxes = driver.find_elements(By.CSS_SELECTOR, ".k-textbox")
-            for textbox in textboxes:
-                textbox.clear()
-                textbox.send_keys(text)
+                textboxes = driver.find_elements(By.CSS_SELECTOR, ".k-textbox")
+                for textbox in textboxes:
+                    try:
+                        textbox.clear()
+                        textbox.send_keys(text)
+                    except Exception as ex:
+                        PageFormFiller.logger.exception(ex)
 
     @staticmethod
     def fill_form_textareas(driver: webdriver.Chrome) -> None:
@@ -92,8 +101,10 @@ class PageFormFiller:
                 try:
                     input.clear()
                     input.send_keys(data_keys[random.randint(0, len(data_keys) - 1)])
-                except:
-                    pass
+                except Exception as ex:
+                    PageFormFiller.logger.exception(ex)
+
+            driver.find_element(By.CSS_SELECTOR, "h1").click()
             dropdownlists = driver.find_elements(By.CSS_SELECTOR, "table kendo-dropdownlist")
             for dropdownlist in dropdownlists:
                 try:
@@ -101,8 +112,8 @@ class PageFormFiller:
                     popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
                     options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
                     options[random.randint(0, len(options) - 1)].click()
-                except:
-                    pass
+                except Exception as ex:
+                    PageFormFiller.logger.exception(ex)
 
     @staticmethod
     def fill_form_date_time_picker(driver: webdriver.Chrome) -> None:
@@ -116,13 +127,21 @@ class PageFormFiller:
                     input = date_picker.find_element(By.CSS_SELECTOR, "kendo-dateinput>input")
                     next_day_date = datetime.datetime.today() + datetime.timedelta(days=1)
                     input.send_keys(str(next_day_date.year), Keys.ARROW_LEFT, str(next_day_date.day), Keys.ARROW_LEFT, Keys.ARROW_LEFT, str(next_day_date.month))
-                except:
-                    pass
+                except Exception as ex:
+                    PageFormFiller.logger.exception(ex)
                   
     @staticmethod
     def fill_form_multiple_selects(driver: webdriver.Chrome) -> None:
-        script = PageFormFiller.create_script("multiple_select.js", {
-            "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower()
-        })
-        driver.execute_script(script)
+        if SeleniumHelper.is_plan_page_url(driver.current_url):
+            script = PageFormFiller.create_script("multiple_select.js")
+            driver.execute_script(script)
+        else:
+            multiselects = driver.find_elements(By.CSS_SELECTOR, "kendo-multiselect")
+            for multiselect in multiselects:
+                try:
+                    multiselect.click()
+                    popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
+                except Exception as ex:
+                    PageFormFiller.logger.exception(ex)
+
        

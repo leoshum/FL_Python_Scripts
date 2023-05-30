@@ -1,4 +1,5 @@
 import time
+import logging
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
@@ -8,7 +9,12 @@ from urllib.parse import urlparse
 
 class SeleniumHelper:
     timeout: float = 30
+    logger: logging.Logger = None
 
+    @staticmethod
+    def setup_logger(logger: logging.Logger):
+        SeleniumHelper.logger = logger
+    
     @staticmethod
     def is_plan_page_url(url: str) -> bool:
         return not ("planng" in url)
@@ -110,11 +116,14 @@ class SeleniumHelper:
         start_time = time.time()
         if save_btn_elem != None:
             from frontline_selenium.page_filler import PageFormFiller
-            PageFormFiller.fill_form(driver)
+            try:
+                PageFormFiller.fill_form(driver)
+            except Exception as ex:
+                SeleniumHelper.logger.exception(ex)
             save_btn_elem.click()
             SeleniumHelper.wait_for_form_save_popup(driver)
         else:
-            raise NoSuchElementException()
+            raise NoSuchElementException("'Save Form' was not found.")
         return time.time() - start_time
     
     

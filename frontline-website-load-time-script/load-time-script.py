@@ -16,12 +16,35 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
-from faker import Faker
 
 package_path = os.path.abspath('..')
 sys.path.append(package_path)
 from frontline_selenium.selenium_helper import SeleniumHelper
+from frontline_selenium.page_filler import PageFormFiller
 from frontline_selenium.support_tech_helper import SupportTech
+
+class HideBacktraceFormatter(logging.Formatter):
+    def formatException(self, exc_info):
+        tb = super().formatException(exc_info)
+        return HideBacktraceFormatter.removeBackTrace(tb)
+    
+    def format(self, record: logging.LogRecord):
+        record.msg = HideBacktraceFormatter.removeBackTrace(record.msg)
+        return super().format(record)
+    
+    @staticmethod
+    def removeBackTrace(record):
+        tb_lines = str(record).splitlines()
+        filtered_tb_lines = []
+        skip_slce = False
+        for line in tb_lines:
+            if "Backtrace:" in line:
+                skip_slce = True
+            if "Traceback (most recent call last):" in line:
+                skip_slce = False
+            if not skip_slce:
+                filtered_tb_lines.append(line)
+        return "\n".join(filtered_tb_lines)
 
 
 def is_excel_file_opened(filename):
@@ -109,16 +132,18 @@ def compare_measures(curr_cell, prev_cell, diff_cell):
 		diff_cell.fill = PatternFill(start_color="FF0000", fill_type = "solid")
 
 
-def configure_logger(file_name: str) -> logging.Logger:
+def configure_logger(file_name: str, processing_filename: str) -> logging.Logger:
 	logger = logging.getLogger("main")
 	logger.setLevel(logging.DEBUG)
 
-	formatter = logging.Formatter("%(asctime)s - %(message)s", datefmt="%m-%d-%y_%H:%M")
-	fh = logging.FileHandler(file_name)
+	formatter = HideBacktraceFormatter("%(asctime)s - %(message)s", datefmt="%m-%d-%y_%H:%M")
+	timestamp = datetime.now().strftime("%m-%d-%y_%H-%M")
+	fh = logging.FileHandler(f"{file_name}_{processing_filename.split('.')[0]}_{timestamp}.log")
 	fh.setLevel(logging.DEBUG)
 	fh.setFormatter(formatter)
-
 	logger.addHandler(fh)
+	SeleniumHelper.setup_logger(logger)
+	PageFormFiller.setup_logger(logger)
 	return logger
 
 
@@ -133,13 +158,14 @@ def main():
 	parser.add_argument("--idm_auth", action="store_true", default=False)
 	my_namespace = parser.parse_args()
 
-	logger = configure_logger(f"script-log_{timestamp}.log")
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
 	disable_save = my_namespace.disable_save
 	idm_auth = my_namespace.idm_auth
 	threshold = 6
 	timeout = 30
+
+	logger = configure_logger("script-log", input_file)
 
 	print(f"Input file: {input_file}")
 	if not os.path.isfile(input_file):
@@ -179,6 +205,7 @@ def main():
 			continue
 
 		print(url)
+		logger.info(f"Processing: {url}")
 		base_url = extract_base_url(url)
 		if prev_base_url != base_url or is_first_row:
 			if idm_auth:
@@ -240,32 +267,37 @@ def main():
 			(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
 			mark_form_as_invalid(row)
 
+
+		error_in_page_loading = False
 		try:
 			page_title = driver.find_element(By.CSS_SELECTOR, "h1.page-title").text.strip()
 			if "Error" in page_title or page_title == "Access Restricted":
 				mark_form_as_invalid(row, color="0000FF")
 				logger.debug(f"Error detected '{page_title}' in {url}")
-		except:
-			pass
+				error_in_page_loading = True
+		except Exception as ex:
+			logger.exception(ex)
 
 		error_in_save = False
-		if is_form_page_url and not disable_save:
+		if is_form_page_url and not disable_save and not error_in_page_loading:
 			try:
 				(first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, loops, SeleniumHelper.measure_form_save_time)
-			except TimeoutException:
+			except TimeoutException as ex:
 				mark_form_as_invalid(row)
 				error_in_save = True
-				logger.debug(f"There is no saving button in {url}")
-			except ElementClickInterceptedException:
+				logger.exception(ex)
+			except ElementClickInterceptedException as ex:
 				mark_form_as_invalid(row, color="9933FF")
 				error_in_save = True
-			except NoSuchElementException:
+				logger.exception(ex)
+			except NoSuchElementException as ex:
 				mark_form_as_invalid(row, color="991100")
 				error_in_save = True
-				logger.debug(f"There is no saving button in {url}")
-			except StaleElementReferenceException:
+				logger.exception(ex)
+			except StaleElementReferenceException as ex:
 				mark_form_as_invalid(row, color="550000")
 				error_in_save = True
+				logger.exception(ex)
 
 		row[3].value = f"{first_load_time:.2f}"
 		row[4].value = f"{min_time:.2f}"
@@ -275,7 +307,7 @@ def main():
 		compare_measures(row[15], row[24], row[16])
 		compare_measures(row[6], row[15], row[7])
 
-		if is_form_page_url and not disable_save:
+		if is_form_page_url and not disable_save and not error_in_page_loading:
 			if not error_in_save:
 				row[8].value = f"{min_save_time:.2f}"
 				row[9].value = f"{max_save_time:.2f}"
@@ -287,7 +319,7 @@ def main():
 				row[9].value = ""
 				row[10].value = ""
 
-		if disable_save:
+		if disable_save or error_in_page_loading:
 			row[8].value = ""
 			row[9].value = ""
 			row[10].value = ""
