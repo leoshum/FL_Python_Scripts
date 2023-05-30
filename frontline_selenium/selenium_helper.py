@@ -110,7 +110,7 @@ class SeleniumHelper:
         start_time = time.time()
         if save_btn_elem != None:
             from frontline_selenium.page_filler import PageFormFiller
-            PageFormFiller.fill_form(driver)		
+            PageFormFiller.fill_form(driver)
             save_btn_elem.click()
             SeleniumHelper.wait_for_form_save_popup(driver)
         else:
