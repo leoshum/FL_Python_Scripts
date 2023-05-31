@@ -45,6 +45,16 @@ class HideBacktraceFormatter(logging.Formatter):
             if not skip_slce:
                 filtered_tb_lines.append(line)
         return "\n".join(filtered_tb_lines)
+    
+    
+def split_path(path):
+    folders = []
+    head, tail = os.path.split(path)
+    
+    while tail:
+        folders.insert(0, tail)
+        head, tail = os.path.split(head)
+    return folders
 
 
 def is_excel_file_opened(filename):
@@ -138,7 +148,10 @@ def configure_logger(file_name: str, processing_filename: str) -> logging.Logger
 
 	formatter = HideBacktraceFormatter("%(asctime)s - %(message)s", datefmt="%m-%d-%y_%H:%M")
 	timestamp = datetime.now().strftime("%m-%d-%y_%H-%M")
-	fh = logging.FileHandler(f"{file_name}_{processing_filename.split('.')[0]}_{timestamp}.log")
+	parts = split_path(processing_filename)
+	folders = parts[0:len(parts)-1]
+	filename = parts[-1]
+	fh = logging.FileHandler(f"{file_name}_{'_'.join(folders)}_{filename.split('.')[0]}_{timestamp}.log")
 	fh.setLevel(logging.DEBUG)
 	fh.setFormatter(formatter)
 	logger.addHandler(fh)
