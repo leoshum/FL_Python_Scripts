@@ -192,8 +192,8 @@ def main():
 
 	wb = load_workbook(input_file, data_only=True)
 	wb_sheet = wb.active
-	wb_sheet.cell(row=1, column=29).value = "."
-	wb_sheet.cell(row=1, column=29).value = ""
+	wb_sheet.cell(row=1, column=30).value = "."
+	wb_sheet.cell(row=1, column=30).value = ""
 	specify_sheet_layout(wb_sheet)
 
 	options = Options()
@@ -202,9 +202,9 @@ def main():
 	options.add_argument('--disable-session-storage')
 	#options.headless = True
 	driver = webdriver.Chrome(options=options)
-	head_cell_top = wb_sheet["D1"]
+	head_cell_top = wb_sheet["E1"]
 	head_cell_top.alignment = Alignment(horizontal='center')
-	head_cell_bottom = wb_sheet["D2"]
+	head_cell_bottom = wb_sheet["E2"]
 	head_cell_bottom.alignment = Alignment(horizontal='center')
 
 	build_version = ""
@@ -230,36 +230,36 @@ def main():
 				SeleniumHelper.login_user(base_url, driver, "PMGMT", "8Huds(3d")
 			build_version = SeleniumHelper.get_build_version(driver)
 			is_first_row = False
-		row[21].value = row[12].value
 		row[22].value = row[13].value
 		row[23].value = row[14].value
 		row[24].value = row[15].value
+		row[25].value = row[16].value
 
-		row[25].value = row[17].value
 		row[26].value = row[18].value
 		row[27].value = row[19].value
+		row[28].value = row[20].value
 
-		reset_styles([row[12], row[13], row[14], 
-					  row[15], row[21], row[22], 
-					  row[23], row[24], row[25],
-					  row[17], row[18], row[19],
-					  row[7], row[11], row[16],
-					  row[26], row[27], row[20]])
+		reset_styles([row[13], row[14], row[15], 
+					  row[16], row[22], row[23], 
+					  row[24], row[25], row[26],
+					  row[18], row[19], row[20],
+					  row[8], row[12], row[17],
+					  row[27], row[28], row[21]])
 
-		row[12].value = row[3].value
 		row[13].value = row[4].value
 		row[14].value = row[5].value
 		row[15].value = row[6].value
+		row[16].value = row[7].value
 
-		row[17].value = row[8].value
 		row[18].value = row[9].value
 		row[19].value = row[10].value
+		row[20].value = row[11].value
 
-		flag_high_load_time([row[12], row[13], row[14], 
-					  		 row[15], row[21], row[22], 
-					  		 row[23], row[24], row[25],
-					  		 row[17], row[18], row[19],
-					  		 row[26], row[27]], threshold)
+		flag_high_load_time([row[13], row[14], row[15], 
+					  		 row[16], row[23], row[23], 
+					  		 row[24], row[25], row[26],
+					  		 row[18], row[19], row[20],
+					  		 row[27], row[28]], threshold)
 
 		prev_tab = driver.window_handles[0]
 		driver.execute_script("window.open('');")
@@ -312,33 +312,33 @@ def main():
 				error_in_save = True
 				logger.exception(ex)
 
-		row[3].value = f"{first_load_time:.2f}"
-		row[4].value = f"{min_time:.2f}"
-		row[5].value = f"{max_time:.2f}"
-		row[6].value = f"{mean_time:.2f}"
+		row[4].value = f"{first_load_time:.2f}"
+		row[5].value = f"{min_time:.2f}"
+		row[6].value = f"{max_time:.2f}"
+		row[7].value = f"{mean_time:.2f}"
 
-		compare_measures(row[15], row[24], row[16])
-		compare_measures(row[6], row[15], row[7])
+		compare_measures(row[16], row[25], row[17])
+		compare_measures(row[7], row[16], row[8])
 
 		if is_form_page_url and not disable_save and not error_in_page_loading:
 			if not error_in_save:
-				row[8].value = f"{min_save_time:.2f}"
-				row[9].value = f"{max_save_time:.2f}"
-				row[10].value = f"{mean_save_time:.2f}"
-				compare_measures(row[19], row[27], row[20])
-				compare_measures(row[10], row[19], row[11])
+				row[9].value = f"{min_save_time:.2f}"
+				row[10].value = f"{max_save_time:.2f}"
+				row[11].value = f"{mean_save_time:.2f}"
+				compare_measures(row[20], row[28], row[21])
+				compare_measures(row[11], row[20], row[12])
 			else:
-				row[8].value = ""
 				row[9].value = ""
 				row[10].value = ""
+				row[11].value = ""
 
 		if disable_save or error_in_page_loading:
-			row[8].value = ""
 			row[9].value = ""
 			row[10].value = ""
+			row[11].value = ""
 
-		reset_styles([row[3], row[4], row[5], row[6], row[8], row[9], row[10]])
-		flag_high_load_time([row[3], row[4], row[5], row[6], row[8], row[9], row[10]], threshold)
+		reset_styles([row[4], row[5], row[6], row[7], row[9], row[10], row[11]])
+		flag_high_load_time([row[4], row[5], row[6], row[7], row[9], row[10], row[11]], threshold)
 		prev_base_url = base_url
 	head_cell_top.value = f"{build_version} {timestamp}"
 	head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed}mb/s, loops: {loops}"
