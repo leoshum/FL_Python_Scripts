@@ -5,12 +5,27 @@
     </div>
     <ul>
         <ng-container *ngFor="let config of configuration">
-          <li *ngIf="config.Clients.length > 0 || !isHideEmptyEnvironments" (click)="collapse(config)">
-            <label for="pathSelect">{{ config.Environment }}</label>
+          <li *ngIf="config.Clients.length > 0 || !isHideEmptyEnvironments">
+            <label for="pathSelect" (click)="collapse(config)">{{ config.Environment }}</label>
             <ng-container *ngIf="!config.Collapse">
                 <ul>
-                  <li *ngFor="let client of config.Clients">
-                    {{ client }}
+                  <li class="element" *ngFor="let client of config.Clients">
+                    <div class="column control">
+                      <button type="button" class="button_minus" (click)="remove_client(config.Environment, client)">-</button>
+                    </div>
+                    <div class="column">
+                      <label>
+                        {{ client }}
+                      </label>
+                    </div>
+                  </li>
+                  <li  class="element">
+                    <div class="column">
+                      <input type="text" class="input" [(ngModel)]="new_clients[config.Environment]"/>
+                    </div>
+                    <div class="column control">
+                        <button type="button" class="button_plus" (click)="add_client(config.Environment)">+</button>
+                    </div>
                   </li>
                 </ul>
             </ng-container>
@@ -20,7 +35,7 @@
 </div>
 
 <div class="form_field">
-    <button class="start" [disabled]="isRequesting" [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}">
+    <button class="start" (click)="sendPostRequest()" [disabled]="isRequesting" [ngStyle]="{'opacity': isRequesting ? '0.5' : '1', 'cursor': isRequesting ? 'not-allowed' : 'pointer'}" >
         Run
     </button>
 </div>

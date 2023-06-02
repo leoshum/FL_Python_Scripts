@@ -9,7 +9,7 @@ import mimetypes
 from aiohttp import web
 from aiohttp_cors import CorsViewMixin, ResourceOptions, setup as cors_setup
 import re
-
+import webbrowser
 
 # from .. .bootstrapper import main
 #import ./../frontline-website-load-time-script/bootstrapper
@@ -31,6 +31,7 @@ version_folder, version_script = set_paths(root_folder, 'frontline-team-city-ver
 static_folder = 'static'
 website_load = 'websiteloadtime'
 version_tickets = 'version_tickets'
+version = 'version'
 
 
 def get_files_for_websiteloadtime(request):
@@ -77,6 +78,11 @@ def get_version_configuration(request):
         configuration = json.load(configuration_file)
     return web.Response(body=json.dumps(configuration,ensure_ascii=False),status=200)
 
+async def update_version_configuration(request):
+    body = (await request.read()).decode()
+    with open(path.join(version_folder, 'projects.json'), 'w', encoding='utf-8') as configuration_file:
+        configuration_file.write(json.dumps(json.loads(body),ensure_ascii=False,indent=4))
+
 async def execute_script(parameters):
     process = await asyncio.create_subprocess_exec(
         *parameters,
@@ -110,6 +116,10 @@ async def execute(request):
         first_version, last_version = update_version_tickets_configuration(info.get('configuration'))
         code = await execute_script(['python', version_tickets_script])
         await open_result(f'{version_tickets_folder}\\{first_version}-{last_version}.xlsx')
+    elif script_name == version:
+        update_version_configuration(info.get('configuration'))
+        code = await execute_script(['python', version_script])
+        await open_result(f'{version_folder}\\versions.xlsx')
     else:
         return web.Response(status=404)
     if code != 0:
@@ -143,8 +153,10 @@ async def init():
     cors.add(app.router.add_get('/get_files_for_websiteloadtime', get_files_for_websiteloadtime))
     cors.add(app.router.add_get('/version_tickets_configuration', get_version_tickets_configuration))
     cors.add(app.router.add_get('/version_configuration', get_version_configuration))
+    cors.add(app.router.add_post('/version_configuration', update_version_configuration))
     return app
 
 loop = asyncio.get_event_loop()
 app = loop.run_until_complete(init())
+webbrowser.open('http://localhost:4200/')
 web.run_app(app, port=34443)
