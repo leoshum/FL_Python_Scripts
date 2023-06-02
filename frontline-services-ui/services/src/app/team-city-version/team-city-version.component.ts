@@ -14,6 +14,7 @@ export class TeamCityVersionComponent {
   isCollapsed = true;
   isHideEmptyEnvironments = true;
   configuration: any;
+  new_clients: { [key: string]: string } = {};
   
   ngOnInit() {
     const url = API_URL + 'version_configuration';
@@ -53,5 +54,49 @@ export class TeamCityVersionComponent {
 
   collapse(environment:any){
     environment.Collapse = !environment.Collapse;
+  }
+  
+  async sendPostRequest(): Promise<void> {
+    this.isRequesting = true;
+    const url = API_URL + 'execute';
+
+    const body = { script: 'version', configuration: this.configuration };
+    
+    try {
+      const response = await this.http.post(url, body).toPromise();
+      console.log(response);
+    } catch (error) {
+      console.error(error);
+    }
+    this.isRequesting = false;
+  }
+
+  async remove_client(environment:string, client:string) {
+    const prodConfig = this.configuration.find((config:any) => config.Environment === environment);
+    prodConfig.Clients = prodConfig.Clients.filter((c:any) => c != client);
+  }
+
+  async add_client(environment:string) {
+    if (!this.new_clients[environment]) {
+      return;
+    }
+
+    const prodConfig = this.configuration.find((config:any) => config.Environment === environment);
+    
+    if (prodConfig) {
+      prodConfig.Clients.push(this.new_clients[environment]);
+      this.new_clients[environment] = '';
+
+      this.isRequesting = true;
+      const url = API_URL + 'version_configuration';
+      
+      try {
+        const response = await this.http.post(url, this.configuration ).toPromise();
+        console.log(response);
+      } catch (error) {
+        console.error(error);
+      }
+      this.isRequesting = false;
+    }
   }
 }
