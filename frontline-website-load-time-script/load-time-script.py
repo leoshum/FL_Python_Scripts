@@ -16,12 +16,45 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
-from faker import Faker
 
 package_path = os.path.abspath('..')
 sys.path.append(package_path)
 from frontline_selenium.selenium_helper import SeleniumHelper
+from frontline_selenium.page_filler import PageFormFiller
 from frontline_selenium.support_tech_helper import SupportTech
+
+class HideBacktraceFormatter(logging.Formatter):
+    def formatException(self, exc_info):
+        tb = super().formatException(exc_info)
+        return HideBacktraceFormatter.removeBackTrace(tb)
+    
+    def format(self, record: logging.LogRecord):
+        record.msg = HideBacktraceFormatter.removeBackTrace(record.msg)
+        return super().format(record)
+    
+    @staticmethod
+    def removeBackTrace(record):
+        tb_lines = str(record).splitlines()
+        filtered_tb_lines = []
+        skip_slce = False
+        for line in tb_lines:
+            if "Backtrace:" in line:
+                skip_slce = True
+            if "Traceback (most recent call last):" in line:
+                skip_slce = False
+            if not skip_slce:
+                filtered_tb_lines.append(line)
+        return "\n".join(filtered_tb_lines)
+    
+    
+def split_path(path):
+    folders = []
+    head, tail = os.path.split(path)
+    
+    while tail:
+        folders.insert(0, tail)
+        head, tail = os.path.split(head)
+    return folders
 
 
 def is_excel_file_opened(filename):
@@ -109,16 +142,21 @@ def compare_measures(curr_cell, prev_cell, diff_cell):
 		diff_cell.fill = PatternFill(start_color="FF0000", fill_type = "solid")
 
 
-def configure_logger(file_name: str) -> logging.Logger:
+def configure_logger(file_name: str, processing_filename: str) -> logging.Logger:
 	logger = logging.getLogger("main")
 	logger.setLevel(logging.DEBUG)
 
-	formatter = logging.Formatter("%(asctime)s - %(message)s", datefmt="%m-%d-%y_%H:%M")
-	fh = logging.FileHandler(file_name)
+	formatter = HideBacktraceFormatter("%(asctime)s - %(message)s", datefmt="%m-%d-%y_%H:%M")
+	timestamp = datetime.now().strftime("%m-%d-%y_%H-%M")
+	parts = split_path(processing_filename)
+	folders = parts[0:len(parts)-1]
+	filename = parts[-1]
+	fh = logging.FileHandler(f"{file_name}_{'_'.join(folders)}_{filename.split('.')[0]}_{timestamp}.log")
 	fh.setLevel(logging.DEBUG)
 	fh.setFormatter(formatter)
-
 	logger.addHandler(fh)
+	SeleniumHelper.setup_logger(logger)
+	PageFormFiller.setup_logger(logger)
 	return logger
 
 
@@ -133,13 +171,14 @@ def main():
 	parser.add_argument("--idm_auth", action="store_true", default=False)
 	my_namespace = parser.parse_args()
 
-	logger = configure_logger(f"script-log_{timestamp}.log")
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
 	disable_save = my_namespace.disable_save
 	idm_auth = my_namespace.idm_auth
 	threshold = 6
 	timeout = 30
+
+	logger = configure_logger("script-log", input_file)
 
 	print(f"Input file: {input_file}")
 	if not os.path.isfile(input_file):
@@ -153,8 +192,8 @@ def main():
 
 	wb = load_workbook(input_file, data_only=True)
 	wb_sheet = wb.active
-	wb_sheet.cell(row=1, column=29).value = "."
-	wb_sheet.cell(row=1, column=29).value = ""
+	wb_sheet.cell(row=1, column=30).value = "."
+	wb_sheet.cell(row=1, column=30).value = ""
 	specify_sheet_layout(wb_sheet)
 
 	options = Options()
@@ -163,9 +202,9 @@ def main():
 	options.add_argument('--disable-session-storage')
 	#options.headless = True
 	driver = webdriver.Chrome(options=options)
-	head_cell_top = wb_sheet["D1"]
+	head_cell_top = wb_sheet["E1"]
 	head_cell_top.alignment = Alignment(horizontal='center')
-	head_cell_bottom = wb_sheet["D2"]
+	head_cell_bottom = wb_sheet["E2"]
 	head_cell_bottom.alignment = Alignment(horizontal='center')
 
 	build_version = ""
@@ -179,6 +218,7 @@ def main():
 			continue
 
 		print(url)
+		logger.info(f"Processing: {url}")
 		base_url = extract_base_url(url)
 		if prev_base_url != base_url or is_first_row:
 			if idm_auth:
@@ -190,36 +230,36 @@ def main():
 				SeleniumHelper.login_user(base_url, driver, "PMGMT", "8Huds(3d")
 			build_version = SeleniumHelper.get_build_version(driver)
 			is_first_row = False
-		row[21].value = row[12].value
 		row[22].value = row[13].value
 		row[23].value = row[14].value
 		row[24].value = row[15].value
+		row[25].value = row[16].value
 
-		row[25].value = row[17].value
 		row[26].value = row[18].value
 		row[27].value = row[19].value
+		row[28].value = row[20].value
 
-		reset_styles([row[12], row[13], row[14], 
-					  row[15], row[21], row[22], 
-					  row[23], row[24], row[25],
-					  row[17], row[18], row[19],
-					  row[7], row[11], row[16],
-					  row[26], row[27], row[20]])
+		reset_styles([row[13], row[14], row[15], 
+					  row[16], row[22], row[23], 
+					  row[24], row[25], row[26],
+					  row[18], row[19], row[20],
+					  row[8], row[12], row[17],
+					  row[27], row[28], row[21]])
 
-		row[12].value = row[3].value
 		row[13].value = row[4].value
 		row[14].value = row[5].value
 		row[15].value = row[6].value
+		row[16].value = row[7].value
 
-		row[17].value = row[8].value
 		row[18].value = row[9].value
 		row[19].value = row[10].value
+		row[20].value = row[11].value
 
-		flag_high_load_time([row[12], row[13], row[14], 
-					  		 row[15], row[21], row[22], 
-					  		 row[23], row[24], row[25],
-					  		 row[17], row[18], row[19],
-					  		 row[26], row[27]], threshold)
+		flag_high_load_time([row[13], row[14], row[15], 
+					  		 row[16], row[23], row[23], 
+					  		 row[24], row[25], row[26],
+					  		 row[18], row[19], row[20],
+					  		 row[27], row[28]], threshold)
 
 		prev_tab = driver.window_handles[0]
 		driver.execute_script("window.open('');")
@@ -240,60 +280,65 @@ def main():
 			(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
 			mark_form_as_invalid(row)
 
+
+		error_in_page_loading = False
 		try:
 			page_title = driver.find_element(By.CSS_SELECTOR, "h1.page-title").text.strip()
 			if "Error" in page_title or page_title == "Access Restricted":
 				mark_form_as_invalid(row, color="0000FF")
 				logger.debug(f"Error detected '{page_title}' in {url}")
-		except:
-			pass
+				error_in_page_loading = True
+		except Exception as ex:
+			logger.exception(ex)
 
 		error_in_save = False
-		if is_form_page_url and not disable_save:
+		if is_form_page_url and not disable_save and not error_in_page_loading:
 			try:
 				(first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, loops, SeleniumHelper.measure_form_save_time)
-			except TimeoutException:
+			except TimeoutException as ex:
 				mark_form_as_invalid(row)
 				error_in_save = True
-				logger.debug(f"There is no saving button in {url}")
-			except ElementClickInterceptedException:
+				logger.exception(ex)
+			except ElementClickInterceptedException as ex:
 				mark_form_as_invalid(row, color="9933FF")
 				error_in_save = True
-			except NoSuchElementException:
+				logger.exception(ex)
+			except NoSuchElementException as ex:
 				mark_form_as_invalid(row, color="991100")
 				error_in_save = True
-				logger.debug(f"There is no saving button in {url}")
-			except StaleElementReferenceException:
+				logger.exception(ex)
+			except StaleElementReferenceException as ex:
 				mark_form_as_invalid(row, color="550000")
 				error_in_save = True
+				logger.exception(ex)
 
-		row[3].value = f"{first_load_time:.2f}"
-		row[4].value = f"{min_time:.2f}"
-		row[5].value = f"{max_time:.2f}"
-		row[6].value = f"{mean_time:.2f}"
+		row[4].value = f"{first_load_time:.2f}"
+		row[5].value = f"{min_time:.2f}"
+		row[6].value = f"{max_time:.2f}"
+		row[7].value = f"{mean_time:.2f}"
 
-		compare_measures(row[15], row[24], row[16])
-		compare_measures(row[6], row[15], row[7])
+		compare_measures(row[16], row[25], row[17])
+		compare_measures(row[7], row[16], row[8])
 
-		if is_form_page_url and not disable_save:
+		if is_form_page_url and not disable_save and not error_in_page_loading:
 			if not error_in_save:
-				row[8].value = f"{min_save_time:.2f}"
-				row[9].value = f"{max_save_time:.2f}"
-				row[10].value = f"{mean_save_time:.2f}"
-				compare_measures(row[19], row[27], row[20])
-				compare_measures(row[10], row[19], row[11])
+				row[9].value = f"{min_save_time:.2f}"
+				row[10].value = f"{max_save_time:.2f}"
+				row[11].value = f"{mean_save_time:.2f}"
+				compare_measures(row[20], row[28], row[21])
+				compare_measures(row[11], row[20], row[12])
 			else:
-				row[8].value = ""
 				row[9].value = ""
 				row[10].value = ""
+				row[11].value = ""
 
-		if disable_save:
-			row[8].value = ""
+		if disable_save or error_in_page_loading:
 			row[9].value = ""
 			row[10].value = ""
+			row[11].value = ""
 
-		reset_styles([row[3], row[4], row[5], row[6], row[8], row[9], row[10]])
-		flag_high_load_time([row[3], row[4], row[5], row[6], row[8], row[9], row[10]], threshold)
+		reset_styles([row[4], row[5], row[6], row[7], row[9], row[10], row[11]])
+		flag_high_load_time([row[4], row[5], row[6], row[7], row[9], row[10], row[11]], threshold)
 		prev_base_url = base_url
 	head_cell_top.value = f"{build_version} {timestamp}"
 	head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed}mb/s, loops: {loops}"
