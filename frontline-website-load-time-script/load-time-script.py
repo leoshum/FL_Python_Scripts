@@ -216,7 +216,7 @@ def main():
 		url = row[1].value
 		if url == None or not validators.url(url):
 			continue
-
+		row[3].value = ""
 		print(url)
 		logger.info(f"Processing: {url}")
 		base_url = extract_base_url(url)
@@ -276,8 +276,10 @@ def main():
 		try:
 			(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, loops, scenario)
 			reset_styles([row[0], row[1]])
-		except:
+		except Exception as e:
 			(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
+			exception_name = type(e).__name__
+			row[3].value = f"Page speed measurement timeout"
 			mark_form_as_invalid(row)
 
 
@@ -299,6 +301,7 @@ def main():
 				mark_form_as_invalid(row)
 				error_in_save = True
 				logger.exception(ex)
+				row[3].value = f"Save button missing"
 			except ElementClickInterceptedException as ex:
 				mark_form_as_invalid(row, color="9933FF")
 				error_in_save = True
