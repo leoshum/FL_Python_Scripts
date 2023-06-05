@@ -310,6 +310,7 @@ def main():
 				mark_form_as_invalid(row, color="991100")
 				error_in_save = True
 				logger.exception(ex)
+				row[3].value = f"Save button missing"
 			except StaleElementReferenceException as ex:
 				mark_form_as_invalid(row, color="550000")
 				error_in_save = True
