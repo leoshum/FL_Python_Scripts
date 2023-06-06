@@ -21,7 +21,10 @@ class SeleniumHelper:
     
     @staticmethod
     def is_form_page_url(url: str) -> bool:
-        return "Forms" in url or ("ViewEvent" in url and urlparse(url).fragment)
+        parsed_url = urlparse(url)
+        if "EventOverview" in parsed_url.path:
+            return False
+        return "Forms" in url or ("ViewEvent" in url and parsed_url.fragment)
     
     @staticmethod
     def get_build_version(driver: webdriver.Chrome) -> str:
@@ -104,9 +107,12 @@ class SeleniumHelper:
         driver.execute_script("location.reload(true);")
         SeleniumHelper.wait_for_form_page_load(driver)
         # TODO: Do we really need to wait until loader dissapear?
-        loader_locator = unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
-        WebDriverWait(driver, SeleniumHelper.timeout).until(loader_locator)
-        WebDriverWait(driver, SeleniumHelper.timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")))
+        try:
+            loader_locator = unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
+            WebDriverWait(driver, SeleniumHelper.timeout).until(loader_locator)
+            WebDriverWait(driver, SeleniumHelper.timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")))
+        except:
+            pass
         save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")
         save_btn_elem = None
         for save_btn in save_btns:
