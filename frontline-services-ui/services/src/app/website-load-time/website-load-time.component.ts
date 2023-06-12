@@ -25,13 +25,20 @@ export class WebsiteLoadTimeComponent {
     this.fetchFilesForWebsiteLoadTime().subscribe(
       (response: any) => {
         //this.environments = Object.keys(response);
-        this.paths = response; // Set the fetched data to the `paths` variable
-        Object.keys(this.paths).forEach(key => {
-          if (this.paths[key].length > 0 && !this.selectedPath) {
-            this.selectedPath = key + '\\' + this.paths[key][0];
-            return;
+        Object.keys(response).forEach((key) => {
+          if (!this.selectedPath && response[key].length > 0) {
+            this.selectedPath = key + '\\' + response[key][0];
           }
+          this.paths[key] = response[key].map((value:any) => {
+            return { "name": value, "status": false };
+          });
         });
+        // Object.keys(this.paths).forEach(key => {
+        //   if (this.paths[key].length > 0 && !this.selectedPath) {
+        //     this.selectedPath = key + '\\' + this.paths[key][0];
+        //     return;
+        //   }
+        // });
       },
       error => {
         console.error(error); // Handle any errors that occur
@@ -61,7 +68,7 @@ export class WebsiteLoadTimeComponent {
   }
 
   environments: string[] = [];
-  paths: MyDict = {};
+  paths: { [key: string]: { name: string, status: boolean }[]; } = {};
   //paths = ['TX-STG\\STG_EXPRESS_TX_loading_test.xlsx', 'TX-STG\\STG_FULL_TX_loading_test.xlsx', 'TX-HOTFIX\\HTX_Lake_Dallas_loading_test.xlsx'];
 
   isRequesting = false;
@@ -79,6 +86,14 @@ export class WebsiteLoadTimeComponent {
     //const params = new HttpParams().set('params', command_params);//.set('script', 'websiteloadtime');
     try {
       const response = await this.http.post(url, body).toPromise();
+      Object.keys(this.paths).forEach((key) => {
+        this.paths[key].forEach((value) => {
+          if (this.selectedPath.split('\\')[1] === value.name) {
+            value.status = true;
+            return;
+          }
+        })
+      });
       console.log(response);
     } catch (error) {
       console.error(error);
@@ -97,9 +112,4 @@ export class WebsiteLoadTimeComponent {
   plus(): void {
     this.numLoops++;
   }
-}
-
-
-interface MyDict {
-  [key: string]: any;
 }

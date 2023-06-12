@@ -11,10 +11,24 @@
       <i class="fa fa-folder-open"></i> {{ path.key }}
       <ul>
         <li class="pointer"
-          [ngStyle]="{'opacity': selectedPath === path.key + '\\' + file ? '0.5' : '1', 'cursor': selectedPath === path.key + '\\' + file ? 'not-allowed' : 'pointer'}"
+          [ngStyle]="{'opacity': selectedPath === path.key + '\\' + file.name ? '0.5' : '1', 'cursor': selectedPath === path.key + '\\' + file.name ? 'not-allowed' : 'pointer'}"
           (mouseover)="overFile($event)" (mouseout)="leaveFile($event)"
-          (click)="selectedPathChange(path.key + '\\' + file, $event)" *ngFor="let file of path.value">
-          {{ file }}
+          (click)="selectedPathChange(path.key + '\\' + file.name, $event)" *ngFor="let file of path.value">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            style="scale: 2;color: limegreen; display: none;"
+            [ngStyle]="{'display': file.status ? 'initial' : 'none'}"
+          >
+            <path
+              d="M10.5858 13.4142L7.75735 10.5858L6.34314 12L10.5858 16.2427L17.6568 9.1716L16.2426 7.75739L10.5858 13.4142Z"
+              fill="currentColor"
+            />
+          </svg>
+          {{ file.name }}
         </li>
       </ul>
     </li>
