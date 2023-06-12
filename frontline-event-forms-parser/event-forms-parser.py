@@ -10,6 +10,21 @@ import time
 import json
 from bs4 import BeautifulSoup
 
+def replace_last_formId(url, new_formId):
+    base_url, query_string = url.split('?')
+    params = query_string.split('&')
+    last_formId_index = -1
+    for i in range(len(params) - 1, -1, -1):
+        if params[i].startswith('formId='):
+            last_formId_index = i
+            break
+    if last_formId_index != -1:
+        params[last_formId_index] = 'formId=' + new_formId
+    else:
+        params.append('formId=' + new_formId)
+    new_url = base_url + '?' + '&'.join(params)
+    return new_url
+
 
 def extract_tabs_from_plan(driver, url):
     driver.execute_script("window.open('');")
@@ -22,10 +37,10 @@ def extract_tabs_from_plan(driver, url):
         )
         tabs = driver.find_elements(By.CSS_SELECTOR, ".k-tabstrip-items > li")
         tabs_html = driver.find_element(By.CSS_SELECTOR, ".k-tabstrip-items").get_attribute('innerHTML')
-        soup = BeautifulSoup(tabs_html, 'lxml')
+        soup = BeautifulSoup(tabs_html, 'html.parser')
         tabs = soup.find_all('li')
         for tab in tabs:
-            tabs_list.append([tab.find("span", class_='caption').text.strip(), f"{url[0:url.index('#')]}formId={tab.get('data-id')}"])
+            tabs_list.append([tab.find("span", class_='caption').text.strip(), replace_last_formId(driver.current_url, tab.get('data-id'))])
     except Exception as e:
         pass
     driver.close()
@@ -103,7 +118,8 @@ def login_user(driver, url, users):
                 for cookie in driver.get_cookies():    
                     driver.delete_cookie(cookie["name"])
         except:
-            pass
+            if "plan" in driver.current_url:
+                return
 
 def main():
     urls = open(sys.argv[1], 'r').readlines()

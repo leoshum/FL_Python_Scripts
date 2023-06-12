@@ -216,7 +216,7 @@ def main():
 		url = row[1].value
 		if url == None or not validators.url(url):
 			continue
-
+		row[3].value = ""
 		print(url)
 		logger.info(f"Processing: {url}")
 		base_url = extract_base_url(url)
@@ -261,6 +261,13 @@ def main():
 					  		 row[18], row[19], row[20],
 					  		 row[27], row[28]], threshold)
 
+		row[4].value = ""
+		row[5].value = ""
+		row[6].value = ""
+		row[7].value = ""
+		row[9].value = ""
+		row[10].value = ""
+		row[11].value = ""
 		prev_tab = driver.window_handles[0]
 		driver.execute_script("window.open('');")
 		driver.switch_to.window(prev_tab)
@@ -276,8 +283,9 @@ def main():
 		try:
 			(first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, loops, scenario)
 			reset_styles([row[0], row[1]])
-		except:
+		except Exception as e:
 			(first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
+			row[3].value = f"Page speed measurement timeout"
 			mark_form_as_invalid(row)
 
 
@@ -287,6 +295,7 @@ def main():
 			if "Error" in page_title or page_title == "Access Restricted":
 				mark_form_as_invalid(row, color="0000FF")
 				logger.debug(f"Error detected '{page_title}' in {url}")
+				row[3].value = page_title
 				error_in_page_loading = True
 		except Exception as ex:
 			logger.exception(ex)
@@ -299,12 +308,12 @@ def main():
 				mark_form_as_invalid(row)
 				error_in_save = True
 				logger.exception(ex)
+				row[3].value = f"Saving timeout"
 			except ElementClickInterceptedException as ex:
 				mark_form_as_invalid(row, color="9933FF")
 				error_in_save = True
 				logger.exception(ex)
 			except NoSuchElementException as ex:
-				mark_form_as_invalid(row, color="991100")
 				error_in_save = True
 				logger.exception(ex)
 			except StaleElementReferenceException as ex:

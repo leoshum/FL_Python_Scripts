@@ -21,7 +21,10 @@ class SeleniumHelper:
     
     @staticmethod
     def is_form_page_url(url: str) -> bool:
-        return "Forms" in url or ("ViewEvent" in url and urlparse(url).fragment)
+        parsed_url = urlparse(url)
+        if "EventOverview" in parsed_url.path:
+            return False
+        return "Forms" in url or ("ViewEvent" in url and parsed_url.fragment)
     
     @staticmethod
     def get_build_version(driver: webdriver.Chrome) -> str:
@@ -101,18 +104,21 @@ class SeleniumHelper:
     
     @staticmethod
     def measure_form_save_time(driver: webdriver.Chrome) -> float:
+        driver.execute_script("location.reload(true);")
         SeleniumHelper.wait_for_form_page_load(driver)
         # TODO: Do we really need to wait until loader dissapear?
-        loader_locator = unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
-        WebDriverWait(driver, SeleniumHelper.timeout).until(loader_locator)
-        WebDriverWait(driver, SeleniumHelper.timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")))
-        save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, accelify-forms-details button[type='submit']")
+        try:
+            loader_locator = unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
+            WebDriverWait(driver, SeleniumHelper.timeout).until(loader_locator)
+            WebDriverWait(driver, SeleniumHelper.timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")))
+        except:
+            pass
+        save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")
         save_btn_elem = None
         for save_btn in save_btns:
             if save_btn.text == "Save Form":
                 save_btn_elem = save_btn
                 break
-            
         start_time = time.time()
         if save_btn_elem != None:
             from frontline_selenium.page_filler import PageFormFiller
@@ -120,7 +126,21 @@ class SeleniumHelper:
                 PageFormFiller.fill_form(driver)
             except Exception as ex:
                 SeleniumHelper.logger.exception(ex)
-            save_btn_elem.click()
+            attempts = 3
+            start_time = time.time()
+            while attempts > 0:
+                attempts -= 1
+                try:
+                    WebDriverWait(driver, SeleniumHelper.timeout).until( unpresence_of_element((By.CSS_SELECTOR, ".loader-circle")))
+                    driver.execute_script("window.scrollTo(0, 0);")
+                    save_btn_elem.click()
+                    break
+                except ElementClickInterceptedException as ex:
+                    time.sleep(1)
+                    start_time = time.time()
+            if attempts == 0:
+                save_btn_elem.click()
+
             SeleniumHelper.wait_for_form_save_popup(driver)
         else:
             raise NoSuchElementException("'Save Form' was not found.")
