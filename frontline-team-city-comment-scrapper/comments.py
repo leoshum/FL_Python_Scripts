@@ -124,8 +124,8 @@ async def main():
             start += 100
 
         await gather(*tasks)
-    builds.sort(key=lambda build: version.parse(build[0]))
     builds.sort(key=lambda build: datetime.strptime(build[3], '%Y-%m-%d %H:%M:%S'))
+    builds.sort(key=lambda build: version.parse(build[0]))
     for build in builds:
         sheet.append(build)
     
