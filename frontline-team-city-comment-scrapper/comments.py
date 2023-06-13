@@ -3,6 +3,7 @@ import logging
 from asyncio import create_task, gather, get_event_loop
 from datetime import datetime
 from os import environ, path
+import re
 from sys import argv, exit
 
 import aiohttp
@@ -133,6 +134,7 @@ async def main():
 
     book.save(filename=comments_path)
 
+pattern = r'(https://frontlinetechnologies.atlassian.net/browse/CW0575-\d{5})(.*?)(?=(https://frontlinetechnologies.atlassian.net/browse/CW0575-\d{5})|$)'
 async def get_build_info(builds, build, date, session):
     changes_start = 0
     changes_count = 100
@@ -156,18 +158,25 @@ async def get_build_info(builds, build, date, session):
                 print("End date")
                 break
             change['comment'] = change['comment'].replace('\n', '')
-            if ticket_match in change['comment']:
-                ticket = change['comment'][change['comment'].index(ticket_match):len(ticket_match)+ticket_number_length]
-                comment = change['comment'][len(ticket_match)+ticket_number_length:]
-            else:
+
+            matches = re.findall(pattern, change.get('comment'))
+
+            for match in matches:
+                ticket = match[0]
+                comment = match[1]
+                updateLength(change['username'], width, 'Author')
+                updateLength(str(change_date), width, 'Commit Date')
+                updateLength(ticket, width, 'Jira Ticket')
+                updateLength(comment, width, 'Comment')
+                builds.append([build['number'], build_date, change['username'], str(change_date), ticket, comment])
+            if len(matches) == 0:
                 ticket = ''
                 comment = change['comment']
-
-            updateLength(change['username'], width, 'Author')
-            updateLength(str(change_date), width, 'Commit Date')
-            updateLength(ticket, width, 'Jira Ticket')
-            updateLength(comment, width, 'Comment')
-            builds.append([build['number'], build_date, change['username'], str(change_date), ticket, comment])
+                updateLength(change['username'], width, 'Author')
+                updateLength(str(change_date), width, 'Commit Date')
+                updateLength(ticket, width, 'Jira Ticket')
+                updateLength(comment, width, 'Comment')
+                builds.append([build['number'], build_date, change['username'], str(change_date), ticket, comment])
         
         if changes_length < changes_count: break
         changes_start += changes_count
