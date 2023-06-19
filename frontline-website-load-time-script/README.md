@@ -7,6 +7,7 @@
 #### --disable_save
 #### --idm_auth
 #### --loops
+#### -- disable-filler - Allows to disable form filler. Works only if form saving enabled.
 ### python bootstrapper.py --path . --disable_save
 ### python bootstrapper.py --path . --disable_save --recurse
 ### python bootstrapper.py --path TX-DEV TX-STG --disable_save --recurse
