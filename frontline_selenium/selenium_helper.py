@@ -10,10 +10,15 @@ from urllib.parse import urlparse
 class SeleniumHelper:
     timeout: float = 30
     logger: logging.Logger = None
+    options: dict = {}
 
     @staticmethod
     def setup_logger(logger: logging.Logger):
         SeleniumHelper.logger = logger
+
+    @staticmethod
+    def set_options(options: dict):
+        SeleniumHelper.options = options
     
     @staticmethod
     def is_plan_page_url(url: str) -> bool:
@@ -123,7 +128,8 @@ class SeleniumHelper:
         if save_btn_elem != None:
             from frontline_selenium.page_filler import PageFormFiller
             try:
-                PageFormFiller.fill_form(driver)
+                if not SeleniumHelper.options.get("disable_filler", False):
+                    PageFormFiller.fill_form(driver)
             except Exception as ex:
                 SeleniumHelper.logger.exception(ex)
             attempts = 3

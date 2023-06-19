@@ -168,18 +168,22 @@ def main():
 	parser.add_argument("input_file", type=str)
 	parser.add_argument("--loops", type=int, default=3)
 	parser.add_argument("--disable_save", action="store_true")
+	parser.add_argument("--disable_filler", action="store_true", default=False)
 	parser.add_argument("--idm_auth", action="store_true", default=False)
 	my_namespace = parser.parse_args()
 
 	input_file = my_namespace.input_file
 	loops = my_namespace.loops
 	disable_save = my_namespace.disable_save
+	disable_filler = my_namespace.disable_filler
 	idm_auth = my_namespace.idm_auth
 	threshold = 6
 	timeout = 30
 
 	logger = configure_logger("script-log", input_file)
-
+	SeleniumHelper.set_options({
+		"disable_filler": disable_filler
+	})
 	print(f"Input file: {input_file}")
 	if not os.path.isfile(input_file):
 		print("Input file doesn't exist.")
@@ -224,10 +228,10 @@ def main():
 			if idm_auth:
 				SupportTech.login(driver)
 				time.sleep(3)
-				SupportTech.open_website(driver, base_url, "PMGMT")
+				SupportTech.open_website(driver, base_url, "SFTDVTester")
 				driver.get(url)
 			else:
-				SeleniumHelper.login_user(base_url, driver, "PMGMT", "8Huds(3d")
+				SeleniumHelper.login_user(base_url, driver, "SFTDVTester", "ht2jGMM2GnC3bwX7")
 			build_version = SeleniumHelper.get_build_version(driver)
 			is_first_row = False
 		row[22].value = row[13].value
