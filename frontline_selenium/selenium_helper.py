@@ -4,7 +4,8 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
+from selenium.webdriver.common.alert import Alert
+from selenium.common.exceptions import ElementClickInterceptedException, NoSuchElementException, UnexpectedAlertPresentException
 from urllib.parse import urlparse
 
 class SeleniumHelper:
@@ -75,10 +76,16 @@ class SeleniumHelper:
         
         temp_start_time = time.time()
         while time.time() - temp_start_time < SeleniumHelper.timeout:
-            script_result = driver.execute_script(script)
-            if script_result != None and "Form has been updated successfully" in script_result:
-                break
-            time.sleep(1)
+            try:
+                script_result = driver.execute_script(script)
+                if script_result != None and "Form has been updated successfully" in script_result:
+                    break
+                time.sleep(1)
+            except UnexpectedAlertPresentException as ex:
+                try:
+                    Alert(driver).accept()
+                except:
+                    pass
         return time.time() - temp_start_time
 
     @staticmethod
@@ -121,7 +128,7 @@ class SeleniumHelper:
         save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")
         save_btn_elem = None
         for save_btn in save_btns:
-            if save_btn.text == "Save Form":
+            if "Save" in save_btn.text:
                 save_btn_elem = save_btn
                 break
         start_time = time.time()
