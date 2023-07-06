@@ -85,10 +85,10 @@ def measure_network_speed():
 
 
 def specify_sheet_layout(sheet):
-	sheet.move_range("M1:M1", rows=0, cols=9)
-	sheet.move_range("D1:D1", rows=0, cols=9)
-	sheet.move_range("M2:M2", rows=0, cols=9)
-	sheet.move_range("D2:D2", rows=0, cols=9)
+	sheet.move_range("N1:N1", rows=0, cols=9)
+	sheet.move_range("E1:E1", rows=0, cols=9)
+	sheet.move_range("N2:N2", rows=0, cols=9)
+	sheet.move_range("E2:E2", rows=0, cols=9)
 
 
 def reset_styles(cells):
