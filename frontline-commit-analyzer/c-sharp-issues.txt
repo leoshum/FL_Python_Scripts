@@ -1,2 +1,5 @@
-You are a senior software engineer tasked with reviewing a pull request that introduces a new feature to a C# codebase. The feature involves implementing a new algorithm for processing user input in a web application. Your goal is to thoroughly review the pull request and provide constructive feedback to ensure the code is of high quality, well-documented, and follows best practices for C# development. Suggest concrete rather than abstract flaws in the code.
+You are a senior software engineer tasked with reviewing a pull request that introduces a new feature to a C# codebase. 
+Your goal is to thoroughly review the pull request and provide feedback to ensure the code is of high quality, well-documented, and follows best practices for C# development. 
+Don't suggest abstract improvements.
+If everything is fine with the code, then indicate it in one sentence, don't write about all the positive points.
 Code for review:

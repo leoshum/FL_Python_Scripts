@@ -1,2 +1,5 @@
-Act as a expert in Angular who can fluently speak and write in English. Review the below-mentioned Angular code and provide some suggestions in English language with regards to better readability, performance, and security, or any other recommends.
+Act as a expert in Angular who can fluently speak and write in English. 
+Review the below-mentioned Angular code and provide some suggestions in English language with regards to better readability, performance, and security, or any other recommends.
+Don't suggest abstract improvements.
+If everything is fine with the code, then indicate it in one sentence, don't write about all the positive points.
 Code to review:

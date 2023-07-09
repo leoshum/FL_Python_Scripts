@@ -1,6 +1,7 @@
 import openai
 import tiktoken
 import os
+from openpyxl import load_workbook
 
 class CodeReviewProvider:
     def __init__(self, chat_completion=False):
@@ -26,7 +27,7 @@ class CodeReviewProvider:
 
     def get_chat_completion_answer(self, prompt):
         response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4-0613",
         messages=[
                 {"role": "user", "content": prompt}
             ]
@@ -89,14 +90,17 @@ class CodeReviewProvider:
         return self.get_bot_answer(self.binary_prepromt, code, file_path, binary_answer=True)
     
 def main():
-    codes = []
-    with open("code-sample.txt", "r") as file:
-        codes = file.readlines()
-
     code_review = CodeReviewProvider(chat_completion=True)
-    for code in codes:
-        print(code_review.get_code_review(code, "https://api.github.com/repos/octokit/octokit.rb/contents/README.cs"))
-        print(f"Attention: {code_review.get_binary_answer(code, 'https://api.github.com/repos/octokit/octokit.rb/contents/README.cs')}")
-        print("---------------")
+    file_name = f"{os.path.dirname(__file__)}\\code_issues.xlsx"
+    wb = load_workbook(file_name, data_only=True)
+    wb_sheet = wb.active
+    file_ext = ".md"
+    for row in wb_sheet.iter_rows():
+        if row[0].value in ["C#", "JS/TS/Angular", "SQL"]:
+            file_ext = row[1].value
+        else:
+            row[4].value = code_review.get_code_review(row[0].value, f"https://api.github.com/repos/octokit/octokit.rb/contents/README{file_ext}")
+            row[5].value = code_review.get_binary_answer(row[0].value, f"https://api.github.com/repos/octokit/octokit.rb/contents/README{file_ext}")
+    wb.save(file_name)
 if __name__ == "__main__":
     main()
