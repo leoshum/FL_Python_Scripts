@@ -1,1 +1,2 @@
-Write in the answer only either "True" or "False". Write "True" if there are flaw in the code, or if there is complex code in the changes that you need to pay attention to, or you found an error from the list if there is such a list, otherwise write "False".
+Write in the answer only either "True" or "False".
+You are given an example of the text review code. Tell me if there are any errors in this review.
