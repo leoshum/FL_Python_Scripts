@@ -1,0 +1,14 @@
+{
+    "planng\\/Students\\/ViewStudent\\/\\d+\\/Details": {
+        "regexes": [
+            "(?<=planng\\/Students\\/ViewStudent\\/)\\d+(?=\\/Details)"
+        ],
+        "endpoints": [
+            "{}/plan/api/students/{}",
+            "{}/plan/api/studentDetails/GetStudentDetails/{}",
+            "{}/plan/api/studentAlerts/{}",
+            "{}/plan/api/students/{}/contacts",
+            "{}/plan/api/exceptionalities/disabilities/student/{}"
+        ]
+    }
+}
