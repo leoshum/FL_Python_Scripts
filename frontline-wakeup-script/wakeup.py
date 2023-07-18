@@ -107,7 +107,7 @@ def log_uncaught_exceptions(exctype, value, traceback):
 def main():
     formatted_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M")
     logging.basicConfig(
-        filename=f"script__{formatted_datetime}.log",
+        filename=f"wakeup__{formatted_datetime}.log",
         level=logging.DEBUG,
         format='%(asctime)s - %(message)s',
     )
@@ -145,7 +145,7 @@ def main():
             logging.error(f"Error occured while authenticating in {base_url}")
             logging.exception(ex)
             continue
-        
+
         for url in urls[site_name]:
             url = url.strip()
             if "planng" in url:
