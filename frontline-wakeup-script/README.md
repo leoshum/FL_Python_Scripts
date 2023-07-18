@@ -1,5 +1,5 @@
 # Wakeup script
-The "Wakeup script" is a Python script that performs a series of HTTP requests based on URLs provided in a JSON file to keep the siteы cache hot.
+The "Wakeup script" is a Python script that performs a series of HTTP requests based on URLs provided in a JSON file to keep the sites cache hot.
 ## Wakeup script
 Before running the script, make sure you have the following prerequisites installed:
 - Python 3.x
