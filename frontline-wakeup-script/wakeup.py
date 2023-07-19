@@ -5,10 +5,21 @@ import json
 import logging
 import requests
 import argparse
-from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from urllib.error import HTTPError
 from datetime import datetime
+
+
+def log_uncaught_exceptions(exctype, value, traceback):
+    logging.exception("Uncaught exception occurred: ", exc_info=(exctype, value, traceback))
+
+
+def get_script_directory():
+    if getattr(sys, 'frozen', False):
+        file_location = sys.argv[0]
+    else:
+        file_location = __file__
+    return os.path.dirname(os.path.abspath(file_location))
 
 
 def extract_base_url(url):
@@ -51,31 +62,6 @@ def get_accelify_session_using_support_tool(support_tool_session, base_url, user
     return session
 
 
-def get_accelify_session(base_url):
-    session = requests.Session()
-    login_page = session.get(f"{base_url}/Login.aspx").text
-    soup = BeautifulSoup(login_page, 'html.parser')
-    fields = {
-        "__EVENTTARGET": "",
-        "__EVENTARGUMENT": "",
-        "__VIEWSTATE": "",
-        "__VIEWSTATEGENERATOR": "",
-        "__EVENTVALIDATION": "",
-    }
-
-    for field in fields.keys():
-        input = soup.find(id=field)
-        if input:
-            fields[field] = input.attrs["value"]
-    fields["ctl00$plcContent$LoginControl$UserName"] = "SFTDVTester"
-    fields["ctl00$plcContent$LoginControl$Password"] = "ht2jGMM2GnC3bwX7"
-    fields["ctl00$plcContent$LoginControl$ctlCredentialsReminder$pnlCredentialsReminder$txtUserName"] = ""
-    fields["ctl00$plcContent$LoginControl$ctlCredentialsReminder$pnlCredentialsReminder$txtEmail"] = ""
-    fields["ctl00$plcContent$LoginControl$lnkLogin"] = "Log in"
-    session.post(f"{base_url}/Login.aspx", data=fields)
-    return session
-
-
 def get_endpoints_for_planng(url, planng_mappings):
     base_url = extract_base_url(url)
     endpoints = []
@@ -105,10 +91,6 @@ def filter_urls(urls, sites):
     return urls
 
 
-def log_uncaught_exceptions(exctype, value, traceback):
-    logging.exception("Uncaught exception occurred: ", exc_info=(exctype, value, traceback))
-
-
 def main():
     formatted_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M")
     logging.basicConfig(
@@ -130,10 +112,11 @@ def main():
     with open(urls_file_name) as file:
         urls = json.load(file)
 
-    with open(os.path.dirname(__file__) + "/planng-mappings.json") as file:
+    script_dir = get_script_directory()
+    with open(os.path.join(script_dir, "planng-mappings.json")) as file:
         planng_mappings = json.load(file)
 
-    with open(os.path.dirname(__file__) + "/config.json") as file:
+    with open(os.path.join(script_dir, "config.json")) as file:
         config = json.load(file)
 
     urls = filter_urls(urls, sites)
