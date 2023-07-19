@@ -82,12 +82,17 @@ def get_endpoints_for_planng(url, planng_mappings):
     for url_regex in planng_mappings.keys():
         if re.compile(url_regex).search(url):
             mapping = planng_mappings[url_regex]
-            data = []
-            for data_regex in mapping["regexes"]:
-                data.append(re.compile(data_regex).search(url).group(0))
+            data = {}
+            for pair in mapping["regexes"].items():
+                key, value = pair
+                data[key] = re.compile(value).search(url).group(0)
                 
             for endpoint in mapping["endpoints"]:
-                endpoints.append(endpoint.format(base_url, *data))
+                temp_endpoint = endpoint.replace("{url}", base_url)
+                for pair in data.items():
+                    key, value = pair
+                    temp_endpoint = temp_endpoint.replace("{" + key + "}", value)
+                endpoints.append(temp_endpoint)
             return endpoints
     raise ValueError(f"there is no regex in mapping matches {url}")
 
