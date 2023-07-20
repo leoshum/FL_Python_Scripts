@@ -37,7 +37,7 @@ def get_support_tool_session(username, password):
         "username": username,
         "password": password
     }
-    response = session.post(f"{base_url}/api/auth", json=data)
+    response = session.post(f"{base_url}/api/auth", json=data, verify=False)
     response.raise_for_status()
     token = json.loads(response.text)["token"]
     session.headers.update({
@@ -50,7 +50,7 @@ def get_magic_link(session, host, username):
     req = session.post("https://support-tech.acceliplan.com/api/Main/MagicLink", json={
         "hostname": host,
         "username": username
-    })
+    }, verify=False)
     return json.loads(req.text)["magicLink"]
 
 
@@ -74,11 +74,11 @@ def get_endpoints_for_planng(url, planng_mappings):
                 data[key] = re.compile(value).search(url).group(0)
                 
             for endpoint in mapping["endpoints"]:
-                temp_endpoint = endpoint.replace("{url}", base_url)
+                temp_endpoint = "" + endpoint
                 for pair in data.items():
                     key, value = pair
                     temp_endpoint = temp_endpoint.replace("{" + key + "}", value)
-                endpoints.append(temp_endpoint)
+                endpoints.append(base_url + temp_endpoint)
             return endpoints
     raise ValueError(f"there is no regex in mapping matches {url}")
 

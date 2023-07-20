@@ -4,10 +4,10 @@
             "studentId": "(?<=planng\\/Students\\/ViewStudent\\/)\\d+(?=\\/Details)"
         },
         "endpoints": [
-            "{url}/plan/api/students/{studentId}",
-            "{url}/plan/api/studentDetails/GetStudentDetails/{studentId}",
-            "{url}/plan/api/studentAlerts/{studentId}",
-            "{url}/plan/api/exceptionalities/disabilities/student/{studentId}"
+            "/plan/api/students/{studentId}",
+            "/plan/api/studentDetails/GetStudentDetails/{studentId}",
+            "/plan/api/studentAlerts/{studentId}",
+            "/plan/api/exceptionalities/disabilities/student/{studentId}"
         ]
     },
     "planng\\/Events\\/ViewEvent\\/[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}?/EventOverview": {
@@ -15,9 +15,9 @@
             "eventId": "(?<=planng\/Events\/ViewEvent\/)[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}?(?=/EventOverview)"
         },
         "endpoints": [
-            "{url}/plan/api/events/{eventId}/GetEventModel",
-            "{url}/plan/api/events/{eventId}/GetEventNavigationModels",
-            "{url}/plan/api/events/{eventId}/details"
+            "/plan/api/events/{eventId}/GetEventModel",
+            "/plan/api/events/{eventId}/GetEventNavigationModels",
+            "/plan/api/events/{eventId}/details"
         ]
     },
     "planng\\/Events\\/ViewEvent\\/[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}?\\/Forms\\/[a-zA-Z]+\\/[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}?": {
@@ -26,10 +26,10 @@
             "formId": "[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}?$"
         },
         "endpoints": [
-            "{url}/plan/api/events/{eventId}/GetEventModel",
-            "{url}/plan/api/events/{eventId}/GetEventNavigationModels",
-            "{url}/plan/api/events/{eventId}/details",
-            "{url}/plan/api/forms/{formId}"
+            "/plan/api/events/{eventId}/GetEventModel",
+            "/plan/api/events/{eventId}/GetEventNavigationModels",
+            "/plan/api/events/{eventId}/details",
+            "/plan/api/forms/{formId}"
         ]
     }
 }
