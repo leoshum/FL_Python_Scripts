@@ -7,8 +7,12 @@ Before running the script, make sure you have the following prerequisites instal
     - requests
     - json
     - argparse
+
+To install all necessary dependencies run this command:
+
+`pip install -r requirements.txt`
 ## Compilation to .exe
-For script compilation to executable file run *build_script.ps1* powershell script:
+For script compilation to executable file, first install the *pyinstaller* library and then run *build_script.ps1* powershell script:
 
 `.\build_script.ps1`
 
