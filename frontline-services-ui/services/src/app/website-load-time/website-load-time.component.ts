@@ -19,7 +19,7 @@ export class WebsiteLoadTimeComponent {
   debugger: any;
   selectedPath = '';
   selected: any = null;
-  isDisabled = true;
+  save = true;
   numLoops = 2;
   ngOnInit() {
     this.fetchFilesForWebsiteLoadTime().subscribe(
@@ -78,7 +78,7 @@ export class WebsiteLoadTimeComponent {
     this.isRequesting = true;
     const url = API_URL + 'execute';
     let command_params = `-p ${this.selectedPath} --loops ${this.numLoops}`
-    if (this.isDisabled) {
+    if (!this.save) {
       command_params += ' --disable_save'
     }
     const body = { script: 'websiteloadtime', parameters: command_params };
