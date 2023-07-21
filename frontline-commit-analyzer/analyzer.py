@@ -71,6 +71,9 @@ class Analyzer:
 
             loop = asyncio.get_event_loop()
             review = await loop.run_in_executor(None, self.codereview_provider.get_code_review, file.get('patch'), url)
+            if review == "" or "Skipped" in review or review == None:
+                return False
+            review = await loop.run_in_executor(None, self.codereview_provider.get_chat_completion_answer, file.get('patch'), url)
             binary_answer = await loop.run_in_executor(None, self.codereview_provider.get_binary_answer, file.get('patch'), url)
             
             binary_answer = "True" in binary_answer or "Skipped" in binary_answer
@@ -82,8 +85,10 @@ class Analyzer:
             file['review'] = review
             file['state'] = binary_answer
             self.logger.info(msg=f"Reviewed [{file['sha']}] file.")
+            return True
         except Exception as e:
             self.logger.info(msg=f"Review error {e}")
+            return False
 
     async def analyze_commits(self, hours = 12):
         start = self.utc_now - timedelta(hours=hours)
@@ -174,7 +179,9 @@ class Analyzer:
 
             for commit in pull_request['commits']:
                 for file in commit['Files']:
-                    await self.review_file(file)
+                    reviewed = await self.review_file(file)
+                    if not reviewed:
+                        commit['Files'] = [f for f in commit['Files'] if f != file]
             
             self.write_pull_requests()
 
