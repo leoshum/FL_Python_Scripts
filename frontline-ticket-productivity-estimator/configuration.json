@@ -1,0 +1,9 @@
+{
+    "repository_path" : "C:\\Development\\CW-0575-IEP",
+    "jira_host" : "frontlinetechnologies.atlassian.net",
+    "jira_login" : "lshum@frontlineed.com",
+    "ssh_key_path" : "~/.ssh/id_ed25519",
+    "git_branch" : "main",
+    "github_owner" : "FrontlineEducation",
+    "github_repository" : "CW-0575-IEP"
+}
