@@ -1,0 +1,20 @@
+{
+    "athens": [
+        "https://athens-tx.spm.frontlineeducation.com/plan/Students/Landing",
+        "https://athens-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/660598/Details",
+        "https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=c9c31a74-6442-48a0-9822-aeed0136c57d#eventoverview",
+        "https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=1f20d8e2-7c94-4bb1-a679-af720106799a#eventoverview"
+    ],
+    "training": [
+        "https://training01.spm.frontlineeducation.com/plan/Students/Landing",
+        "https://training01.spm.frontlineeducation.com/planng/Students/ViewStudent/655400/Details",
+        "https://training01.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=690f57e2-6ab5-45d1-9738-b0420150de74#eventoverview",
+        "https://training01.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=d30e48d7-a16a-41ae-b329-b04300ef2638#eventoverview",
+        "https://training01.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=b50fc28f-7c5e-462a-ad1c-b04300f01fd1#eligibilitydetermination&formId=25e0d487-0614-4ef9-9db6-b04300f01fd8",
+        "https://training01.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=b50fc28f-7c5e-462a-ad1c-b04300f01fd1#reviewofdata&formId=9de230f7-994b-40ca-bd84-b04300f01fd8",
+        "https://training01.spm.frontlineeducation.com/planng/Events/ViewEvent/e816e366-fa95-4c9d-9ba5-b04300efc994/EventOverview",
+        "https://training01.spm.frontlineeducation.com/planng/Events/ViewEvent/e816e366-fa95-4c9d-9ba5-b04300efc994/EventOverview",
+        "https://training01.spm.frontlineeducation.com/planng/Events/ViewEvent/e816e366-fa95-4c9d-9ba5-b04300efc994/Forms/DyslexiaEligibility/71a713b9-9d27-4a62-81ed-b04300efc99c",
+        "https://training01.spm.frontlineeducation.com/planng/Events/ViewEvent/e816e366-fa95-4c9d-9ba5-b04300efc994/Forms/EvaluationDatareviewedbytheCommittee/dbf7d651-ccb6-49b4-a071-b04300efc99c"
+    ]
+}

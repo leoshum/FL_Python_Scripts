@@ -71,14 +71,12 @@ class Analyzer:
 
             loop = asyncio.get_event_loop()
             review = await loop.run_in_executor(None, self.codereview_provider.get_code_review, file.get('patch'), url)
-            if review == "" or "Skipped" in review or review == None:
-                return False
-            review = await loop.run_in_executor(None, self.codereview_provider.get_chat_completion_answer, file.get('patch'), url)
-            binary_answer = await loop.run_in_executor(None, self.codereview_provider.get_binary_answer, file.get('patch'), url)
+            binary_answer = await loop.run_in_executor(None, self.codereview_provider.get_binary_answer, review, url)
             
             binary_answer = "True" in binary_answer or "Skipped" in binary_answer
             if binary_answer:
                 binary_answer = 0
+                return False
             else:
                 binary_answer = 2
             

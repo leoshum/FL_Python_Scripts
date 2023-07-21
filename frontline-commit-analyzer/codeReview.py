@@ -66,13 +66,13 @@ class CodeReviewProvider:
         elif file_ext == ".ts":
             code_issues = self.angular_preprompt
         elif file_ext == ".js":
-            file_ext = self.js_preprompt
+            code_issues = self.js_preprompt
         else:
-            file_ext = prepromt
+            code_issues = prepromt
 
         prompt = ""
         if binary_answer:
-            prompt = f"{self.binary_prepromt}\n{code_issues}\n{code}"
+            prompt = f"{self.binary_prepromt}\n:\{code}\"
         else:
             prompt = f"{code_issues}\n{code}"
 
@@ -86,8 +86,8 @@ class CodeReviewProvider:
     def get_code_review(self, code, file_path):
         return self.get_bot_answer(self.prepromt, code, file_path)
     
-    def get_binary_answer(self, code, file_path):
-        return self.get_bot_answer(self.binary_prepromt, code, file_path, binary_answer=True)
+    def get_binary_answer(self, review, file_path):
+        return self.get_bot_answer(self.binary_prepromt, review, file_path, binary_answer=True)
     
 def main():
     code_review = CodeReviewProvider(chat_completion=True)
