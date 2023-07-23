@@ -72,7 +72,7 @@ class CodeReviewProvider:
 
         prompt = ""
         if binary_answer:
-            prompt = f"{self.binary_prepromt}\n:\{code}\"
+            prompt = f"{self.binary_prepromt}\n{code}"
         else:
             prompt = f"{code_issues}\n{code}"
 
