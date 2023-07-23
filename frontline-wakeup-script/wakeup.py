@@ -92,8 +92,6 @@ def filter_urls(urls, sites):
 
 
 def main():
-    cert_path = os.path.join(get_script_directory(), 'certs', "cacert.pem")
-    os.environ['REQUESTS_CA_BUNDLE'] = os.path.join(cert_path)
     formatted_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M")
     logging.basicConfig(
         filename=f"wakeup__{formatted_datetime}.log",
