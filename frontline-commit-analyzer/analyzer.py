@@ -76,14 +76,17 @@ class Analyzer:
             binary_answer = "True" in binary_answer or "Skipped" in binary_answer
             if binary_answer:
                 binary_answer = 0
+                return False
             else:
                 binary_answer = 2
             
             file['review'] = review
             file['state'] = binary_answer
             self.logger.info(msg=f"Reviewed [{file['sha']}] file.")
+            return True
         except Exception as e:
             self.logger.info(msg=f"Review error {e}")
+            return False
 
     async def analyze_commits(self, hours = 12):
         start = self.utc_now - timedelta(hours=hours)
@@ -174,7 +177,9 @@ class Analyzer:
 
             for commit in pull_request['commits']:
                 for file in commit['Files']:
-                    await self.review_file(file)
+                    reviewed = await self.review_file(file)
+                    if not reviewed:
+                        commit['Files'] = [f for f in commit['Files'] if f != file]
             
             self.write_pull_requests()
 
