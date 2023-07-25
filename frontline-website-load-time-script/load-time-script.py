@@ -211,6 +211,35 @@ def main():
     head_cell_bottom = wb_sheet["E2"]
     head_cell_bottom.alignment = Alignment(horizontal='center')
 
+    for row in wb_sheet.iter_rows(min_row=5):
+        for i in range(13, 17):
+            row[i + 9].value = row[i].value
+
+        for i in range(18, 21):
+            row[i + 8].value = row[i].value
+
+        reset_styles([row[13], row[14], row[15], 
+                      row[16], row[22], row[23], 
+                      row[24], row[25], row[26],
+                      row[18], row[19], row[20],
+                      row[8], row[12], row[17],
+                      row[27], row[28], row[21]])
+
+        for i in range(4, 8):
+            row[i + 9].value = row[i].value
+
+        for i in range(9, 12):
+            row[i + 9].value = row[i].value
+
+        flag_high_load_time([row[13], row[14], row[15], 
+                             row[16], row[23], row[23], 
+                             row[24], row[25], row[26],
+                             row[18], row[19], row[20],
+                             row[27], row[28]], threshold)
+        for i in range(4, 12):
+            row[i].value = ""
+        reset_styles([row[4], row[5], row[6], row[7], row[9], row[10], row[11]])
+
     build_version = ""
     prev_base_url = ""
 
@@ -221,7 +250,7 @@ def main():
         if url == None or not validators.url(url):
             continue
         row[3].value = ""
-        print(url)
+        print(f"{datetime.now().strftime('%y-%m-%d %H:%M:%S')}    {url}")
         logger.info(f"Processing: {url}")
         base_url = extract_base_url(url)
         if prev_base_url != base_url or is_first_row:
@@ -234,44 +263,7 @@ def main():
                 SeleniumHelper.login_user(base_url, driver, "SFTDVTester", "ht2jGMM2GnC3bwX7")
             build_version = SeleniumHelper.get_build_version(driver)
             is_first_row = False
-        row[22].value = row[13].value
-        row[23].value = row[14].value
-        row[24].value = row[15].value
-        row[25].value = row[16].value
 
-        row[26].value = row[18].value
-        row[27].value = row[19].value
-        row[28].value = row[20].value
-
-        reset_styles([row[13], row[14], row[15], 
-                      row[16], row[22], row[23], 
-                      row[24], row[25], row[26],
-                      row[18], row[19], row[20],
-                      row[8], row[12], row[17],
-                      row[27], row[28], row[21]])
-
-        row[13].value = row[4].value
-        row[14].value = row[5].value
-        row[15].value = row[6].value
-        row[16].value = row[7].value
-
-        row[18].value = row[9].value
-        row[19].value = row[10].value
-        row[20].value = row[11].value
-
-        flag_high_load_time([row[13], row[14], row[15], 
-                               row[16], row[23], row[23], 
-                               row[24], row[25], row[26],
-                               row[18], row[19], row[20],
-                               row[27], row[28]], threshold)
-
-        row[4].value = ""
-        row[5].value = ""
-        row[6].value = ""
-        row[7].value = ""
-        row[9].value = ""
-        row[10].value = ""
-        row[11].value = ""
         prev_tab = driver.window_handles[0]
         driver.execute_script("window.open('');")
         driver.switch_to.window(prev_tab)
@@ -350,7 +342,6 @@ def main():
             row[10].value = ""
             row[11].value = ""
 
-        reset_styles([row[4], row[5], row[6], row[7], row[9], row[10], row[11]])
         flag_high_load_time([row[4], row[5], row[6], row[7], row[9], row[10], row[11]], threshold)
         prev_base_url = base_url
         head_cell_top.value = f"{build_version} {timestamp}"
