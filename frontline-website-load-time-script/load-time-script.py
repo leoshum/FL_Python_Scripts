@@ -300,11 +300,16 @@ def main():
         if is_form_page_url and not disable_save and not error_in_page_loading:
             try:
                 (first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, loops, SeleniumHelper.measure_form_save_time)
+            except ValueError as ex:
+                mark_form_as_invalid(row)
+                error_in_save = True
+                logger.exception(ex)
+                row[3].value = "Exception occured while saving the form!"
             except TimeoutException as ex:
                 mark_form_as_invalid(row)
                 error_in_save = True
                 logger.exception(ex)
-                row[3].value = f"Saving timeout"
+                row[3].value = "Saving timeout"
             except ElementClickInterceptedException as ex:
                 mark_form_as_invalid(row, color="9933FF")
                 error_in_save = True
