@@ -169,7 +169,6 @@ class SeleniumHelper:
                 save_btn_elem.click()
 
             SeleniumHelper.wait_for_form_save_popup(driver)
-            print(SeleniumHelper.get_ajax_requests(driver))
         else:
             raise NoSuchElementException("'Save Form' was not found.")
         return time.time() - start_time
