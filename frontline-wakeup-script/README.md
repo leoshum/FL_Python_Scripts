@@ -17,6 +17,8 @@ For script compilation to executable file, first install the *pyinstaller* libra
 `.\build_script.ps1`
 
 At the output you will receive an archive with an executable file and config files.
+## Windows Scheduler setup
+    `.\setup_scheduler.ps1 -ExeFilePath "C:\Path\To\Your\wakeup.exe" -RunAsUser "DOMAIN\Username"`
 ## Usage
 Execute the script with the following command:
 
