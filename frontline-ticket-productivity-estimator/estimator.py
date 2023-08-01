@@ -11,7 +11,6 @@ import pytz
 class Estimator:
     def __init__(self):
         self.session = aiohttp.ClientSession()
-        self.jql = '"Story Points" > 5 AND labels=jira_escalated and project="CW-0575 (Accelify)" and status not in ("waiting for response", open, DevReady, "in progress")'
         self.configuration = None
         self.configure()
 
@@ -42,7 +41,7 @@ class Estimator:
 
         self.configuration.update(update)
 
-    async def get_jira_issues(self, stored_issues=None):
+    async def get_jira_issues(self, stored_issues=None, days=7):
         if stored_issues:
             numbers = [issue.get('number') for issue in stored_issues]
         else:
@@ -52,6 +51,7 @@ class Estimator:
         max_results = 50
         headers = {'Accept': 'application/json'}
         date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
+        self.jql = f'"Story Points" >= 3 AND labels = jira_escalated AND project = "CW-0575 (Accelify)" AND status not in ("waiting for response", open, DevReady, "in progress") AND resolved >= -{days}d ORDER BY resolved DESC'
         
         total_issues = 1
         end_date = datetime.now(pytz.utc) - timedelta(days=30*4)
@@ -128,9 +128,10 @@ class Estimator:
                     if response.status == 200:
                         commit_data = await response.json()
                         files_changed = len(commit_data['files'])
+                        author = commit_data.get('commit').get('author').get('email')
                         lines_added = sum(file['additions'] for file in commit_data['files'])
                         lines_removed = sum(file['deletions'] for file in commit_data['files'])
-                        return files_changed, lines_added, lines_removed
+                        return files_changed, lines_added, lines_removed, author
                     else:
                         raise Exception(f"Failed to retrieve commit information. Status code: {response.status}, Response: {response.text}")
 
@@ -143,13 +144,19 @@ async def main():
     tickets = []
     estimator = Estimator()
     await estimator.configure_git()
+    date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
 
-    async for issue in estimator.get_jira_issues():
+    async for issue in estimator.get_jira_issues(days=30*4):
         ticket = {
             "Number": issue.get("key"),
             "Jira URL" : f'https://frontlinetechnologies.atlassian.net/browse/{issue.get("key")}',
-            "Sory Points" : issue['fields']['customfield_10021']
+            "Sory Points" : issue['fields']['customfield_10021'],
+            "Title" : issue['fields']['summary'],
+            "Responsible Developer" : None,
+            "Resolution Date": datetime.strptime(issue['fields']['resolutiondate'], date_format).strftime('%m.%d.%Y')
         }
+        if issue['fields']['customfield_13512']:
+            ticket['Responsible Developer'] = issue['fields']['customfield_13512']['displayName']
         tickets.append(ticket)
 
         find_result = await estimator.find_in_git(issue)
@@ -158,10 +165,11 @@ async def main():
         commit_sha = estimator.parse_commit(find_result)
         ticket['Commit URL'] = f'https://github.com/FrontlineEducation/CW-0575-IEP/commit/{commit_sha}'
 
-        files_changed, lines_added, lines_removed = await estimator.get_commit_info(commit_sha)
+        files_changed, lines_added, lines_removed, author = await estimator.get_commit_info(commit_sha)
         ticket['Files changed'] = files_changed
         ticket['Lines added'] = lines_added
         ticket['Lines removed'] = lines_removed
+        ticket['Author'] = author
     
     estimator.write_to_excel(tickets)
 # Run the main function
