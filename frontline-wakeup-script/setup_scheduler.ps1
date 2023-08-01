@@ -1,7 +1,7 @@
 param(
     [string]$ExeFilePath,
     [string]$RunAsUser,
-    [string]$ExeParams = "urls.json"
+    [string]$ExeParams = "urls.json",
     [string]$TaskName1 = "MorningWakeup",
     [string]$TaskName2 = "DayilyBackup",
     [string]$Description1 = "Description",
