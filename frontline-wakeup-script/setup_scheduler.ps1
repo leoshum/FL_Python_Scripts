@@ -39,6 +39,6 @@ $action = New-ScheduledTaskAction -Execute $ExeFilePath -Argument $ExeParams
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 $principal = New-ScheduledTaskPrincipal -UserId $RunAsUser -LogonType Password -RunLevel Highest
 
-Register-ScheduledTask -TaskName $TaskName1 -Description $Description1 -Trigger $trigger1 -User $runAsUser -Action $action -Settings $settings -Principal $principal
+Register-ScheduledTask -TaskName $TaskName1 -Trigger $trigger1 -User $runAsUser -Action $action -Description $Description1
 
-Register-ScheduledTask -TaskName $TaskName2 -Description $Description2 -Trigger $trigger2 -User $runAsUser -Action $action -Settings $settings -Principal $principal
+Register-ScheduledTask -TaskName $TaskName2 -Trigger $trigger2 -User $runAsUser -Action $action -Description $Description2
