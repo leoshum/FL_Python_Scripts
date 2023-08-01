@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 from selenium import webdriver
@@ -12,6 +13,7 @@ class SeleniumHelper:
     timeout: float = 30
     logger: logging.Logger = None
     options: dict = {}
+    util_scripts_directory: str = os.path.dirname(os.path.abspath(__file__)) + "\\util_scripts\\"
 
     @staticmethod
     def setup_logger(logger: logging.Logger):
@@ -86,6 +88,18 @@ class SeleniumHelper:
                     Alert(driver).accept()
                 except:
                     pass
+
+        requests = SeleniumHelper.get_ajax_requests(driver)[::-1]
+        error_occured = False
+        form_save_endpoint = "plan/Events/UpdateForm" if SeleniumHelper.is_plan_page_url(driver.current_url) else "plan/api/forms/"
+        for request in requests:
+            if form_save_endpoint in request["url"]:
+                if request["status"] != 200:
+                    error_occured = True
+                break
+
+        if error_occured:
+            raise ValueError("Exception occured while saving the form!")
         return time.time() - temp_start_time
 
     @staticmethod
@@ -159,6 +173,12 @@ class SeleniumHelper:
             raise NoSuchElementException("'Save Form' was not found.")
         return time.time() - start_time
     
+    @staticmethod
+    def get_ajax_requests(driver: webdriver.Chrome) -> list[dict]:
+        with open(SeleniumHelper.util_scripts_directory + "get_requests.js", "r") as script_file:
+            script = script_file.read()
+            return driver.execute_script(script)
+
     
 class unpresence_of_element(object):
     def __init__(self, locator):

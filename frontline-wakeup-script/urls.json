@@ -3,8 +3,20 @@
         "https://athens-tx.spm.frontlineeducation.com/plan/Students/Landing",
         "https://athens-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/660598/Details",
         "https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=c9c31a74-6442-48a0-9822-aeed0136c57d#eventoverview",
-        "https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=1f20d8e2-7c94-4bb1-a679-af720106799a#eventoverview"
+        "https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=1f20d8e2-7c94-4bb1-a679-af720106799a#eventoverview",
+		"https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=100df395-8e83-46d0-a4f9-aefa01312409#eventoverview",
+		"https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=37f5b05a-ba0a-4cac-a794-aefa0131267e#eventoverview",
+		"https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=b9d89611-7688-4056-89b8-af72010685a4#eventoverview",
+		"https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=fc2a582e-bfba-4815-8613-af7000f98fbc#eventoverview"
     ],
+	"alabama": [
+        "https://al.acceliplan.com/plan/Students/Landing",
+        "https://athens-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/660598/Details",
+        "https://al.acceliplan.com/planng/Events/ViewEvent/041825ab-f228-4ece-8522-afce016119a1/Forms/StateAssessment/47c2e276-5425-4ad2-8c3b-afce016119bd",
+        "https://al.acceliplan.com/planng/Events/ViewEvent/041825ab-f228-4ece-8522-afce016119a1/Forms/StateAssessment/5aa6bfe0-21aa-4a56-aa80-afce016119bd",
+		"https://al.acceliplan.com/plan/Events/ViewEvent?eventId=21052987-db79-4dcf-b308-af23010988a0#eventoverview",
+		"https://al.acceliplan.com/plan/Events/ViewEvent?eventId=874ab252-a74f-4f74-8127-af2601130811#eventoverview"	
+	],
     "training": [
         "https://training01.spm.frontlineeducation.com/plan/Students/Landing",
         "https://training01.spm.frontlineeducation.com/planng/Students/ViewStudent/655400/Details",
