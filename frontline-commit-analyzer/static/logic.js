@@ -40,13 +40,80 @@ function icon(file){
     return $('<span>', { class: 'bi ' + iconClass });
 }
 
-function fill_table(){
+var warning_element = $('#warnings_count');
+var ascending = "ascending";
+var descending = "descending";
+
+warning_element.on('click', function(){
+
+    if (warning_element.hasClass(descending)) {
+        warning_element.addClass(ascending);
+        warning_element.removeClass(descending);
+        fill_table(ascending);
+        return;
+    }
+    
+    warning_element.addClass(descending);
+    warning_element.removeClass(ascending);
+    fill_table(descending);
+})
+
+function fill_table(sorting = null){
     get_prs().then(data => {
         // Get the tbody element
-var tbody = $('tbody');
+    var tbody = $('tbody');
 
-// Remove all rows from the table
-tbody.empty();
+    // Remove all rows from the table
+    tbody.empty();
+
+    if (sorting) {
+        if (sorting === ascending) {
+            data.sort(function(a, b) {
+                return a.commits.reduce(function(sum, commit) {
+                    return sum + commit.Files.reduce(function(sum, file) {
+                        if (file.state == 2) {
+                            return sum;
+                        }
+                        return sum + 1;
+                    }, 0);
+                }, 0) - b.commits.reduce(function(sum, commit) {
+                    return sum + commit.Files.reduce(function(sum, file) {
+                        if (file.state == 2) {
+                            return sum;
+                        }
+                        return sum + 1;
+                    }, 0);
+                }, 0);
+            });
+        }
+
+        // if (sorting === descending) {
+        //     data.sort(function(a, b) {
+        //         return b.commits.reduce((sum, commit) => sum + commit.Files.filter(file => file.state <= 1).length) -
+        //             a.commits.reduce((sum, commit) => sum + commit.Files.filter(file => file.state <= 1).length);
+        //     });
+        // }
+
+        if (sorting === descending) {
+            data.sort(function(a, b) {
+                return b.commits.reduce(function(sum, commit) {
+                    return sum + commit.Files.reduce(function(sum, file) {
+                        if (file.state == 2) {
+                            return sum;
+                        }
+                        return sum + 1;
+                    }, 0);
+                }, 0) - a.commits.reduce(function(sum, commit) {
+                    return sum + commit.Files.reduce(function(sum, file) {
+                        if (file.state == 2) {
+                            return sum;
+                        }
+                        return sum + 1;
+                    }, 0);
+                }, 0);
+            });
+        }
+    }
 
 // Iterate over each item in the data array
 $.each(data, function(index, item) {
@@ -55,6 +122,9 @@ $.each(data, function(index, item) {
     var files = item.commits.reduce(function(sum, commit) {
         return sum + commit.Files.length;
     }, 0);
+    if (files == 0) {
+        return;
+    }
     var ai_warnings = item.commits.reduce(function(sum, commit) {
         return sum + commit.Files.reduce(function(sum, file) {
             if (file.state == 2) {
@@ -97,6 +167,7 @@ $.each(data, function(index, item) {
                 })
             )
         ),
+        $('<td>').text([...new Set(item.commits.map(item => item.Author))].join(', ')),
         $('<td>').text(item.commits.length),
         $('<td>').text(files),
         $('<td>').text(ai_warnings)
@@ -141,8 +212,9 @@ $.each(data, function(index, item) {
                                         'AI Status' ))),
                             $('<ul>').append(
                                 commit.Files.map(function(file) {
-                                    if (file.patch == null) {
-                                        file.patch = 'Not load'
+                                    if (file.patch == null || file.patch == '') {
+                                        return;
+                                        //file.patch = 'Not load'
                                     }
                                     var patchHeaderRegex = /^@@\s-(\d+),(\d+)\s\+(\d+),(\d+)\s@@/;
                                     var patchHeader = file.patch.match(patchHeaderRegex);
