@@ -87,7 +87,6 @@ def main():
             if rows and len(rows) > 1: rows = rows[1:]
             for row in rows:
                 print(row.find_elements(By.CSS_SELECTOR, "td"))
-            break
         else:
             wait_dm(driver)
             packages_count = driver.execute_script("return $('#pnlEventFormsPackages table tr:gt(0)').length")
@@ -112,7 +111,6 @@ def main():
                 driver.execute_script("$('#btnDistribute').click()")
                 time.sleep(3)
                 driver.get(url)
-            break
 
 if __name__ == "__main__":
     main()
