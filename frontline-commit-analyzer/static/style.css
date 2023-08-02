@@ -40,6 +40,13 @@
   a:hover {
     text-decoration: underline;
   } */
+  .descending::after {
+    content: " \25BC"; 
+}
+
+.ascending::after {
+  content: "\25B2"; 
+}
   
   .diff-added {
     padding-left: 5px;
