@@ -80,13 +80,33 @@ def main():
 
         if "planng" in driver.current_url:
             WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "accelify-distribution-manager")))
-            find_distribute_button(driver)
+            packages_count = len(driver.find_elements(By.CSS_SELECTOR, "accelify-packages table tr")) - 1
+            for i in range(packages_count):
+                WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "accelify-distribution-manager")))
+                table = driver.find_element(By.CSS_SELECTOR, "#pnlDistributeTo table")
+                rows = table.find_elements(By.TAG_NAME, "tr")
+                if rows and len(rows) > 1: rows = rows[1:]
+                for row in rows:
+                    cols = row.find_elements(By.CSS_SELECTOR, "td")
+                    dropdown = cols[-2].find_element(By.CSS_SELECTOR, "kendo-dropdownlist")
+                    dropdown.click()
+                    time.sleep(1)
+                    popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
+                    options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
+                    for option in options:
+                        if option.get_attribute('innerText') != "Collaboration Portal":
+                            option.click()
+                            break
+                    include_checkbox = cols[-1].find_element(By.TAG_NAME, "input")
+                    include_checkbox.click()
+                    break
 
-            table = driver.find_element(By.CSS_SELECTOR, "#pnlDistributeTo table")
-            rows = table.find_elements(By.TAG_NAME, "tr")
-            if rows and len(rows) > 1: rows = rows[1:]
-            for row in rows:
-                print(row.find_elements(By.CSS_SELECTOR, "td"))
+                package = driver.find_elements(By.CSS_SELECTOR, "accelify-packages table tr")[i + 1]
+                package.find_elements(By.TAG_NAME, "td")[1].find_element(By.TAG_NAME, "input").click()
+                time.sleep(1)
+                find_distribute_button(driver).click()
+                time.sleep(5)
+                driver.get(url)
         else:
             wait_dm(driver)
             packages_count = driver.execute_script("return $('#pnlEventFormsPackages table tr:gt(0)').length")
