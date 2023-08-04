@@ -92,9 +92,10 @@ def filter_urls(urls, sites):
 
 
 def main():
+    script_dir = get_script_directory()
     formatted_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M")
     logging.basicConfig(
-        filename=f"wakeup__{formatted_datetime}.log",
+        filename=os.path.join(script_dir, f"wakeup__{formatted_datetime}.log"),
         level=logging.DEBUG,
         format='%(asctime)s - %(message)s',
     )
@@ -111,8 +112,7 @@ def main():
     
     with open(urls_file_name) as file:
         urls = json.load(file)
-
-    script_dir = get_script_directory()
+    
     with open(os.path.join(script_dir, "planng-mappings.json")) as file:
         planng_mappings = json.load(file)
 
