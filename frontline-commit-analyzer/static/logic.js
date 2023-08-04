@@ -41,24 +41,22 @@ function icon(file){
 }
 
 var warning_element = $('#warnings_count');
-var ascending = "ascending";
-var descending = "descending";
+var icon_element = $('#icon');
+var filtering = "hidden";
 
 warning_element.on('click', function(){
-
-    if (warning_element.hasClass(descending)) {
-        warning_element.addClass(ascending);
-        warning_element.removeClass(descending);
-        fill_table(ascending);
+    icon_element.toggleClass('fa-eye-slash');
+    if (warning_element.hasClass(filtering)) {
+        warning_element.removeClass(filtering);
+        fill_table();
         return;
     }
     
-    warning_element.addClass(descending);
-    warning_element.removeClass(ascending);
-    fill_table(descending);
+    warning_element.addClass(filtering);
+    fill_table(true);
 })
 
-function fill_table(sorting = null){
+function fill_table(filtering = false){
     get_prs().then(data => {
         // Get the tbody element
     var tbody = $('tbody');
@@ -66,26 +64,19 @@ function fill_table(sorting = null){
     // Remove all rows from the table
     tbody.empty();
 
-    if (sorting) {
-        if (sorting === ascending) {
-            data.sort(function(a, b) {
-                return a.commits.reduce(function(sum, commit) {
-                    return sum + commit.Files.reduce(function(sum, file) {
-                        if (file.state == 2) {
-                            return sum;
-                        }
-                        return sum + 1;
-                    }, 0);
-                }, 0) - b.commits.reduce(function(sum, commit) {
-                    return sum + commit.Files.reduce(function(sum, file) {
-                        if (file.state == 2) {
-                            return sum;
-                        }
-                        return sum + 1;
-                    }, 0);
-                }, 0);
-            });
-        }
+    if (filtering) {
+        // data.filter(function(pr) {
+        //     let r = pr.commits.some(function (commit) {
+        //         let r = commit.Files.some(function (file) {
+        //             let r = file.state === 0 || file.state === 1;
+        //             return r;
+        //         });
+        //         return r;
+        //     }
+        //     );
+        //     return r;
+        // });
+        data = data.filter(pr => pr.commits.some(commit => commit.Files.some(file => file.state === 0 || file.state === 1)));
 
         // if (sorting === descending) {
         //     data.sort(function(a, b) {
@@ -94,25 +85,6 @@ function fill_table(sorting = null){
         //     });
         // }
 
-        if (sorting === descending) {
-            data.sort(function(a, b) {
-                return b.commits.reduce(function(sum, commit) {
-                    return sum + commit.Files.reduce(function(sum, file) {
-                        if (file.state == 2) {
-                            return sum;
-                        }
-                        return sum + 1;
-                    }, 0);
-                }, 0) - a.commits.reduce(function(sum, commit) {
-                    return sum + commit.Files.reduce(function(sum, file) {
-                        if (file.state == 2) {
-                            return sum;
-                        }
-                        return sum + 1;
-                    }, 0);
-                }, 0);
-            });
-        }
     }
 
 // Iterate over each item in the data array
@@ -127,7 +99,7 @@ $.each(data, function(index, item) {
     }
     var ai_warnings = item.commits.reduce(function(sum, commit) {
         return sum + commit.Files.reduce(function(sum, file) {
-            if (file.state == 2) {
+            if (file.state === 2 || file.state === "") {
                 return sum;
             }
             return sum + 1;
