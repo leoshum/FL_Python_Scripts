@@ -21,28 +21,82 @@ def extract_base_url(url):
 	url_parts = urlparse(url)
 	return f"{url_parts.scheme}://{url_parts.netloc}"
 
-def find_distribute_button(driver):
-    distribute_button = None
-    buttons = driver.find_elements(By.TAG_NAME, "button")
-    for button in buttons:
-        if "Distribute" in button.text:
-            distribute_button = button
-            break
-    if not distribute_button:
-        # distribute button is not found
-        pass
-    return distribute_button
+def click_distribute_button(driver):
+    if "planng" in driver.current_url:
+        buttons = driver.find_elements(By.TAG_NAME, "button")
+        for button in buttons:
+            if "Distribute" in button.text:
+                button.click()
+                return
+    else:
+        driver.execute_script("$('#btnDistribute').click()")
+
 
 def wait_dm(driver):
     wait = WebDriverWait(driver, 20)
-    wait.until(
-        EC.all_of(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "#pnlEventFormsPackages table tr")),
-            EC.presence_of_element_located((By.CSS_SELECTOR, "#pnlDistributeTo table tr")),
+    if "planng" in driver.current_url:
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "accelify-distribution-manager")))
+    else:
+        wait.until(
+            EC.all_of(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "#pnlEventFormsPackages table tr")),
+                EC.presence_of_element_located((By.CSS_SELECTOR, "#pnlDistributeTo table tr")),
+            )
         )
-    )
     time.sleep(4)
 
+
+def get_packages_count(driver):
+    if "planng" in driver.current_url:
+        return len(driver.find_elements(By.CSS_SELECTOR, "accelify-packages table tr")) - 1
+    else:
+        return driver.execute_script("return $('#pnlEventFormsPackages table tr:gt(0)').length")
+
+
+def select_recepient(driver):
+    if "planng" in driver.current_url:
+        table = driver.find_element(By.CSS_SELECTOR, "#pnlDistributeTo table")
+        rows = table.find_elements(By.TAG_NAME, "tr")
+        if rows and len(rows) > 1: rows = rows[1:]
+        for row in rows:
+            cols = row.find_elements(By.CSS_SELECTOR, "td")
+            dropdown = cols[-2].find_element(By.CSS_SELECTOR, "kendo-dropdownlist")
+            dropdown.click()
+            time.sleep(1)
+            popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
+            options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
+            for option in options:
+                if option.get_attribute('innerText') != "Collaboration Portal":
+                    option.click()
+                    break
+            include_checkbox = cols[-1].find_element(By.TAG_NAME, "input")
+            include_checkbox.click()
+            break
+    else:
+        driver.execute_script("""
+            var first_elem = $("#pnlDistributeTo table tr:gt(0)").first();
+            var lastColumnValue = first_elem.find("td:last").find("input[type='checkbox']").click();
+            var dropdownlist = first_elem.find("td:last-of-type").prev().find("input[data-role='dropdownlist']").data("kendoDropDownList");
+            for (var i = 0; i < dropdownlist.dataItems().length; ++i) {
+                if (dropdownlist.dataItems()[i].Name != "Collaboration Portal") {
+                    dropdownlist.value(dropdownlist.dataItems()[i].LookupValueId);
+                    dropdownlist.trigger("change");
+                    break;
+                }
+            }
+        """)
+
+
+def select_package(driver, i):
+    if "planng" in driver.current_url:
+        packages = driver.find_elements(By.CSS_SELECTOR, "accelify-packages table tr")
+        packages[i + 1].find_elements(By.TAG_NAME, "td")[1].find_element(By.TAG_NAME, "input").click()
+    else:
+        packages = driver.find_elements(By.CSS_SELECTOR, "#pnlEventFormsPackages table tr")
+        packages[i + 1].find_element(By.CSS_SELECTOR, "td div").click()
+    time.sleep(1)
+
+    
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", type=str)
@@ -77,60 +131,18 @@ def main():
         driver.switch_to.window(curr_tab)
 
         driver.get(url)
-
-        if "planng" in driver.current_url:
-            WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "accelify-distribution-manager")))
-            packages_count = len(driver.find_elements(By.CSS_SELECTOR, "accelify-packages table tr")) - 1
-            for i in range(packages_count):
-                WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "accelify-distribution-manager")))
-                table = driver.find_element(By.CSS_SELECTOR, "#pnlDistributeTo table")
-                rows = table.find_elements(By.TAG_NAME, "tr")
-                if rows and len(rows) > 1: rows = rows[1:]
-                for row in rows:
-                    cols = row.find_elements(By.CSS_SELECTOR, "td")
-                    dropdown = cols[-2].find_element(By.CSS_SELECTOR, "kendo-dropdownlist")
-                    dropdown.click()
-                    time.sleep(1)
-                    popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
-                    options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
-                    for option in options:
-                        if option.get_attribute('innerText') != "Collaboration Portal":
-                            option.click()
-                            break
-                    include_checkbox = cols[-1].find_element(By.TAG_NAME, "input")
-                    include_checkbox.click()
-                    break
-
-                package = driver.find_elements(By.CSS_SELECTOR, "accelify-packages table tr")[i + 1]
-                package.find_elements(By.TAG_NAME, "td")[1].find_element(By.TAG_NAME, "input").click()
-                time.sleep(1)
-                find_distribute_button(driver).click()
-                time.sleep(5)
-                driver.get(url)
-        else:
+        try:
             wait_dm(driver)
-            packages_count = driver.execute_script("return $('#pnlEventFormsPackages table tr:gt(0)').length")
+            packages_count = get_packages_count(driver)
             for i in range(packages_count):
                 wait_dm(driver)
-                driver.execute_script("""
-                    var first_elem = $("#pnlDistributeTo table tr:gt(0)").first();
-                    var lastColumnValue = first_elem.find("td:last").find("input[type='checkbox']").click();
-                    var dropdownlist = first_elem.find("td:last-of-type").prev().find("input[data-role='dropdownlist']").data("kendoDropDownList");
-                    for (var i = 0; i < dropdownlist.dataItems().length; ++i) {
-                        if (dropdownlist.dataItems()[i].Name != "Collaboration Portal") {
-                            dropdownlist.value(dropdownlist.dataItems()[i].LookupValueId);
-                            dropdownlist.trigger("change");
-                            break;
-                        }
-                    }
-                """)
-                packages = driver.find_elements(By.CSS_SELECTOR, "#pnlEventFormsPackages table tr")
-                print(packages)
-                packages[i + 1].find_element(By.CSS_SELECTOR, "td div").click()
-                time.sleep(1)
-                driver.execute_script("$('#btnDistribute').click()")
-                time.sleep(3)
+                select_recepient(driver)
+                select_package(driver, i)
+                click_distribute_button(driver)
+                time.sleep(5)
                 driver.get(url)
+        except:
+            pass
 
 if __name__ == "__main__":
     main()
