@@ -1,8 +1,10 @@
 import os
 import sys
 import time
+import logging
 import argparse
 import validators
+from datetime import datetime
 from urllib.parse import urlparse
 from openpyxl import load_workbook
 from selenium import webdriver
@@ -16,6 +18,54 @@ package_path = os.path.abspath('..')
 sys.path.append(package_path)
 from frontline_selenium.selenium_helper import SeleniumHelper
 from frontline_selenium.support_tech_helper import SupportTech
+
+class HideBacktraceFormatter(logging.Formatter):
+    def formatException(self, exc_info):
+        tb = super().formatException(exc_info)
+        return HideBacktraceFormatter.removeBackTrace(tb)
+    
+    def format(self, record: logging.LogRecord):
+        record.msg = HideBacktraceFormatter.removeBackTrace(record.msg)
+        return super().format(record)
+    
+    @staticmethod
+    def removeBackTrace(record):
+        tb_lines = str(record).splitlines()
+        filtered_tb_lines = []
+        skip_slce = False
+        for line in tb_lines:
+            if "Backtrace:" in line:
+                skip_slce = True
+            if "Traceback (most recent call last):" in line:
+                skip_slce = False
+            if not skip_slce:
+                filtered_tb_lines.append(line)
+        return "\n".join(filtered_tb_lines)
+
+def split_path(path):
+    folders = []
+    head, tail = os.path.split(path)
+    
+    while tail:
+        folders.insert(0, tail)
+        head, tail = os.path.split(head)
+    return folders
+
+
+def configure_logger(file_name: str, processing_filename: str) -> logging.Logger:
+    logger = logging.getLogger("main")
+    logger.setLevel(logging.DEBUG)
+
+    formatter = HideBacktraceFormatter("%(asctime)s - %(message)s", datefmt="%m-%d-%y_%H:%M")
+    timestamp = datetime.now().strftime("%m-%d-%y_%H-%M")
+    parts = split_path(processing_filename)
+    folders = parts[0:len(parts)-1]
+    filename = parts[-1]
+    fh = logging.FileHandler(f"{file_name}_{'_'.join(folders)}_{filename.split('.')[0]}_{timestamp}.log")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+    return logger
 
 def extract_base_url(url):
 	url_parts = urlparse(url)
@@ -103,6 +153,7 @@ def main():
     my_namespace = parser.parse_args()
     input_file = my_namespace.input_file
 
+    logger = configure_logger("script-log", input_file)
     wb = load_workbook(input_file, data_only=True)
     wb_sheet = wb.active
 
@@ -130,6 +181,7 @@ def main():
         driver.close()
         driver.switch_to.window(curr_tab)
 
+        logger.info(f"Processing: {url}")
         driver.get(url)
         try:
             wait_dm(driver)
@@ -141,8 +193,8 @@ def main():
                 click_distribute_button(driver)
                 time.sleep(5)
                 driver.get(url)
-        except:
-            pass
+        except Exception as ex:
+            logger.exception(ex)
 
 if __name__ == "__main__":
     main()
