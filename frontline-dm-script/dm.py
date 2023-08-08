@@ -98,7 +98,7 @@ def wait_dm(driver):
 
 def get_packages_count(driver):
     if "planng" in driver.current_url:
-        return len(driver.find_elements(By.CSS_SELECTOR, "accelify-packages table tr")) - 1
+        return len(driver.find_elements(By.CSS_SELECTOR, "accelify-packages table tr:not(.k-grid-norecords)")) - 1
     else:
         return driver.execute_script("return $('#pnlEventFormsPackages table tr:gt(0)').length")
 
@@ -138,13 +138,19 @@ def select_recepient(driver):
 
 
 def select_package(driver, i):
+    package_name = ""
     if "planng" in driver.current_url:
         packages = driver.find_elements(By.CSS_SELECTOR, "accelify-packages table tr")
-        packages[i + 1].find_elements(By.TAG_NAME, "td")[1].find_element(By.TAG_NAME, "input").click()
+        package = packages[i + 1].find_elements(By.TAG_NAME, "td")
+        package[1].find_element(By.TAG_NAME, "input").click()
+        package_name = package[2].get_attribute('innerText')
     else:
         packages = driver.find_elements(By.CSS_SELECTOR, "#pnlEventFormsPackages table tr")
-        packages[i + 1].find_element(By.CSS_SELECTOR, "td div").click()
+        package = packages[i + 1].find_elements(By.CSS_SELECTOR, "td")
+        package[1].find_element(By.CSS_SELECTOR, "div").click()
+        package_name = package[2].get_attribute('innerText')
     time.sleep(1)
+    return package_name
 
     
 def main():
@@ -189,7 +195,8 @@ def main():
             for i in range(packages_count):
                 wait_dm(driver)
                 select_recepient(driver)
-                select_package(driver, i)
+                package_name = select_package(driver, i)
+                logger.info(f"      Processing: {package_name}")
                 click_distribute_button(driver)
                 time.sleep(5)
                 driver.get(url)
