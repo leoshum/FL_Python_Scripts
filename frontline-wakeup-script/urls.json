@@ -72,6 +72,17 @@
 		"https://somerset-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?EventId=0e21cc63-7d2a-4e0b-8e03-af4300ef87d7#priorwrittennotice(pwn)&formId=5f55d661-4fff-4309-8dee-af4300ef87ea",
 		"https://somerset-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/98b69041-a5bd-4c76-8769-af26009cdd85/EventOverview"
     ],
+	"Kennendale": [
+        "https://kennedale-tx.spm.frontlineeducation.com/app/userManager",
+		"https://kennedale-tx.spm.frontlineeducation.com/plan/Students/Landing",
+        "https://kennedale-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/658276/Details",
+        "https://kennedale-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=ec6e96ed-57b5-48a4-97b6-b005010adadc#eventoverview",
+        "https://kennedale-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=314c37de-5996-4816-959f-b0510124c26b#eventoverview",
+		"https://kennedale-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=6f72b40a-2149-47cd-9b20-b005010ae05e#eventoverview",
+		"https://kennedale-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/5ac534e4-c7df-4d7e-998a-afd500ad4fd3/EventOverview",
+		"https://kennedale-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/8ff817f5-a2b5-4df6-9d77-afb1011c6427/EventOverview",
+		"https://kennedale-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=b875db58-4439-408d-bc19-afb1011c6792#eventoverview"
+    ],
 	"alabama": [
         "https://al.acceliplan.com/plan/Students/Landing",
         "https://athens-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/660598/Details",
