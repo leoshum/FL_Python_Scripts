@@ -83,6 +83,17 @@
 		"https://kennedale-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/8ff817f5-a2b5-4df6-9d77-afb1011c6427/EventOverview",
 		"https://kennedale-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=b875db58-4439-408d-bc19-afb1011c6792#eventoverview"
     ],
+	"Lake Dallas": [
+        "https://lakedallas-tx.spm.frontlineeducation.com/app/userManager",
+		"https://lakedallas-tx.spm.frontlineeducation.com/plan/Students/Landing",
+        "https://lakedallas-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/658077/Details",
+        "https://lakedallas-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=9d21fbe1-d922-4441-9610-b0180148a7f9#eventoverview",
+        "https://lakedallas-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=103d50b1-2c75-4b0a-a10b-b0180148796a#eventoverview",
+		"https://lakedallas-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?EventId=9d21fbe1-d922-4441-9610-b0180148a7f9#eventoverview",
+		"https://lakedallas-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/ab2a9c35-a0f3-4c85-a950-5941917e3b1e/EventOverview",
+		"https://lakedallas-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/f906f47e-9c65-4abc-81bb-b04400ab57fd/EventOverview",
+		"https://lakedallas-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=5f92e1a1-a03a-4cf9-a6d3-b04400ab5880#eventoverview"
+    ],
 	"alabama": [
         "https://al.acceliplan.com/plan/Students/Landing",
         "https://athens-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/660598/Details",
