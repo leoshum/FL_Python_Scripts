@@ -40,7 +40,8 @@
 		"https://sheldon-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=2a0977e6-bb98-473d-b4fa-aedd012371ee#eventoverview"
     ],
     "athens": [
-        "https://athens-tx.spm.frontlineeducation.com/plan/Students/Landing",
+        "https://athens-tx.spm.frontlineeducation.com/app/userManager",
+		"https://athens-tx.spm.frontlineeducation.com/plan/Students/Landing",
         "https://athens-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/660598/Details",
         "https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=c9c31a74-6442-48a0-9822-aeed0136c57d#eventoverview",
         "https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=1f20d8e2-7c94-4bb1-a679-af720106799a#eventoverview",
@@ -48,6 +49,50 @@
 		"https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=37f5b05a-ba0a-4cac-a794-aefa0131267e#eventoverview",
 		"https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=b9d89611-7688-4056-89b8-af72010685a4#eventoverview",
 		"https://athens-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=fc2a582e-bfba-4815-8613-af7000f98fbc#eventoverview"
+    ],
+	"Cleveland": [
+        "https://cleveland-tx.spm.frontlineeducation.com/app/userManager",
+		"https://cleveland-tx.spm.frontlineeducation.com/plan/Students/Landing",
+        "https://cleveland-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/662118/Details",
+        "https://cleveland-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=274b1dd1-4f23-4fa6-a8e7-b03c005da6ab#eventoverview",
+        "https://cleveland-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=4852b85c-499d-47b7-8ee8-afb2013eda3c#eventoverview",
+		"https://cleveland-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=30b43448-bc3a-4b9d-9d04-b00d010c46f8#eventoverview",
+		"https://cleveland-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/35d80991-1415-4121-b7de-af9d0144f441/EventOverview",
+		"https://cleveland-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=466bcfea-8095-498a-b1d9-b00a0162779e#eventoverview",
+		"https://cleveland-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=466bcfea-8095-498a-b1d9-b00a0162779e#emotionalbehavior&formId=ea37a76a-5dfa-422e-9b43-b00a016277b5"
+    ],
+	"Somersset": [
+        "https://cleveland-tx.spm.frontlineeducation.com/app/userManager",
+		"https://somerset-tx.spm.frontlineeducation.com/plan/Students/Landing",
+        "https://somerset-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/655741/Details",
+        "https://somerset-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=807aeb38-1765-40d5-9f99-af3a00e5b872#eventoverview",
+        "https://somerset-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/9de19ce6-b0da-4712-94b9-aee8010b212d/EventOverview",
+		"https://somerset-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=7ef6e2b6-4a2a-4edc-8e5e-afb100f6e908#eventoverview",
+		"https://somerset-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=589d2e6c-e4ea-41e6-abc9-af4300ef88ec#eventoverview",
+		"https://somerset-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?EventId=0e21cc63-7d2a-4e0b-8e03-af4300ef87d7#priorwrittennotice(pwn)&formId=5f55d661-4fff-4309-8dee-af4300ef87ea",
+		"https://somerset-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/98b69041-a5bd-4c76-8769-af26009cdd85/EventOverview"
+    ],
+	"Kennendale": [
+        "https://kennedale-tx.spm.frontlineeducation.com/app/userManager",
+		"https://kennedale-tx.spm.frontlineeducation.com/plan/Students/Landing",
+        "https://kennedale-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/658276/Details",
+        "https://kennedale-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=ec6e96ed-57b5-48a4-97b6-b005010adadc#eventoverview",
+        "https://kennedale-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=314c37de-5996-4816-959f-b0510124c26b#eventoverview",
+		"https://kennedale-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=6f72b40a-2149-47cd-9b20-b005010ae05e#eventoverview",
+		"https://kennedale-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/5ac534e4-c7df-4d7e-998a-afd500ad4fd3/EventOverview",
+		"https://kennedale-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/8ff817f5-a2b5-4df6-9d77-afb1011c6427/EventOverview",
+		"https://kennedale-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=b875db58-4439-408d-bc19-afb1011c6792#eventoverview"
+    ],
+	"Lake Dallas": [
+        "https://lakedallas-tx.spm.frontlineeducation.com/app/userManager",
+		"https://lakedallas-tx.spm.frontlineeducation.com/plan/Students/Landing",
+        "https://lakedallas-tx.spm.frontlineeducation.com/planng/Students/ViewStudent/658077/Details",
+        "https://lakedallas-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=9d21fbe1-d922-4441-9610-b0180148a7f9#eventoverview",
+        "https://lakedallas-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=103d50b1-2c75-4b0a-a10b-b0180148796a#eventoverview",
+		"https://lakedallas-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?EventId=9d21fbe1-d922-4441-9610-b0180148a7f9#eventoverview",
+		"https://lakedallas-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/ab2a9c35-a0f3-4c85-a950-5941917e3b1e/EventOverview",
+		"https://lakedallas-tx.spm.frontlineeducation.com/planng/Events/ViewEvent/f906f47e-9c65-4abc-81bb-b04400ab57fd/EventOverview",
+		"https://lakedallas-tx.spm.frontlineeducation.com/plan/Events/ViewEvent?eventId=5f92e1a1-a03a-4cf9-a6d3-b04400ab5880#eventoverview"
     ],
 	"alabama": [
         "https://al.acceliplan.com/plan/Students/Landing",
