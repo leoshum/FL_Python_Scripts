@@ -76,7 +76,7 @@ def click_distribute_button(driver):
         buttons = driver.find_elements(By.TAG_NAME, "button")
         for button in buttons:
             if "Distribute" in button.text:
-                button.click()
+                driver.execute_script("arguments[0].click();", button)
                 return
     else:
         driver.execute_script("$('#btnDistribute').click()")
