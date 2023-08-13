@@ -125,13 +125,15 @@ def select_recepient(driver):
     else:
         driver.execute_script("""
             var first_elem = $("#pnlDistributeTo table tr:gt(0)").first();
-            var lastColumnValue = first_elem.find("td:last").find("input[type='checkbox']").click();
-            var dropdownlist = first_elem.find("td:last-of-type").prev().find("input[data-role='dropdownlist']").data("kendoDropDownList");
-            for (var i = 0; i < dropdownlist.dataItems().length; ++i) {
-                if (dropdownlist.dataItems()[i].Name != "Collaboration Portal") {
-                    dropdownlist.value(dropdownlist.dataItems()[i].LookupValueId);
-                    dropdownlist.trigger("change");
-                    break;
+            if (first_elem.length) {
+                var lastColumnValue = first_elem.find("td:last").find("input[type='checkbox']").click();
+                var dropdownlist = first_elem.find("td:last-of-type").prev().find("input[data-role='dropdownlist']").data("kendoDropDownList");
+                for (var i = 0; i < dropdownlist.dataItems().length; ++i) {
+                    if (dropdownlist.dataItems()[i].Name != "Collaboration Portal") {
+                        dropdownlist.value(dropdownlist.dataItems()[i].LookupValueId);
+                        dropdownlist.trigger("change");
+                        break;
+                    }
                 }
             }
         """)
