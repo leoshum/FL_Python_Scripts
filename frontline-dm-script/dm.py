@@ -93,7 +93,7 @@ def wait_dm(driver):
                 EC.presence_of_element_located((By.CSS_SELECTOR, "#pnlDistributeTo table tr")),
             )
         )
-    time.sleep(4)
+    time.sleep(5)
 
 
 def get_packages_count(driver):
@@ -120,7 +120,7 @@ def select_recepient(driver):
                     option.click()
                     break
             include_checkbox = cols[-1].find_element(By.TAG_NAME, "input")
-            include_checkbox.click()
+            driver.execute_script("arguments[0].click();", include_checkbox)
             break
     else:
         driver.execute_script("""
@@ -144,7 +144,7 @@ def select_package(driver, i):
     if "planng" in driver.current_url:
         packages = driver.find_elements(By.CSS_SELECTOR, "accelify-packages table tr")
         package = packages[i + 1].find_elements(By.TAG_NAME, "td")
-        package[1].find_element(By.TAG_NAME, "input").click()
+        driver.execute_script("arguments[0].click();", package[1].find_element(By.TAG_NAME, "input"))
         package_name = package[2].get_attribute('innerText')
     else:
         packages = driver.find_elements(By.CSS_SELECTOR, "#pnlEventFormsPackages table tr")
