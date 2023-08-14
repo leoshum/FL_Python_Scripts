@@ -83,7 +83,7 @@ def click_distribute_button(driver):
 
 
 def wait_dm(driver):
-    wait = WebDriverWait(driver, 20)
+    wait = WebDriverWait(driver, 30)
     if "planng" in driver.current_url:
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "accelify-distribution-manager")))
     else:
@@ -149,7 +149,7 @@ def select_package(driver, i):
     else:
         packages = driver.find_elements(By.CSS_SELECTOR, "#pnlEventFormsPackages table tr")
         package = packages[i + 1].find_elements(By.CSS_SELECTOR, "td")
-        package[1].find_element(By.CSS_SELECTOR, "div").click()
+        driver.execute_script("arguments[0].click();", package[1].find_element(By.CSS_SELECTOR, "div > input"))
         package_name = package[2].get_attribute('innerText')
     time.sleep(1)
     return package_name
