@@ -71,6 +71,14 @@ def extract_base_url(url):
 	url_parts = urlparse(url)
 	return f"{url_parts.scheme}://{url_parts.netloc}"
 
+
+def get_accelify_user(excel_sheet):
+    username, password = "SFTDVTester", "ht2jGMM2GnC3bwX7"
+    if excel_sheet["B3"].value and excel_sheet["C3"].value: 
+        username = excel_sheet["B3"].value
+        password = excel_sheet["C3"].value
+    return (username, password)
+
 def click_distribute_button(driver):
     if "planng" in driver.current_url:
         buttons = driver.find_elements(By.TAG_NAME, "button")
@@ -171,6 +179,8 @@ def main():
     options.add_argument('--disable-session-storage')
     driver = webdriver.Chrome(options=options)
 
+    username, password = get_accelify_user(wb_sheet)
+
     prev_base_url = ""
     base_url = ""
     for row in wb_sheet.iter_rows(min_row=5):
@@ -179,7 +189,7 @@ def main():
         
         base_url = extract_base_url(url)
         if base_url != prev_base_url:
-             SeleniumHelper.login_user(base_url, driver, "SFTDVTester", "ht2jGMM2GnC3bwX7")
+             SeleniumHelper.login_user(base_url, driver, username, password)
         prev_base_url = base_url
 
         prev_tab = driver.window_handles[0]
