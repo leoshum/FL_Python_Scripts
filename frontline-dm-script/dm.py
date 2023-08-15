@@ -114,7 +114,8 @@ def get_packages_count(driver):
 def select_recepient(driver):
     if "planng" in driver.current_url:
         table = driver.find_element(By.CSS_SELECTOR, "#pnlDistributeTo table")
-        rows = table.find_elements(By.TAG_NAME, "tr")
+        rows = table.find_elements(By.CSS_SELECTOR, "tr:not(.k-grid-norecords)")
+        if rows and len(rows) <= 1: return False
         if rows and len(rows) > 1: rows = rows[1:]
         for row in rows:
             cols = row.find_elements(By.CSS_SELECTOR, "td")
@@ -145,6 +146,7 @@ def select_recepient(driver):
                 }
             }
         """)
+    return True
 
 
 def select_package(driver, i):
@@ -206,7 +208,7 @@ def main():
             packages_count = get_packages_count(driver)
             for i in range(packages_count):
                 wait_dm(driver)
-                select_recepient(driver)
+                if not select_recepient(driver): break
                 package_name = select_package(driver, i)
                 logger.info(f"      Processing: {package_name}")
                 click_distribute_button(driver)
