@@ -109,6 +109,13 @@ def get_packages_count(driver):
         return len(driver.find_elements(By.CSS_SELECTOR, "accelify-packages table tr:not(.k-grid-norecords)")) - 1
     else:
         return driver.execute_script("return $('#pnlEventFormsPackages table tr:gt(0)').length")
+    
+    
+def get_other_forms_count(driver):
+    if "planng" in driver.current_url:
+        return len(driver.find_elements(By.CSS_SELECTOR, "accelify-other-forms table tr:not(.k-grid-norecords)")) - 1
+    else:
+        return driver.execute_script("return $('#pnlEventOtherForms table tr:gt(0)').length")
 
 
 def select_recepient(driver):
@@ -164,6 +171,21 @@ def select_package(driver, i):
     time.sleep(1)
     return package_name
 
+def select_other_form(driver, i):
+    other_form_name = ""
+    if "planng" in driver.current_url:
+        other_forms = driver.find_elements(By.CSS_SELECTOR, "accelify-other-forms table tr")
+        other_form = other_forms[i + 1].find_elements(By.TAG_NAME, "td")
+        driver.execute_script("arguments[0].click();", other_form[1].find_element(By.TAG_NAME, "input"))
+        other_form_name = other_form[2].get_attribute('innerText')
+    else:
+        other_forms = driver.find_elements(By.CSS_SELECTOR, "#pnlEventOtherForms table tr")
+        other_form = other_forms[i + 1].find_elements(By.CSS_SELECTOR, "td")
+        driver.execute_script("arguments[0].click();", other_form[0].find_element(By.CSS_SELECTOR, "div > input"))
+        other_form_name = other_form[1].get_attribute('innerText')
+    time.sleep(1)
+    return other_form_name
+
     
 def main():
     parser = argparse.ArgumentParser()
@@ -211,6 +233,17 @@ def main():
                 if not select_recepient(driver): break
                 package_name = select_package(driver, i)
                 logger.info(f"      Processing: {package_name}")
+                click_distribute_button(driver)
+                time.sleep(5)
+                driver.get(url)
+            
+            wait_dm(driver)
+            other_forms_count = get_other_forms_count(driver)
+            for i in range(other_forms_count):
+                wait_dm(driver)
+                if not select_recepient(driver): break
+                package_name = select_other_form(driver, i)
+                logger.info(f"      Processing other form: {package_name}")
                 click_distribute_button(driver)
                 time.sleep(5)
                 driver.get(url)
