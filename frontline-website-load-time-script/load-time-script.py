@@ -196,8 +196,8 @@ def main():
 
     wb = load_workbook(input_file, data_only=True)
     wb_sheet = wb.active
-    wb_sheet.cell(row=1, column=30).value = "."
-    wb_sheet.cell(row=1, column=30).value = ""
+    wb_sheet.cell(row=1, column=31).value = "."
+    wb_sheet.cell(row=1, column=31).value = ""
     specify_sheet_layout(wb_sheet)
 
     options = Options()
@@ -206,39 +206,39 @@ def main():
     options.add_argument('--disable-session-storage')
     #options.headless = True
     driver = webdriver.Chrome(options=options)
-    head_cell_top = wb_sheet["E1"]
+    head_cell_top = wb_sheet["F1"]
     head_cell_top.alignment = Alignment(horizontal='center')
-    head_cell_bottom = wb_sheet["E2"]
+    head_cell_bottom = wb_sheet["F2"]
     head_cell_bottom.alignment = Alignment(horizontal='center')
 
     for row in wb_sheet.iter_rows(min_row=5):
-        for i in range(13, 17):
+        for i in range(14, 18):
             row[i + 9].value = row[i].value
 
-        for i in range(18, 21):
+        for i in range(19, 22):
             row[i + 8].value = row[i].value
 
-        reset_styles([row[13], row[14], row[15], 
-                      row[16], row[22], row[23], 
-                      row[24], row[25], row[26],
-                      row[18], row[19], row[20],
-                      row[8], row[12], row[17],
-                      row[27], row[28], row[21]])
+        reset_styles([row[14], row[15], row[16], 
+                      row[17], row[23], row[24], 
+                      row[25], row[26], row[27],
+                      row[19], row[20], row[21],
+                      row[9], row[13], row[18],
+                      row[28], row[29], row[22]])
 
-        for i in range(4, 8):
+        for i in range(5, 9):
             row[i + 9].value = row[i].value
 
-        for i in range(9, 12):
+        for i in range(10, 13):
             row[i + 9].value = row[i].value
 
-        flag_high_load_time([row[13], row[14], row[15], 
-                             row[16], row[23], row[23], 
-                             row[24], row[25], row[26],
-                             row[18], row[19], row[20],
-                             row[27], row[28]], threshold)
-        for i in range(4, 12):
+        flag_high_load_time([row[14], row[15], row[16], 
+                             row[17], row[24], row[24], 
+                             row[25], row[26], row[27],
+                             row[19], row[20], row[21],
+                             row[28], row[29]], threshold)
+        for i in range(3, 13):
             row[i].value = ""
-        reset_styles([row[4], row[5], row[6], row[7], row[9], row[10], row[11]])
+        reset_styles([row[5], row[6], row[7], row[8], row[10], row[11], row[12]])
 
     build_version = ""
     prev_base_url = ""
@@ -249,7 +249,7 @@ def main():
         url = row[1].value
         if url == None or not validators.url(url):
             continue
-        row[3].value = ""
+        row[4].value = datetime.now().strftime('%y-%m-%d %H:%M:%S')
         print(f"{datetime.now().strftime('%y-%m-%d %H:%M:%S')}    {url}")
         logger.info(f"Processing: {url}")
         base_url = extract_base_url(url)
@@ -322,32 +322,32 @@ def main():
                 error_in_save = True
                 logger.exception(ex)
 
-        row[4].value = f"{first_load_time:.2f}"
-        row[5].value = f"{min_time:.2f}"
-        row[6].value = f"{max_time:.2f}"
-        row[7].value = f"{mean_time:.2f}"
+        row[5].value = f"{first_load_time:.2f}"
+        row[6].value = f"{min_time:.2f}"
+        row[7].value = f"{max_time:.2f}"
+        row[8].value = f"{mean_time:.2f}"
 
-        compare_measures(row[16], row[25], row[17])
-        compare_measures(row[7], row[16], row[8])
+        compare_measures(row[17], row[26], row[18])
+        compare_measures(row[8], row[17], row[9])
 
         if is_form_page_url and not disable_save and not error_in_page_loading:
             if not error_in_save:
-                row[9].value = f"{min_save_time:.2f}"
-                row[10].value = f"{max_save_time:.2f}"
-                row[11].value = f"{mean_save_time:.2f}"
-                compare_measures(row[20], row[28], row[21])
-                compare_measures(row[11], row[20], row[12])
+                row[10].value = f"{min_save_time:.2f}"
+                row[11].value = f"{max_save_time:.2f}"
+                row[12].value = f"{mean_save_time:.2f}"
+                compare_measures(row[21], row[29], row[22])
+                compare_measures(row[12], row[21], row[13])
             else:
-                row[9].value = ""
                 row[10].value = ""
                 row[11].value = ""
+                row[12].value = ""
 
         if disable_save or error_in_page_loading:
-            row[9].value = ""
             row[10].value = ""
             row[11].value = ""
+            row[12].value = ""
 
-        flag_high_load_time([row[4], row[5], row[6], row[7], row[9], row[10], row[11]], threshold)
+        flag_high_load_time([row[5], row[6], row[7], row[8], row[10], row[11], row[12]], threshold)
         prev_base_url = base_url
         head_cell_top.value = f"{build_version} {timestamp}"
         head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed}mb/s, loops: {loops}"
