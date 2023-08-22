@@ -115,6 +115,14 @@ class SeleniumHelper:
         submit_btn.click()
 
     @staticmethod
+    def planng_preflight_request(driver: webdriver.Chrome, url: str) -> None:
+        if not SeleniumHelper.is_plan_page_url(url):
+            SeleniumHelper.timeout = 50
+            driver.get(url)
+            SeleniumHelper.wait_for_form_page_load(driver)
+            SeleniumHelper.timeout = 30
+
+    @staticmethod
     def measure_form_page_load_time(driver: webdriver.Chrome) -> float:
         start_time = time.time()
         driver.execute_script("location.reload(true);")

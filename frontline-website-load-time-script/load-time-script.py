@@ -277,6 +277,12 @@ def main():
                 scenario = SeleniumHelper.measure_standard_page_load_time
 
         try:
+            if is_form_page_url:
+                SeleniumHelper.planng_preflight_request(driver, url)
+        except:
+            pass
+        
+        try:
             (first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, loops, scenario)
             reset_styles([row[0], row[1]])
         except Exception as e:
