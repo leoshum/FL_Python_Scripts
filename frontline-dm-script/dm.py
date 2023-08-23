@@ -42,6 +42,7 @@ class HideBacktraceFormatter(logging.Formatter):
                 filtered_tb_lines.append(line)
         return "\n".join(filtered_tb_lines)
 
+
 def split_path(path):
     folders = []
     head, tail = os.path.split(path)
@@ -67,6 +68,7 @@ def configure_logger(file_name: str, processing_filename: str) -> logging.Logger
     logger.addHandler(fh)
     return logger
 
+
 def extract_base_url(url):
 	url_parts = urlparse(url)
 	return f"{url_parts.scheme}://{url_parts.netloc}"
@@ -78,6 +80,7 @@ def get_accelify_user(excel_sheet):
         username = excel_sheet["B3"].value
         password = excel_sheet["C3"].value
     return (username, password)
+
 
 def click_distribute_button(driver):
     if "planng" in driver.current_url:
@@ -164,10 +167,10 @@ def select_package(driver, i):
         driver.execute_script("arguments[0].click();", package[1].find_element(By.TAG_NAME, "input"))
         package_name = package[2].get_attribute('innerText')
     else:
-        packages = driver.find_elements(By.CSS_SELECTOR, "#pnlEventFormsPackages table tr")
-        package = packages[i + 1].find_elements(By.CSS_SELECTOR, "td")
-        driver.execute_script("arguments[0].click();", package[1].find_element(By.CSS_SELECTOR, "div > input"))
-        package_name = package[2].get_attribute('innerText')
+        package_name = driver.execute_script("""
+            $(`#pnlEventFormsPackages table tr:gt(0):eq(${arguments[0]}) td:eq(1)`).find("input").click();
+            return $(`#pnlEventFormsPackages table tr:gt(0):eq(${arguments[0]}) td:eq(2)`).text().trim();
+        """, i)
     time.sleep(1)
     return package_name
 
@@ -179,10 +182,10 @@ def select_other_form(driver, i):
         driver.execute_script("arguments[0].click();", other_form[1].find_element(By.TAG_NAME, "input"))
         other_form_name = other_form[2].get_attribute('innerText')
     else:
-        other_forms = driver.find_elements(By.CSS_SELECTOR, "#pnlEventOtherForms table tr")
-        other_form = other_forms[i + 1].find_elements(By.CSS_SELECTOR, "td")
-        driver.execute_script("arguments[0].click();", other_form[0].find_element(By.CSS_SELECTOR, "div > input"))
-        other_form_name = other_form[1].get_attribute('innerText')
+        other_form_name = driver.execute_script("""
+            $(`#pnlEventOtherForms table tr:gt(0):eq(${arguments[0]}) td:eq(0)`).find("input").click();
+            return $(`#pnlEventOtherForms table tr:gt(0):eq(${arguments[0]}) td:eq(1)`).text().trim();
+        """, i)
     time.sleep(1)
     return other_form_name
 
@@ -224,6 +227,7 @@ def main():
         driver.switch_to.window(curr_tab)
 
         logger.info(f"Processing: {url}")
+
         driver.get(url)
         try:
             wait_dm(driver)
@@ -236,14 +240,18 @@ def main():
                 click_distribute_button(driver)
                 time.sleep(5)
                 driver.get(url)
-            
+        except Exception as ex:
+            logger.exception(ex)
+
+        driver.get(url)
+        try:
             wait_dm(driver)
             other_forms_count = get_other_forms_count(driver)
             for i in range(other_forms_count):
                 wait_dm(driver)
                 if not select_recepient(driver): break
-                package_name = select_other_form(driver, i)
-                logger.info(f"      Processing other form: {package_name}")
+                other_form_name = select_other_form(driver, i)
+                logger.info(f"      Processing other form: {other_form_name}")
                 click_distribute_button(driver)
                 time.sleep(5)
                 driver.get(url)
