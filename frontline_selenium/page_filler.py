@@ -67,12 +67,25 @@ class PageFormFiller:
     
     @staticmethod
     def fill_form_rich_text_editors(driver: webdriver.Chrome) -> None:
-        text = RandomHtmlGenerator.generate_random_html()
-        script = PageFormFiller.create_script("rich_text_editor.js", {
-            "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower(),
-            "{{text}}": f"\"{text}\""
-        })
-        driver.execute_script(script)
+        if SeleniumHelper.is_plan_page_url(driver.current_url):
+            text = RandomHtmlGenerator.generate_random_html()
+            script = PageFormFiller.create_script("rich_text_editor.js", {
+                "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower(),
+                "{{text}}": f"\"{text}\""
+            })
+            driver.execute_script(script)
+        else:
+            rich_editors_count = driver.execute_script("return $('accelify-rich-editor').length;")
+            print(rich_editors_count)
+            for i in range(rich_editors_count):
+                if driver.execute_script(f"return $('accelify-rich-editor:eq({i}) kendo-editor').attr('ariadisabled') == 'false';"):
+                    driver.execute_script(f"$('accelify-rich-editor:eq({i}) kendo-toolbar .k-i-image').click()")
+                    image_inputs = driver.execute_script("return $('kendo-dialog input')")
+                    image_inputs[0].send_keys("data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUA AAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO 9TXL0Y4OHwAAAABJRU5ErkJggg==")
+                    image_inputs[1].send_keys("img")
+                    image_inputs[2].send_keys("100")
+                    image_inputs[3].send_keys("100")
+                    driver.execute_script("$('kendo-dialog kendo-dialog-actions button:eq(1)').click()")
 
     @staticmethod
     def fill_form_checkboxes(driver: webdriver.Chrome) -> None:
