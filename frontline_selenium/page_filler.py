@@ -78,16 +78,7 @@ class PageFormFiller:
             rich_editors_count = driver.execute_script("return $('accelify-rich-editor').length;")
             for i in range(rich_editors_count):
                 if driver.execute_script(f"return $('accelify-rich-editor:eq({i}) kendo-editor').attr('ariadisabled') == 'false';"):
-                    #try:
-                    #    from selenium.webdriver.common.keys import Keys
-                    #    rich_text_box = driver.execute_script(f"return $('accelify-rich-editor:eq({i}) kendo-editor')")
-                    #    rich_text_box = rich_text_box[0]
-                    #    rich_text_box.click()
-                    #    rich_text_box.send_keys(Keys.CONTROL, 'a')
-                    #    rich_text_box.send_keys(Keys.BACKSPACE)
-                    #except Exception as ex:
-                    #    print(ex)
-                    #time.sleep(1)
+                    driver.execute_script(f"$(\"accelify-rich-editor:eq({i}) kendo-editor div[contenteditable='true']\").empty();")
                     driver.execute_script(f"$('accelify-rich-editor:eq({i}) kendo-toolbar .k-i-image').click()")
                     image_inputs = driver.execute_script("return $('kendo-dialog input')")
                     img, width, height = RandomHtmlGenerator.get_random_bull_image_link()
