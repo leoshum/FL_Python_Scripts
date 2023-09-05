@@ -30,6 +30,7 @@ class Estimator:
             #Git
             script_folder = path.normpath(self.root_directory + '\\..\\frontline-ticket-parser')
             self.find_script_path = f"{script_folder}\\find_tickets.ps1"
+            self.switch_and_update_path = f"{script_folder}\\switch_and_update_branch.ps1"
             self.repository_path = self.configuration.get('repository_path')
             self.git_branch = self.configuration.get('git_branch')
             self.ssh_key_path = self.configuration.get('ssh_key_path')
@@ -88,7 +89,7 @@ class Estimator:
 
     async def configure_git(self):
         process = await asyncio.create_subprocess_exec(
-            'powershell', '-File', self.find_script_path, '-Repository_path', self.repository_path, '-Branch_name', self.git_branch, '-Key_Path', self.ssh_key_path,
+            'powershell', '-File', self.switch_and_update_path, '-Repository_path', self.repository_path, '-Branch_name', self.git_branch, '-Key_Path', self.ssh_key_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
