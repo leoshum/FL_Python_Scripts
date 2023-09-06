@@ -10,7 +10,6 @@ import pytz
 
 class Estimator:
     def __init__(self):
-        self.session = aiohttp.ClientSession()
         self.configuration = None
         self.configure()
 
