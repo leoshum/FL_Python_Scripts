@@ -201,9 +201,6 @@ def main():
     specify_sheet_layout(wb_sheet)
 
     options = Options()
-    options.add_argument('--disable-cache')
-    options.add_argument('--disable-features=NetworkService')
-    options.add_argument('--disable-session-storage')
     #options.headless = True
     driver = webdriver.Chrome(options=options)
     head_cell_top = wb_sheet["F1"]
