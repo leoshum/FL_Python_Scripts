@@ -275,7 +275,7 @@ def main():
 
         try:
             if is_form_page_url:
-                SeleniumHelper.planng_preflight_request(driver, url)
+                SeleniumHelper.form_preflight_request(driver, url)
         except:
             pass
         
