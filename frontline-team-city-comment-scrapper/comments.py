@@ -100,7 +100,7 @@ async def main():
     start = 0
     current_version = from_version
     builds = []
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False),trust_env=True) as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False),trust_env=True) as session:
         need_to_parse = True
         tasks = []
         while need_to_parse:
