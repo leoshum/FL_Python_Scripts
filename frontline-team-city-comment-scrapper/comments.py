@@ -113,11 +113,13 @@ async def main():
             logger.info(f"Detect [{len(list_builds['build'])}] builds for [{job_id}] job, started from [{start}].")
             
             for build in list_builds['build']:
-                print(f'build:{build}')
                 number = build.get('number')
                 finish_date = build.get('finishOnAgentDate')
                 if not number or not finish_date: continue
-                current_version = version.parse(number)
+                try:
+                    current_version = version.parse(number)
+                except:
+                    continue
                 if current_version < from_version or current_version > to_version: continue
                 
                 tasks.append(create_task(get_build_info(builds, build, release_dates['.'.join([str(current_version.major), str(current_version.minor)])], session)))
