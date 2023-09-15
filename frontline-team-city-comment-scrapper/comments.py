@@ -113,6 +113,7 @@ async def main():
             logger.info(f"Detect [{len(list_builds['build'])}] builds for [{job_id}] job, started from [{start}].")
             
             for build in list_builds['build']:
+                print(f'build:{build}')
                 number = build.get('number')
                 finish_date = build.get('finishOnAgentDate')
                 if not number or not finish_date: continue
