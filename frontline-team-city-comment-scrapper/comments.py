@@ -100,7 +100,7 @@ async def main():
     start = 0
     current_version = from_version
     builds = []
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False),trust_env=True) as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False),trust_env=True) as session:
         need_to_parse = True
         tasks = []
         while need_to_parse:
@@ -116,7 +116,10 @@ async def main():
                 number = build.get('number')
                 finish_date = build.get('finishOnAgentDate')
                 if not number or not finish_date: continue
-                current_version = version.parse(number)
+                try:
+                    current_version = version.parse(number)
+                except:
+                    continue
                 if current_version < from_version or current_version > to_version: continue
                 
                 tasks.append(create_task(get_build_info(builds, build, release_dates['.'.join([str(current_version.major), str(current_version.minor)])], session)))
