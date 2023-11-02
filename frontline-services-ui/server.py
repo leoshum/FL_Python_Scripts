@@ -54,11 +54,27 @@ def get_version_tickets_configuration(request):
     configuration = open_version_tickets_configuration()
     configuration = {
         "branch" : configuration.get('branch'),
-        "first_version" : configuration.get('version').get('first'),
-        "last_version" : configuration.get('version').get('last'),
+        "first_version" : configuration.get('version').get(configuration.get('branch')).get('first'),
+        "last_version" : configuration.get('version').get(configuration.get('branch')).get('last'),
         "branch_template" : re.findall(r'\b\w+\b', configuration.get('branch_template'))
     }
     return web.Response(body=json.dumps(configuration),status=200)
+
+async def change_branch_tickets_configuration(request):
+    body = json.loads((await request.read()).decode())
+    configuration = open_version_tickets_configuration()
+    configuration['branch'] = body.get('branch')
+
+    configuration_file = path.join(version_tickets_folder, 'configuration.json')
+    with open(configuration_file, 'w', encoding='utf-8') as configuration_file:
+        configuration_file.write(json.dumps(configuration,ensure_ascii=False,indent=4))
+    return web.Response(status=200)
+
+    
+async def update_version_tickets_configuration_request(request):
+    body = (await request.read()).decode()
+    update_version_tickets_configuration(json.loads(body))
+    return web.Response(status=200)
 
 def update_version_tickets_configuration(config):
     configuration = open_version_tickets_configuration()
@@ -150,6 +166,8 @@ async def init():
         )
     })
     cors.add(app.router.add_post('/execute', execute))
+    cors.add(app.router.add_post('/version_tickets_configuration', update_version_tickets_configuration_request))
+    cors.add(app.router.add_post('/change_branch_tickets_configuration', change_branch_tickets_configuration))
     cors.add(app.router.add_get('/get_files_for_websiteloadtime', get_files_for_websiteloadtime))
     cors.add(app.router.add_get('/version_tickets_configuration', get_version_tickets_configuration))
     cors.add(app.router.add_get('/version_configuration', get_version_configuration))

@@ -1,18 +1,18 @@
 {
-    "branch_template": "production|release|develop",
-    "branch": "production",
+    "branch_template": "Production|Release|Develop",
+    "branch": "Develop",
     "ticket_only": false,
     "version": {
         "Production": {
-            "first": "3.44.0.910",
+            "first": "3.44.0.9101",
             "last": "3.44.0.910"
         },
         "Release": {
-            "first": "3.44.0.910",
+            "first": "3.44.0.91",
             "last": "3.44.0.910"
         },
         "Develop": {
-            "first": "3.44.0.910",
+            "first": "3.44.0.912",
             "last": "3.44.0.910"
         },
         "release_date": {

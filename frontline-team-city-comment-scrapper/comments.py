@@ -38,13 +38,13 @@ if version_key not in configuration:
     exit()
 
 branch = argv[1] if len(argv) > 1 else configuration['branch']
-if branch == 'prod' or branch == 'production' or branch == 'main':
+if branch == 'prod' or branch == 'Production' or branch == 'main':
     branch = 'Production'
     job_id = 'BuildNewArchitecture_Main_BuildVersion'
-elif branch == 'release':
+elif branch == 'Release':
     branch = 'Release'
     job_id = 'BuildNewArchitecture_TagFix_BuildVersion'
-elif branch == 'develop' or branch == 'dev':
+elif branch == 'Develop' or branch == 'dev':
     branch = 'Develop'
     job_id = 'BuildNewArchitecture_Trunk_BuildVersion'
 else:
