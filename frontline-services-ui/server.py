@@ -64,8 +64,8 @@ def update_version_tickets_configuration(config):
     configuration = open_version_tickets_configuration()
     
     configuration['branch'] = config.get('branch')
-    configuration['version']['first'] = config.get('first_version')
-    configuration['version']['last'] = config.get('last_version')
+    configuration['version'][config.get('branch')]['first'] = config.get('first_version')
+    configuration['version'][config.get('branch')]['last'] = config.get('last_version')
 
     configuration_file = path.join(version_tickets_folder, 'configuration.json')
     with open(configuration_file, 'w', encoding='utf-8') as configuration_file:

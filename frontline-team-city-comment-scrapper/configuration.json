@@ -1,12 +1,22 @@
 {
-    "branch_template": "prod , production , main | release | develop , dev",
-    "branch": "prod",
+    "branch_template": "production|release|develop",
+    "branch": "production",
     "ticket_only": false,
-    "version" : {
-        "first" : "3.44.0.910",
-        "last" : "3.44.0.910",
+    "version": {
+        "Production": {
+            "first": "3.44.0.910",
+            "last": "3.44.0.910"
+        },
+        "Release": {
+            "first": "3.44.0.910",
+            "last": "3.44.0.910"
+        },
+        "Develop": {
+            "first": "3.44.0.910",
+            "last": "3.44.0.910"
+        },
         "release_date": {
-            "3.44" : "2022-03-15T00:00:00Z"
+            "3.44": "2022-03-15T00:00:00Z"
         }
     },
     "host": "teams.acceliplan.com",
