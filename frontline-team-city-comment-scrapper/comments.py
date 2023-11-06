@@ -52,15 +52,9 @@ else:
     exit()
 
 first_version_key = 'first'
-if first_version_key not in configuration[version_key]:
-    logging.error(msg=f"[{first_version_key}] field does not exist in [{version_key}] field in configuration file!")
-    exit()
 from_version = version.parse(configuration[version_key][branch][first_version_key])
 
 last_version_key = 'last'
-if last_version_key not in configuration[version_key]:
-    logging.error(msg=f"[{last_version_key}] field does not exist in [{version_key}] field in configuration file!")
-    exit()
 to_version = version.parse(configuration[version_key][branch][last_version_key])
 if to_version < from_version:
     temp = to_version
