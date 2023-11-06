@@ -36,6 +36,36 @@ export class TeamCityCommentComponent {
   branches = [];
   isRequesting = false;
 
+  async on_version_change(event: any) {
+    const url = API_URL + 'version_tickets_configuration';
+    const configuration = {
+      first_version: this.first_version,
+      last_version: this.last_version,
+      branch: this.branch
+    }
+    
+    try {
+      await this.http.post(url, configuration).toPromise();
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async on_branch_change(event: any) {
+    const url = API_URL + 'change_branch_tickets_configuration';
+    const body = {
+      branch : this.branch
+    }
+    
+    try {
+      const response = await this.http.post(url, body).toPromise();
+      console.log(response);
+      this.ngOnInit();
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
   update_version(version:string, place:number,increment:boolean) {
     let splited = version.split('.');
     splited[place] = increment ? (parseInt(splited[place]) + 1).toString() : (parseInt(splited[place]) - 1).toString();

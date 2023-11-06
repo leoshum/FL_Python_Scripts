@@ -37,17 +37,31 @@ if version_key not in configuration:
     logging.error(msg=f"[{version_key}] field does not exist in configuration file!")
     exit()
 
+branch = argv[1] if len(argv) > 1 else configuration['branch']
+if branch == 'prod' or branch == 'Production' or branch == 'main':
+    branch = 'Production'
+    job_id = 'BuildNewArchitecture_Main_BuildVersion'
+elif branch == 'Release':
+    branch = 'Release'
+    job_id = 'BuildNewArchitecture_TagFix_BuildVersion'
+elif branch == 'Develop' or branch == 'dev':
+    branch = 'Develop'
+    job_id = 'BuildNewArchitecture_Trunk_BuildVersion'
+else:
+    logging.error(msg=f"[{branch}] name of branch does not much to any cases!")
+    exit()
+
 first_version_key = 'first'
 if first_version_key not in configuration[version_key]:
     logging.error(msg=f"[{first_version_key}] field does not exist in [{version_key}] field in configuration file!")
     exit()
-from_version = version.parse(configuration[version_key][first_version_key])
+from_version = version.parse(configuration[version_key][branch][first_version_key])
 
 last_version_key = 'last'
 if last_version_key not in configuration[version_key]:
     logging.error(msg=f"[{last_version_key}] field does not exist in [{version_key}] field in configuration file!")
     exit()
-to_version = version.parse(configuration[version_key][last_version_key])
+to_version = version.parse(configuration[version_key][branch][last_version_key])
 if to_version < from_version:
     temp = to_version
     to_version = from_version
@@ -65,20 +79,6 @@ if host_key not in configuration:
     logging.error(msg=f"[{host_key}] field does not exist in configuration file!")
     exit()
 baseurl = f"https://{configuration[host_key]}/app/rest"
-
-branch = argv[1] if len(argv) > 1 else configuration['branch']
-if branch == 'prod' or branch == 'production' or branch == 'main':
-    branch = 'Production'
-    job_id = 'BuildNewArchitecture_Main_BuildVersion'
-elif branch == 'release':
-    branch = 'Release'
-    job_id = 'BuildNewArchitecture_TagFix_BuildVersion'
-elif branch == 'develop' or branch == 'dev':
-    branch = 'Develop'
-    job_id = 'BuildNewArchitecture_Trunk_BuildVersion'
-else:
-    logging.error(msg=f"[{branch}] name of branch does not much to any cases!")
-    exit()
 
 columns = ['Version','Build Date','Author','Commit Date','Jira Ticket','Comment']
 width = {
@@ -122,7 +122,7 @@ async def main():
                     continue
                 if current_version < from_version or current_version > to_version: continue
                 
-                tasks.append(create_task(get_build_info(builds, build, release_dates['.'.join([str(current_version.major), str(current_version.minor)])], session)))
+                tasks.append(create_task(get_build_info(builds, build, release_dates.get('.'.join([str(current_version.major), str(current_version.minor)])), session)))
                 
             start += 100
 
@@ -156,7 +156,7 @@ async def get_build_info(builds, build, date, session):
         for change in changes['change']:
             
             change_date = datetime.strptime(change['date'][0:15], '%Y%m%dT%H%M%S')
-            if change_date < date:
+            if date and change_date < date:
                 is_continue = False
                 print("End date")
                 break
