@@ -1,6 +1,6 @@
 import json
 import logging
-from asyncio import create_task, gather, get_event_loop
+from asyncio import create_task, gather, get_event_loop, sleep
 from datetime import datetime
 from os import environ, path
 import re
@@ -178,15 +178,24 @@ async def get_build_info(builds, build, date, session):
         if changes_length < changes_count: break
         changes_start += changes_count
 
-async def get(url, token, session):
+async def get(url, token, session, max_attempts=3):
     headers = {
         "Authorization" : f"Bearer {token}",
         "Accept" : "application/json"}
 
-    async with session.get(url = url, headers = headers) as response:
-        if response.status != 200:
-            raise Exception("Error in API call: " + await response.text())
-        return await response.json()
+    
+    for attempt in range(1, max_attempts + 1):
+        try:
+            async with session.get(url = url, headers = headers) as response:
+                if response.status != 200:
+                    raise Exception("Error in API call: " + await response.text())
+                return await response.json()
+        except Exception as e:
+            # Log the exception or print a message
+            print(f"Attempt {attempt} failed: {e}")
+
+        # Wait for a short time before the next attempt (you can adjust this as needed)
+        await sleep(1)
 
 def updateLength(value, width, name):
     length = len(value)
