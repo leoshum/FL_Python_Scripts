@@ -40,6 +40,9 @@ class SeleniumHelper:
     
     @staticmethod
     def wait_for_form_page_load(driver: webdriver.Chrome) -> None:
+        if driver.current_url.endswith("planng/"):
+            raise Exception("form doesn't exist")
+
         wait = WebDriverWait(driver, SeleniumHelper.timeout)
         element = wait.until(
             EC.any_of(

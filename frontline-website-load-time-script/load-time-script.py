@@ -273,31 +273,36 @@ def main():
         if not is_form_page_url:
                 scenario = SeleniumHelper.measure_standard_page_load_time
 
+        error_in_page_loading = False
         try:
             if is_form_page_url:
                 SeleniumHelper.form_preflight_request(driver, url)
-        except:
-            pass
-        
-        try:
-            (first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, loops, scenario)
-            reset_styles([row[0], row[1]])
-        except Exception as e:
-            (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
-            row[3].value = f"Page speed measurement timeout"
-            mark_form_as_invalid(row)
-
-
-        error_in_page_loading = False
-        try:
-            page_title = driver.find_element(By.CSS_SELECTOR, "h1.page-title").text.strip()
-            if "Error" in page_title or page_title == "Access Restricted":
-                mark_form_as_invalid(row, color="0000FF")
-                logger.debug(f"Error detected '{page_title}' in {url}")
-                row[3].value = page_title
-                error_in_page_loading = True
         except Exception as ex:
+            error_in_page_loading = True
+            (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
+            mark_form_as_invalid(row)
+            row[3].value = f"Form doesn't exist"
             logger.exception(ex)
+        
+        if not error_in_page_loading:
+            try:
+                (first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, loops, scenario)
+                reset_styles([row[0], row[1]])
+            except Exception as e:
+                (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
+                row[3].value = f"Page speed measurement timeout"
+                mark_form_as_invalid(row)
+
+        if not error_in_page_loading:
+            try:
+                page_title = driver.find_element(By.CSS_SELECTOR, "h1.page-title").text.strip()
+                if "Error" in page_title or page_title == "Access Restricted":
+                    mark_form_as_invalid(row, color="0000FF")
+                    logger.debug(f"Error detected '{page_title}' in {url}")
+                    row[3].value = page_title
+                    error_in_page_loading = True
+            except Exception as ex:
+                logger.exception(ex)
 
         error_in_save = False
         if is_form_page_url and not disable_save and not error_in_page_loading:

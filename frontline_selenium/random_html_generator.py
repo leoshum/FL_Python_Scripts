@@ -51,16 +51,16 @@ class RandomHtmlGenerator:
     @staticmethod
     def get_random_bull_image_link():
         bull_links = [
-            ("https://64.media.tumblr.com/4d9b609245367611a3cb9a1d8ae7d863/0b69f974db6053da-71/s640x960/9118708c78749443635e29457bf50edc4476c761.jpg", "640", "775"),
-            ("https://images.fineartamerica.com/images/artworkimages/mediumlarge/1/sasquash-bob-christopher.jpg", "596", "900"),
-            ("https://i.pinimg.com/236x/9d/be/14/9dbe144bc7ee7e7038e1e2d79cf5b53f.jpg", "236", "314"),
-            ("https://i.etsystatic.com/40268241/r/il/f11948/4508558872/il_570xN.4508558872_dvbh.jpg", "570", "570"),
-            ("https://i.pinimg.com/236x/13/78/92/137892ca96f2e4b6fa991b80bdaeef4b.jpg", "235", "285"),
-            ("https://i.pinimg.com/736x/db/7d/23/db7d23240a7d2f031793618f091dc9ea.jpg", "656", "960"),
-            ("https://visitowensboro.com/_uploads/365134714_115168011664735_2048755022115142807_n-768x768.jpg", "768", "768"),
-            ("https://images.squarespace-cdn.com/content/v1/5c06dfac4611a0251594ba98/1549332443390-5AJ16TXD44H0BXYDG542/am_edge_sas.jpg?format=1000w", "960", "540"),
-            ("https://i.pinimg.com/736x/bc/68/03/bc680373336762610acbba95d855b2f9.jpg", "380", "380"),
-            ("https://live.staticflickr.com/65535/52302913020_03d01840d7_b.jpg", "596", "900")
+            ("https://www.krugerpark.co.za/images/1-honey-badger-moswe590a-590x390.jpg", "590", "390"),
+            ("hhttps://dehayf5mhw1h7.cloudfront.net/wp-content/uploads/sites/1491/2023/10/25090332/Honey-Badger-1024x534.png", "1024", "534"),
+            ("https://i.vimeocdn.com/video/1647376585-fde09ec80f8f2bc412c2bedb290749a0f8034bbb3d6528fb915d27497f76ad6e-d_750x421.875?q=60", "750", "421"),
+            ("https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/ffc560e5-0cc9-4d86-8c14-8d001522c0f9/width=450/03050-836191865-buffed,%20bodybuilder,%20%20honey%20badger%20,.jpeg", "450", "450"),
+            ("https://cdn1.tedsby.com/tb/large/storage/1/5/7/157196/stuffed-animal-honey-badger-by-yulia-leonovich.jpg", "581", "466"),
+            ("https://www.travelbutlers.com/images/450px/1_450_1_dreamstimemaximum_24822528_KALAHARI_SOUTH_AFRICA.jpg", "450", "450"),
+            ("https://www.jukani.co.za/storage/media/2023/05/hb.jpg", "504", "662"),
+            ("https://www.safarispecialists.net/news/wp-content/uploads/2017/10/Honey-badger-cute-image-2-2.jpg", "960", "540"),
+            ("https://www.shadowsofafrica.com/media/catalog/product/cache/4/small_image/500x/040ec09b1e35df139433887a97daa66f/h/o/honey_badger.jpg", "499", "333"),
+            ("https://www.activewild.com/wp-content/uploads/2024/02/Honey-Badger-Close-Up-Face.jpg", "900", "600")
         ]
         return random.choice(bull_links)
 #def main():
