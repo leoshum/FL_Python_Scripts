@@ -10,7 +10,7 @@
         </div>
         <div class="column">
             <label for="first_version">First version</label>
-            <input type="text" class="input" [(ngModel)]="first_version">
+            <input type="text" class="input" [(ngModel)]="first_version" (ngModelChange)="on_version_change($event)">
         </div>
         <div class="column control">
             <label>Minor</label>
@@ -33,7 +33,7 @@
         </div>
         <div class="column">
             <label for="last_version">Last version:</label>
-            <input type="text" class="input" [(ngModel)]="last_version">
+            <input type="text" class="input" [(ngModel)]="last_version" (ngModelChange)="on_version_change($event)">
         </div>
         <div class="column control">
             <label>Minor</label>
@@ -47,7 +47,7 @@
 
 <div class="form_field">
     <label for="branch">Branch:</label>
-    <select class="input" id="pathSelect" [(ngModel)]="branch">
+    <select class="input" id="pathSelect" [(ngModel)]="branch" (change)="on_branch_change($event)">
         <option *ngFor="let branch of branches" [value]="branch">{{ branch }}</option>
     </select>
 </div>

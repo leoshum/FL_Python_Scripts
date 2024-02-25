@@ -1,6 +1,6 @@
 import json
 import logging
-from asyncio import create_task, gather, get_event_loop
+from asyncio import create_task, gather, get_event_loop, sleep
 from datetime import datetime
 from os import environ, path
 import re
@@ -37,17 +37,25 @@ if version_key not in configuration:
     logging.error(msg=f"[{version_key}] field does not exist in configuration file!")
     exit()
 
-first_version_key = 'first'
-if first_version_key not in configuration[version_key]:
-    logging.error(msg=f"[{first_version_key}] field does not exist in [{version_key}] field in configuration file!")
+branch = argv[1] if len(argv) > 1 else configuration['branch']
+if branch == 'prod' or branch == 'Production' or branch == 'main':
+    branch = 'Production'
+    job_id = 'BuildNewArchitecture_Main_BuildVersion'
+elif branch == 'Release':
+    branch = 'Release'
+    job_id = 'BuildNewArchitecture_TagFix_BuildVersion'
+elif branch == 'Develop' or branch == 'dev':
+    branch = 'Develop'
+    job_id = 'BuildNewArchitecture_Trunk_BuildVersion'
+else:
+    logging.error(msg=f"[{branch}] name of branch does not much to any cases!")
     exit()
-from_version = version.parse(configuration[version_key][first_version_key])
+
+first_version_key = 'first'
+from_version = version.parse(configuration[version_key][branch][first_version_key])
 
 last_version_key = 'last'
-if last_version_key not in configuration[version_key]:
-    logging.error(msg=f"[{last_version_key}] field does not exist in [{version_key}] field in configuration file!")
-    exit()
-to_version = version.parse(configuration[version_key][last_version_key])
+to_version = version.parse(configuration[version_key][branch][last_version_key])
 if to_version < from_version:
     temp = to_version
     to_version = from_version
@@ -65,20 +73,6 @@ if host_key not in configuration:
     logging.error(msg=f"[{host_key}] field does not exist in configuration file!")
     exit()
 baseurl = f"https://{configuration[host_key]}/app/rest"
-
-branch = argv[1] if len(argv) > 1 else configuration['branch']
-if branch == 'prod' or branch == 'production' or branch == 'main':
-    branch = 'Production'
-    job_id = 'BuildNewArchitecture_Main_BuildVersion'
-elif branch == 'release':
-    branch = 'Release'
-    job_id = 'BuildNewArchitecture_TagFix_BuildVersion'
-elif branch == 'develop' or branch == 'dev':
-    branch = 'Develop'
-    job_id = 'BuildNewArchitecture_Trunk_BuildVersion'
-else:
-    logging.error(msg=f"[{branch}] name of branch does not much to any cases!")
-    exit()
 
 columns = ['Version','Build Date','Author','Commit Date','Jira Ticket','Comment']
 width = {
@@ -122,7 +116,7 @@ async def main():
                     continue
                 if current_version < from_version or current_version > to_version: continue
                 
-                tasks.append(create_task(get_build_info(builds, build, release_dates['.'.join([str(current_version.major), str(current_version.minor)])], session)))
+                tasks.append(create_task(get_build_info(builds, build, release_dates.get('.'.join([str(current_version.major), str(current_version.minor)])), session)))
                 
             start += 100
 
@@ -156,7 +150,7 @@ async def get_build_info(builds, build, date, session):
         for change in changes['change']:
             
             change_date = datetime.strptime(change['date'][0:15], '%Y%m%dT%H%M%S')
-            if change_date < date:
+            if date and change_date < date:
                 is_continue = False
                 print("End date")
                 break
@@ -184,15 +178,24 @@ async def get_build_info(builds, build, date, session):
         if changes_length < changes_count: break
         changes_start += changes_count
 
-async def get(url, token, session):
+async def get(url, token, session, max_attempts=3):
     headers = {
         "Authorization" : f"Bearer {token}",
         "Accept" : "application/json"}
 
-    async with session.get(url = url, headers = headers) as response:
-        if response.status != 200:
-            raise Exception("Error in API call: " + await response.text())
-        return await response.json()
+    
+    for attempt in range(1, max_attempts + 1):
+        try:
+            async with session.get(url = url, headers = headers) as response:
+                if response.status != 200:
+                    raise Exception("Error in API call: " + await response.text())
+                return await response.json()
+        except Exception as e:
+            # Log the exception or print a message
+            print(f"Attempt {attempt} failed: {e}")
+
+        # Wait for a short time before the next attempt (you can adjust this as needed)
+        await sleep(1)
 
 def updateLength(value, width, name):
     length = len(value)
