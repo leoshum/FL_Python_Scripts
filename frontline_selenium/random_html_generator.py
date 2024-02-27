@@ -17,7 +17,8 @@ class RandomHtmlGenerator:
         random_tag = random.choice(html_tags)
 
         if random_tag == "<img":
-            attributes = f"src='{RandomHtmlGenerator.get_random_image_link()}' alt='{fake.word()}'"
+            src, w, h = RandomHtmlGenerator.get_random_bull_image_link()
+            attributes = f"src='{src}' alt='{fake.word()}'"
             html = f"{random_tag} {attributes} />"
         elif random_tag == "<a":
             attributes = f"href='{fake.url()}'"
