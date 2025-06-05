@@ -78,20 +78,6 @@ python ticket_parser.py
 - **[PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md)** - Complete project overview, business context, and module descriptions
 - **[TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md)** - Implementation details, code examples, and best practices
 
-## 🆘 Common Issues
-
-1. **ChromeDriver mismatch** → Update Chrome and ChromeDriver to latest versions
-2. **API authentication** → Verify all tokens are set in environment variables
-3. **PowerShell execution policy** → Run `Set-ExecutionPolicy RemoteSigned`
-4. **Network issues** → Check proxy/firewall settings
-
-## 📄 License
-
-Proprietary software for Frontline Education internal use.
-
 ---
-
-**Maintainers**: FL Python Scripts Team  
-**Contact**: devops@frontlineeducation.com
 
 > 💡 **New to the project?** Start with [PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md) for business context and architecture overview, then refer to [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md) for implementation details.
