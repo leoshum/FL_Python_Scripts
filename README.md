@@ -58,7 +58,7 @@ Git access
 ### Installation
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone https://github.com/leoshum/FL_Python_Scripts.git
 cd FL_Python_Scripts
 
 # Install dependencies
@@ -227,8 +227,3 @@ Performance Data ← Selenium Tests ← Form Analysis ← AI Analysis
 This project is proprietary software for Frontline Education internal use.
 
 ---
-
-**Version**: 1.0  
-**Last Updated**: 2024  
-**Maintainers**: FL Python Scripts Team  
-**Contact**: devops@frontlineeducation.com
