@@ -82,9 +82,21 @@
    - Excel-based configuration
 
 9. **Web Interface** (`frontline-services-ui/`)
-   - Centralized control panel
-   - Script execution management
-   - Report generation
+   - **Modern Angular 15 + Python web interface**
+   - **Centralized control panel** for all automation scripts
+   - **Real-time script execution** with live status updates
+   - **Configuration management** for Website Load Time testing
+   - **TeamCity version tracking** and project management
+   - **Comment scraping** and build monitoring
+   - **Responsive design** with custom SCSS styling
+   - **API integration** with Python backend (port 34443)
+   - **Browser-based access** at http://localhost:4200
+   
+   **Technical Architecture:**
+   - Frontend: Angular 15 + TypeScript + SCSS
+   - Backend: Python aiohttp + CORS support
+   - Features: File browser, configuration editor, script runner
+   - Components: Website Load Time, TeamCity Version, Comment Scraper
 
 ### Form Processing & Testing
 

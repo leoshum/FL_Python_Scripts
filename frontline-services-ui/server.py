@@ -2,7 +2,7 @@ import json
 import os
 import subprocess
 import sys
-sys.path.insert(0, 'C:\\Users\\mykha\\source\\repos\\fl_python\\FL_Python_Scripts\\frontline_website_load_time_script')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'frontline-website-load-time-script'))
 import asyncio
 from os import path
 import mimetypes
@@ -22,7 +22,7 @@ root_folder = path.dirname(__file__)
 website_load_folder, website_load_script = set_paths(root_folder, 'frontline-website-load-time-script', 'bootstrapper.py')
 
 path_to_files_for_websiteloadtime = path.join(website_load_folder, 'NEED TO KNOW')
-path_to_files_for_websiteloadtime = 'C:\\Users\\mykha\\source\\repos\\fl_python\\FL_Python_Scripts\\frontline-commit-analyzer'
+commit_analyzer_folder = path.normpath(path.join(root_folder, '..', 'frontline-commit-analyzer'))
 
 version_tickets_folder, version_tickets_script = set_paths(root_folder, 'frontline-team-city-comment-scrapper', 'comments.py')
 

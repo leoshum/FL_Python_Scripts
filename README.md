@@ -9,16 +9,49 @@ FL_Python_Scripts is a comprehensive suite of Python automation tools designed t
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
-- Chrome + ChromeDriver
-- Git access to repositories
+- **Python 3.8+** - Main runtime
+- **Node.js 16+** - Required for Angular web interface  
+- **Chrome + ChromeDriver** - Browser automation
+- **Angular CLI** - For web interface management
+- **Git access** to repositories
 
 ### Installation
 ```bash
+# 1. Clone repository
 git clone https://github.com/leoshum/FL_Python_Scripts.git
 cd FL_Python_Scripts
+
+# 2. Install Python dependencies
 pip install -r requirements.txt
+
+# 3. Install Angular CLI globally (for web interface)
+npm install -g @angular/cli
+
+# 4. Install Angular dependencies for web interface
+cd frontline-services-ui/services
+npm install
+cd ../..
 ```
+
+### Web Interface Setup (frontline-services-ui)
+The project includes a modern Angular + Python web interface for managing all automation scripts:
+
+```bash
+# Start the web interface (both Angular frontend + Python backend)
+cd frontline-services-ui
+powershell -ExecutionPolicy Bypass -File start.ps1
+
+# Or manually:
+# Terminal 1 - Angular frontend (port 4200)
+cd frontline-services-ui/services
+ng serve
+
+# Terminal 2 - Python backend (port 34443)  
+cd frontline-services-ui
+python server.py
+```
+
+**Access**: http://localhost:4200 (requires both servers running)
 
 ### Environment Setup
 ```bash
@@ -59,6 +92,9 @@ python ticket_parser.py
 ## 🛠️ Technology Stack
 
 - **Python 3.x** - Main language
+- **Angular 15** - Web frontend interface
+- **Node.js** - Angular build system  
+- **TypeScript** - Frontend development
 - **Selenium WebDriver** - Browser automation
 - **OpenAI API** - AI code analysis
 - **FastAPI** - Web interfaces

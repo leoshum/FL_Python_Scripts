@@ -1,4 +1,5 @@
 aiohttp==3.8.4
+aiohttp_cors==0.8.1
 beautifulsoup4==4.12.2
 fastapi==0.95.1
 numpy==1.24.0
