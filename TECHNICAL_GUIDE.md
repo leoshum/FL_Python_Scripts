@@ -303,8 +303,25 @@ python ticket_parser.py
 ### Common Issues
 
 1. **ChromeDriver version mismatch**
-   - Update Chrome and ChromeDriver to matching versions
-   - Ensure ChromeDriver is in PATH
+   
+   **Problem**: `SessionNotCreatedException: This version of ChromeDriver only supports Chrome version X`
+   
+   **Solution**:
+   ```bash
+   # Check your Chrome version
+   chrome://version/
+   
+   # Download matching ChromeDriver from:
+   # https://googlechromelabs.github.io/chrome-for-testing/
+   
+   # Replace the existing file:
+   # frontline-website-load-time-script/chromedriver.exe
+   ```
+   
+   **For frontline-services-ui web interface**:
+   - ChromeDriver compatibility is critical for the Website Load Time component
+   - If using Chrome 110+, ensure ChromeDriver version matches exactly
+   - Consider enabling automatic ChromeDriver management in code if needed
 
 2. **API authentication failures**
    - Verify environment variables are set correctly

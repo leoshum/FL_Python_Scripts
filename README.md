@@ -12,6 +12,7 @@ FL_Python_Scripts is a comprehensive suite of Python automation tools designed t
 - **Python 3.8+** - Main runtime
 - **Node.js 16+** - Required for Angular web interface  
 - **Chrome + ChromeDriver** - Browser automation
+  > ⚠️ **Important**: ChromeDriver must match your Chrome version. If you encounter compatibility errors, download the latest ChromeDriver from [Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/) and replace `frontline-website-load-time-script/chromedriver.exe`
 - **Angular CLI** - For web interface management
 - **Git access** to repositories
 
@@ -52,6 +53,8 @@ python server.py
 ```
 
 **Access**: http://localhost:4200 (requires both servers running)
+
+> 🔧 **ChromeDriver Compatibility**: The Website Load Time component requires ChromeDriver to match your Chrome browser version. See [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md) for troubleshooting compatibility issues.
 
 ### Environment Setup
 ```bash
