@@ -121,6 +121,10 @@ def compare_measures(curr_cell, prev_cell, diff_cell):
     if curr_cell.value == None or prev_cell.value == None:
         reset_styles([curr_cell, prev_cell, diff_cell])
         return
+    
+    GREEN_COLOR = "00FF00"
+    YELLOW_COLOR = "FFFF00"
+    RED_COLOR = "FF0000"
 
     prev_row_float = 0.0
     try:
@@ -135,11 +139,11 @@ def compare_measures(curr_cell, prev_cell, diff_cell):
     growth = (diff * 100) - 100
     diff_cell.value = f"{abs(growth):.2f}%"
     if growth < -10:
-        diff_cell.fill = PatternFill(start_color="00FF00", fill_type = "solid")
+        diff_cell.fill = PatternFill(start_color=GREEN_COLOR, fill_type = "solid")
     elif growth <= 10 and growth >= -10:
-        diff_cell.fill = PatternFill(start_color="FFFF00", fill_type = "solid")
+        diff_cell.fill = PatternFill(start_color=YELLOW_COLOR, fill_type = "solid")
     else:
-        diff_cell.fill = PatternFill(start_color="FF0000", fill_type = "solid")
+        diff_cell.fill = PatternFill(start_color=RED_COLOR, fill_type = "solid")
 
 
 def configure_logger(file_name: str, processing_filename: str) -> logging.Logger:
@@ -235,7 +239,7 @@ def main():
                              row[28], row[29]], threshold)
         for i in range(3, 13):
             row[i].value = ""
-        reset_styles([row[5], row[6], row[7], row[8], row[10], row[11], row[12]])
+        reset_styles([row[4], row[5], row[6], row[7], row[8], row[10], row[11], row[12]])
 
     build_version = ""
     prev_base_url = ""
@@ -247,7 +251,7 @@ def main():
         if url == None or not validators.url(url):
             continue
         row[4].value = datetime.now().strftime('%y-%m-%d %H:%M:%S')
-        print(f"{datetime.now().strftime('%y-%m-%d %H:%M:%S')}    {url}")
+        print(f"{datetime.now().strftime('%y-%m-%d %H:%M:%S')}\n{url}")
         logger.info(f"Processing: {url}")
         base_url = extract_base_url(url)
         if prev_base_url != base_url or is_first_row:
