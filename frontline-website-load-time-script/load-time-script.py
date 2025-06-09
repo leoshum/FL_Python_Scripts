@@ -239,7 +239,7 @@ def main():
                              row[28], row[29]], threshold)
         for i in range(3, 13):
             row[i].value = ""
-        reset_styles([row[4], row[5], row[6], row[7], row[8], row[10], row[11], row[12]])
+        reset_styles([row[3], row[4], row[5], row[6], row[7], row[8], row[10], row[11], row[12]])
 
     build_version = ""
     prev_base_url = ""
