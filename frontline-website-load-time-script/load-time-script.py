@@ -103,17 +103,52 @@ def flag_high_load_time(cells, threshold):
 
 
 def measure_load_time(driver, url, loops, scenario):
-    driver.get(url)
     measure_result = namedtuple("MeasureResult", ["first_measure", "min", "max", "mean"])
     totals = np.zeros(loops)
     is_first_measure = True
     first_measure = 0
+    
+    # Extract form name from URL for better logging
+    form_name = "Page"
+    
+    if "/Forms/" in url:
+        # Standard form URL: .../Forms/FormName/id
+        form_name = url.split("/Forms/")[1].split("/")[0]
+    elif "/ViewEvent/" in url:
+        # Event URL: .../ViewEvent/id/PageName or just .../ViewEvent/id
+        parts = url.split("/ViewEvent/")[1].split("/")
+        if len(parts) >= 2:
+            form_name = parts[1]  # Get the page name after event ID
+        else:
+            form_name = "ViewEvent"
+    else:
+        # Generic page - extract last meaningful part
+        path_parts = url.split("/")
+        for part in reversed(path_parts):
+            if part and len(part) > 2 and not part.replace("-", "").isdigit():
+                form_name = part
+                break
+    
+    operation_type = "LOAD"
+    if "save" in scenario.__name__.lower():
+        operation_type = "SAVE"
+    
+    print(f"\n🔄 Starting {operation_type} measurements for: {form_name}")
+    
     for j in range(loops):
+        print(f"\n📏 Measurement {j+1}/{loops} ({operation_type}): {form_name}")
+        # Let measurement functions handle their own navigation
         measured_time = scenario(driver)
         totals[j] = measured_time
+        print(f"✅ Completed in {measured_time:.3f}s")
+        
         if is_first_measure:
             is_first_measure = False
             first_measure = measured_time
+    
+    print(f"\n📈 {operation_type} Results for {form_name}:")
+    print(f"   First: {first_measure:.3f}s | Min: {np.min(totals):.3f}s | Max: {np.max(totals):.3f}s | Mean: {np.mean(totals):.3f}s")
+    
     return measure_result(first_measure, np.min(totals), np.max(totals), np.mean(totals))
 
 
@@ -243,6 +278,7 @@ def main():
 
     build_version = ""
     prev_base_url = ""
+    processed_records = 0
 
     base_url = ""
     is_first_row = True
@@ -250,8 +286,11 @@ def main():
         url = row[1].value
         if url == None or not validators.url(url):
             continue
+        
+        processed_records += 1
+        
         row[4].value = datetime.now().strftime('%y-%m-%d %H:%M:%S')
-        print(f"{datetime.now().strftime('%y-%m-%d %H:%M:%S')}\n{url}")
+        print(f"\n{url}")
         logger.info(f"Processing: {url}")
         base_url = extract_base_url(url)
         if prev_base_url != base_url or is_first_row:
@@ -259,18 +298,18 @@ def main():
                 SupportTech.login(driver)
                 time.sleep(3)
                 SupportTech.open_website(driver, base_url, "SFTDVTester")
+                # Initial navigation to establish session - this doesn't count as measurement
                 driver.get(url)
             else:
                 SeleniumHelper.login_user(base_url, driver, "SFTDVTester", "ht2jGMM2GnC3bwX7")
             build_version = SeleniumHelper.get_build_version(driver)
             is_first_row = False
 
-        prev_tab = driver.window_handles[0]
-        driver.execute_script("window.open('');")
-        driver.switch_to.window(prev_tab)
-        curr_tab = driver.window_handles[1]
-        driver.close()
-        driver.switch_to.window(curr_tab)
+        # Remove duplicate navigation - let measurement functions handle all loading
+        # driver.get(url) - REMOVED: This was causing duplicate loading
+        
+        # Initial navigation to the URL before measurements
+        driver.get(url)
 
         scenario = SeleniumHelper.measure_form_page_load_time
         is_form_page_url = SeleniumHelper.is_form_page_url(url)
@@ -278,18 +317,22 @@ def main():
                 scenario = SeleniumHelper.measure_standard_page_load_time
 
         error_in_page_loading = False
-        try:
-            if is_form_page_url:
-                SeleniumHelper.form_preflight_request(driver, url)
-        except Exception as ex:
-            error_in_page_loading = True
-            (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
-            mark_form_as_invalid(row)
-            row[3].value = f"Form doesn't exist"
-            logger.exception(ex)
+        
+        # Remove preflight request - it was causing duplicate loading
+        # try:
+        #     if is_form_page_url:
+        #         SeleniumHelper.form_preflight_request(driver, url)
+        #         preflight_completed = True
+        # except Exception as ex:
+        #     error_in_page_loading = True
+        #     (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
+        #     mark_form_as_invalid(row)
+        #     row[3].value = f"Form doesn't exist"
+        #     logger.exception(ex)
         
         if not error_in_page_loading:
             try:
+                # Use standard measurement for all pages - no more mixed measurement
                 (first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, loops, scenario)
                 reset_styles([row[0], row[1]])
             except Exception as e:
@@ -321,7 +364,6 @@ def main():
                 mark_form_as_invalid(row)
                 error_in_save = True
                 logger.exception(ex)
-                row[3].value = "Saving timeout"
             except ElementClickInterceptedException as ex:
                 mark_form_as_invalid(row, color="9933FF")
                 error_in_save = True
@@ -364,6 +406,22 @@ def main():
         head_cell_top.value = f"{build_version} {timestamp}"
         head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed}mb/s, loops: {loops}"
         wb.save(input_file)
+    
+    driver.quit()
+
+    total_seconds = time.time() - start_time
+    hours = int(total_seconds // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+    seconds = int(total_seconds % 60)
+    
+    print(f"\n" + "="*60)
+    print(f"🎉 PROCESSING COMPLETED!\n")
+    print(f"🔄 Loops per record: {loops}")
+    print(f"📊 Total records processed: {processed_records}")
+    print(f"⏱️ Total time: {hours:02d}h {minutes:02d}m {seconds:02d}s")
+    if processed_records > 0:
+        print(f"📈 Average time per record: {total_seconds/processed_records:.1f}s")
+    print(f"="*60)
 
 if __name__ == "__main__":
     main()
