@@ -121,6 +121,19 @@ def measure_load_time(driver, url, loops, scenario):
             form_name = parts[1]  # Get the page name after event ID
         else:
             form_name = "ViewEvent"
+    elif "ViewEvent?" in url:
+        # Handle ViewEvent with query parameters like ViewEvent?eventId=...#formname&formId=...
+        if "#" in url:
+            # Extract the form name from the hash fragment
+            hash_part = url.split("#")[1]
+            if "&" in hash_part:
+                form_name = hash_part.split("&")[0]
+            else:
+                form_name = hash_part
+            # Clean up the form name
+            form_name = form_name.replace("(", "").replace(")", "").title()
+        else:
+            form_name = "ViewEvent"
     else:
         # Generic page - extract last meaningful part
         path_parts = url.split("/")
