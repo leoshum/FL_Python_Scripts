@@ -16,6 +16,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 package_path = os.path.abspath('..')
 sys.path.append(package_path)
@@ -138,7 +140,7 @@ def measure_load_time(driver, url, loops, scenario):
         # Generic page - extract last meaningful part
         path_parts = url.split("/")
         for part in reversed(path_parts):
-            if part and len(part) > 2 and not part.replace("-", "").isdigit():
+            if part and len(part) > 2 and part.strip() and not part.replace("-", "").isdigit():
                 form_name = part
                 break
     
@@ -151,7 +153,30 @@ def measure_load_time(driver, url, loops, scenario):
     for j in range(loops):
         print(f"\n📏 Measurement {j+1}/{loops} ({operation_type}): {form_name}")
         # Let measurement functions handle their own navigation
-        measured_time = scenario(driver)
+        
+        # Check if scenario returns tuple (new format) or just time (old format)
+        if hasattr(scenario, '__name__') and 'form' in scenario.__name__:
+            # New format returns (load_time, network_state)
+            measured_time, network_state = scenario(driver, url)
+            
+            # Extract API requests from network_state
+            if isinstance(network_state, dict):
+                api_requests = network_state.get('allApiRequests', [])
+            else:
+                api_requests = []
+            
+            # Log API requests for debugging on first measurement
+            if j == 0 and api_requests:
+                slow_requests = [req for req in api_requests if isinstance(req, dict) and req.get('duration', 0) > 3000]
+                if slow_requests:
+                    print(f"🐌 Slow API requests detected:")
+                    for req in slow_requests:
+                        print(f"   {req.get('url', 'Unknown')} - {req.get('duration', 0):.0f}ms ({req.get('status', 'Unknown')})")
+        else:
+            # Old format returns just load_time
+            measured_time = scenario(driver)
+            api_requests = []
+        
         totals[j] = measured_time
         print(f"✅ Completed in {measured_time:.3f}s")
         
@@ -196,7 +221,7 @@ def compare_measures(curr_cell, prev_cell, diff_cell):
 
 def configure_logger(file_name: str, processing_filename: str) -> logging.Logger:
     logger = logging.getLogger("main")
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
     formatter = HideBacktraceFormatter("%(asctime)s - %(message)s", datefmt="%m-%d-%y_%H:%M")
     timestamp = datetime.now().strftime("%m-%d-%y_%H-%M")
@@ -204,7 +229,7 @@ def configure_logger(file_name: str, processing_filename: str) -> logging.Logger
     folders = parts[0:len(parts)-1]
     filename = parts[-1]
     fh = logging.FileHandler(f"{file_name}_{'_'.join(folders)}_{filename.split('.')[0]}_{timestamp}.log")
-    fh.setLevel(logging.DEBUG)
+    fh.setLevel(logging.INFO)
     fh.setFormatter(formatter)
     logger.addHandler(fh)
     SeleniumHelper.setup_logger(logger)
@@ -304,7 +329,7 @@ def main():
         
         row[4].value = datetime.now().strftime('%y-%m-%d %H:%M:%S')
         print(f"\n{url}")
-        logger.info(f"Processing: {url}")
+        logger.debug(f"Processing: {url}")
         base_url = extract_base_url(url)
         if prev_base_url != base_url or is_first_row:
             if idm_auth:
@@ -318,10 +343,7 @@ def main():
             build_version = SeleniumHelper.get_build_version(driver)
             is_first_row = False
 
-        # Remove duplicate navigation - let measurement functions handle all loading
-        # driver.get(url) - REMOVED: This was causing duplicate loading
-        
-        # Initial navigation to the URL before measurements
+        # Initial navigation to establish session - this doesn't count as measurement
         driver.get(url)
 
         scenario = SeleniumHelper.measure_form_page_load_time
@@ -331,38 +353,68 @@ def main():
 
         error_in_page_loading = False
         
-        # Remove preflight request - it was causing duplicate loading
-        # try:
-        #     if is_form_page_url:
-        #         SeleniumHelper.form_preflight_request(driver, url)
-        #         preflight_completed = True
-        # except Exception as ex:
-        #     error_in_page_loading = True
-        #     (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
-        #     mark_form_as_invalid(row)
-        #     row[3].value = f"Form doesn't exist"
-        #     logger.exception(ex)
-        
+        # Remove duplicate navigation - let measurement functions handle all loading
+        # For form pages, measure_form_page_load_time will handle its own navigation
+        # For standard pages, we need to navigate first
+        if not is_form_page_url:
+            driver.get(url)
+
         if not error_in_page_loading:
             try:
                 # Use standard measurement for all pages - no more mixed measurement
                 (first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, loops, scenario)
                 reset_styles([row[0], row[1]])
+            except TimeoutException as ex:
+                # Form load timeout - record error in column D
+                (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
+                row[3].value = f"Timeout waiting for form to load: {timeout}s"
+                mark_form_as_invalid(row)
+                error_in_page_loading = True
+                logger.error(f"Timeout waiting for form to load: {url}")
             except Exception as e:
                 (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
-                row[3].value = f"Page speed measurement timeout"
+                row[3].value = f"Page speed measurement error: {str(e)[:50]}"
                 mark_form_as_invalid(row)
+                error_in_page_loading = True
+                logger.error(f"Page speed measurement error for {url}: {str(e)}")
 
         if not error_in_page_loading:
             try:
-                page_title = driver.find_element(By.CSS_SELECTOR, "h1.page-title").text.strip()
-                if "Error" in page_title or page_title == "Access Restricted":
+                # Wait for page to be fully loaded before checking title
+                WebDriverWait(driver, 10).until(
+                    lambda d: d.execute_script("return document.readyState") == "complete"
+                )
+                
+                # Try to find page title with multiple selectors and wait
+                page_title = None
+                title_selectors = ["h1.page-title", "h1", ".page-title", "title"]
+                
+                for selector in title_selectors:
+                    try:
+                        if selector == "title":
+                            page_title = driver.title
+                        else:
+                            element = WebDriverWait(driver, 5).until(
+                                EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                            )
+                            page_title = element.text.strip()
+                        
+                        if page_title:  # Found a non-empty title
+                            break
+                    except:
+                        continue
+                
+                if page_title and ("Error" in page_title or page_title == "Access Restricted"):
                     mark_form_as_invalid(row, color="0000FF")
-                    logger.debug(f"Error detected '{page_title}' in {url}")
+                    logger.error(f"Error detected '{page_title}' in {url}")
                     row[3].value = page_title
                     error_in_page_loading = True
+                elif not page_title:
+                    logger.debug(f"No page title found for {url}, but continuing...")
+                    
             except Exception as ex:
-                logger.exception(ex)
+                logger.debug(f"Page title check failed for {url}: {str(ex)}")
+                # Don't mark as error - just continue without title check
 
         error_in_save = False
         if is_form_page_url and not disable_save and not error_in_page_loading:
@@ -371,23 +423,23 @@ def main():
             except ValueError as ex:
                 mark_form_as_invalid(row)
                 error_in_save = True
-                logger.exception(ex)
+                logger.error(f"Exception occurred while saving the form: {url}")
                 row[3].value = "Exception occured while saving the form!"
             except TimeoutException as ex:
                 mark_form_as_invalid(row)
                 error_in_save = True
-                logger.exception(ex)
+                logger.error(f"Form save timeout: {url}")
             except ElementClickInterceptedException as ex:
                 mark_form_as_invalid(row, color="9933FF")
                 error_in_save = True
-                logger.exception(ex)
+                logger.error(f"Form save click intercepted: {url}")
             except NoSuchElementException as ex:
                 error_in_save = True
-                logger.exception(ex)
+                logger.error(f"Form save element not found: {url}")
             except StaleElementReferenceException as ex:
                 mark_form_as_invalid(row, color="550000")
                 error_in_save = True
-                logger.exception(ex)
+                logger.error(f"Form save stale element: {url}")
 
         row[5].value = f"{first_load_time:.2f}"
         row[6].value = f"{min_time:.2f}"
@@ -433,7 +485,7 @@ def main():
     print(f"📊 Total records processed: {processed_records}")
     print(f"⏱️ Total time: {hours:02d}h {minutes:02d}m {seconds:02d}s")
     if processed_records > 0:
-        print(f"📈 Average time per record: {total_seconds/processed_records:.1f}s")
+        print(f"📈 Average time per record: {(total_seconds/(processed_records * loops)):.1f}s")
     print(f"="*60)
 
 if __name__ == "__main__":

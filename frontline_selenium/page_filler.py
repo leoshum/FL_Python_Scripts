@@ -49,6 +49,12 @@ class PageFormFiller:
                 textboxes = driver.find_elements(By.CSS_SELECTOR, ".k-textbox")
                 for textbox in textboxes:
                     try:
+                        # Skip disabled elements
+                        if textbox.get_attribute("disabled") is not None:
+                            continue
+                        # Skip elements that are not interactable
+                        if not textbox.is_enabled():
+                            continue
                         textbox.clear()
                         textbox.send_keys(text)
                     except Exception as ex:
@@ -56,22 +62,40 @@ class PageFormFiller:
 
     @staticmethod
     def fill_form_textareas(driver: webdriver.Chrome) -> None:
-        fake = Faker()
-        text = fake.text(max_nb_chars=600).replace("\n", "\\n")
-        script = ""
-        script = PageFormFiller.create_script("textarea.js", {
-            "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower(),
-            "{{text}}": f"\"{text}\""
-        })
-        driver.execute_script(script)
-    
+        if SeleniumHelper.is_plan_page_url(driver.current_url):
+            # For plan pages, use JavaScript approach
+            fake = Faker()
+            text = fake.text(max_nb_chars=600).replace("\n", "\\n").replace('"', '\\"').replace("'", "\\'")
+            script = PageFormFiller.create_script("textarea.js", {
+                "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower(),
+                "{{text}}": f'"{text}"'
+            })
+            driver.execute_script(script)
+        else:
+            # For other pages, use direct Selenium approach
+            textareas = driver.find_elements(By.CSS_SELECTOR, "textarea")
+            fake = Faker()
+            text = fake.text(max_nb_chars=600)
+            for textarea in textareas:
+                try:
+                    # Skip disabled elements
+                    if textarea.get_attribute("disabled") is not None:
+                        continue
+                    # Skip elements that are not interactable
+                    if not textarea.is_enabled():
+                        continue
+                    textarea.clear()
+                    textarea.send_keys(text)
+                except Exception as ex:
+                    PageFormFiller.logger.exception(ex)
+
     @staticmethod
     def fill_form_rich_text_editors(driver: webdriver.Chrome) -> None:
         if SeleniumHelper.is_plan_page_url(driver.current_url):
-            text = RandomHtmlGenerator.generate_random_html()
+            text = RandomHtmlGenerator.generate_random_html().replace('"', '\\"').replace("'", "\\'")
             script = PageFormFiller.create_script("rich_text_editor.js", {
                 "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower(),
-                "{{text}}": f"\"{text}\""
+                "{{text}}": f'"{text}"'
             })
             driver.execute_script(script)
         else:
@@ -110,22 +134,50 @@ class PageFormFiller:
         else:
             comboboxes = driver.find_elements(By.CSS_SELECTOR, "kendo-combobox")
             for combobox in comboboxes:
-                data_keys = combobox.get_attribute("datakeys").split(";")
-                input = combobox.find_element(By.CSS_SELECTOR, "kendo-searchbar>input")
                 try:
+                    # Skip disabled elements
+                    if combobox.get_attribute("disabled") is not None:
+                        continue
+                    # Skip elements that are not interactable
+                    if not combobox.is_enabled():
+                        continue
+                        
+                    data_keys = combobox.get_attribute("datakeys")
+                    if not data_keys:
+                        continue
+                        
+                    data_keys = data_keys.split(";")
+                    input = combobox.find_element(By.CSS_SELECTOR, "kendo-searchbar>input")
+                    
+                    # Check if input is also enabled
+                    if not input.is_enabled():
+                        continue
+                        
                     input.clear()
                     input.send_keys(data_keys[random.randint(0, len(data_keys) - 1)])
                 except Exception as ex:
                     PageFormFiller.logger.exception(ex)
 
-            driver.find_element(By.CSS_SELECTOR, "h1").click()
+            try:
+                driver.find_element(By.CSS_SELECTOR, "h1").click()
+            except:
+                pass  # Ignore if h1 not found
+                
             dropdownlists = driver.find_elements(By.CSS_SELECTOR, "table kendo-dropdownlist")
             for dropdownlist in dropdownlists:
                 try:
+                    # Skip disabled elements
+                    if dropdownlist.get_attribute("disabled") is not None:
+                        continue
+                    # Skip elements that are not interactable
+                    if not dropdownlist.is_enabled():
+                        continue
+                        
                     dropdownlist.click()
                     popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
                     options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
-                    options[random.randint(0, len(options) - 1)].click()
+                    if options:
+                        options[random.randint(0, len(options) - 1)].click()
                 except Exception as ex:
                     PageFormFiller.logger.exception(ex)
 
@@ -138,7 +190,22 @@ class PageFormFiller:
             date_pickers = driver.find_elements(By.CSS_SELECTOR, "kendo-datepicker")
             for date_picker in date_pickers:
                 try:
+                    # Skip disabled elements - check multiple conditions
+                    if date_picker.get_attribute("disabled") is not None:
+                        continue
+                    # Skip elements that are not interactable
+                    if not date_picker.is_enabled():
+                        continue
+                    # Skip elements with disabled CSS class
+                    if "k-disabled" in date_picker.get_attribute("class"):
+                        continue
+                        
                     input = date_picker.find_element(By.CSS_SELECTOR, "kendo-dateinput>input")
+                    
+                    # Check if input is also enabled and not disabled
+                    if not input.is_enabled() or input.get_attribute("disabled") is not None:
+                        continue
+                        
                     next_day_date = datetime.datetime.today() + datetime.timedelta(days=1)
                     input.send_keys(str(next_day_date.year), Keys.ARROW_LEFT, str(next_day_date.day), Keys.ARROW_LEFT, Keys.ARROW_LEFT, str(next_day_date.month))
                 except Exception as ex:
@@ -153,8 +220,21 @@ class PageFormFiller:
             multiselects = driver.find_elements(By.CSS_SELECTOR, "kendo-multiselect")
             for multiselect in multiselects:
                 try:
+                    # Skip disabled elements
+                    if multiselect.get_attribute("disabled") is not None:
+                        continue
+                    # Skip elements that are not interactable
+                    if not multiselect.is_enabled():
+                        continue
+                        
                     multiselect.click()
                     popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
+                    # Add some basic interaction with the popup if it exists
+                    if popup:
+                        options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
+                        if options:
+                            # Select a random option
+                            options[random.randint(0, len(options) - 1)].click()
                 except Exception as ex:
                     PageFormFiller.logger.exception(ex)
 
