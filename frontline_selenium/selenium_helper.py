@@ -34,25 +34,16 @@ class SeleniumHelper:
     
     @staticmethod
     def is_form_page_url(url: str) -> bool:
-        parsed_url = urlparse(url)
-        if "EventOverview" in parsed_url.path:
+        # EventOverview is the only ViewEvent page that's NOT a form
+        if "EventOverview" in url:
             return False
         
-        # Check for read-only forms that don't have Save buttons
-        readonly_fragments = [
-            "eligibilitiesimpairments",
-            "lre%26educationalplacement", 
-            "lre&educationalplacement"
-        ]
-        
-        # If it's a readonly form fragment, it's still a form page but won't have Save button
-        if parsed_url.fragment and any(readonly in parsed_url.fragment.lower() for readonly in readonly_fragments):
+        # Any ViewEvent URL (except EventOverview) is a form page
+        if "ViewEvent" in url:
             return True
             
-        # Include DistributionManager and other form types
-        return ("Forms" in url or 
-                ("ViewEvent" in url and parsed_url.fragment) or
-                "DistributionManager" in url)
+        # Include other form types
+        return ("Forms" in url or "DistributionManager" in url)
     
     @staticmethod
     def is_likely_readonly_form(url: str) -> bool:
