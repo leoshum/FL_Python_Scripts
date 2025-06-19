@@ -51,19 +51,17 @@ class RandomHtmlGenerator:
     
     @staticmethod
     def get_random_bull_image_link():
-        bull_links = [
-            ("https://www.krugerpark.co.za/images/1-honey-badger-moswe590a-590x390.jpg", "590", "390"),
-            ("hhttps://dehayf5mhw1h7.cloudfront.net/wp-content/uploads/sites/1491/2023/10/25090332/Honey-Badger-1024x534.png", "1024", "534"),
-            ("https://i.vimeocdn.com/video/1647376585-fde09ec80f8f2bc412c2bedb290749a0f8034bbb3d6528fb915d27497f76ad6e-d_750x421.875?q=60", "750", "421"),
-            ("https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/ffc560e5-0cc9-4d86-8c14-8d001522c0f9/width=450/03050-836191865-buffed,%20bodybuilder,%20%20honey%20badger%20,.jpeg", "450", "450"),
-            ("https://cdn1.tedsby.com/tb/large/storage/1/5/7/157196/stuffed-animal-honey-badger-by-yulia-leonovich.jpg", "581", "466"),
-            ("https://www.travelbutlers.com/images/450px/1_450_1_dreamstimemaximum_24822528_KALAHARI_SOUTH_AFRICA.jpg", "450", "450"),
-            ("https://www.jukani.co.za/storage/media/2023/05/hb.jpg", "504", "662"),
-            ("https://www.safarispecialists.net/news/wp-content/uploads/2017/10/Honey-badger-cute-image-2-2.jpg", "960", "540"),
-            ("https://www.shadowsofafrica.com/media/catalog/product/cache/4/small_image/500x/040ec09b1e35df139433887a97daa66f/h/o/honey_badger.jpg", "499", "333"),
-            ("https://www.activewild.com/wp-content/uploads/2024/02/Honey-Badger-Close-Up-Face.jpg", "900", "600")
+        animal_links = [
+            ("https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=800&h=600&fit=crop", "800", "600"),
+            ("https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=900&h=675&fit=crop", "900", "675"),
+            ("https://images.unsplash.com/photo-1574870111867-089730e5a72b?w=1200&h=800&fit=crop", "1200", "800"),
+            ("https://images.unsplash.com/photo-1551717743-49959800b1f6?w=500&h=600&fit=crop", "500", "600"),
+            ("https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1600&h=900&fit=crop", "1600", "900"),
+            ("https://images.unsplash.com/photo-1583512603805-3cc6b41f3edb?w=800&h=600&fit=crop", "800", "600"),
+            ("https://images.unsplash.com/photo-1551135049-8a33b5883817?w=1280&h=720&fit=crop", "1280", "720"),
+            ("https://images.unsplash.com/photo-1546026423-cc4642628d2b?w=1920&h=1080&fit=crop", "1920", "1080")
         ]
-        return random.choice(bull_links)
+        return random.choice(animal_links)
 #def main():
 #    dir_path = os.path.abspath(os.path.dirname(__file__)) + "\\sasquash\\"
 #    for filename in os.listdir(dir_path):
