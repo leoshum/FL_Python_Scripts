@@ -37,11 +37,50 @@ class SeleniumHelper:
         parsed_url = urlparse(url)
         if "EventOverview" in parsed_url.path:
             return False
-        # Include DistributionManager and EligibilitiesImpairments as form pages
+        
+        # Check for read-only forms that don't have Save buttons
+        readonly_fragments = [
+            "eligibilitiesimpairments",
+            "lre%26educationalplacement", 
+            "lre&educationalplacement"
+        ]
+        
+        # If it's a readonly form fragment, it's still a form page but won't have Save button
+        if parsed_url.fragment and any(readonly in parsed_url.fragment.lower() for readonly in readonly_fragments):
+            return True
+            
+        # Include DistributionManager and other form types
         return ("Forms" in url or 
                 ("ViewEvent" in url and parsed_url.fragment) or
-                "DistributionManager" in url or
-                "EligibilitiesImpairments" in url)
+                "DistributionManager" in url)
+    
+    @staticmethod
+    def is_likely_readonly_form(url: str) -> bool:
+        """
+        Check if URL suggests this might be a readonly form.
+        This is a HINT, not a definitive answer.
+        """
+        # Only check for very obvious readonly patterns
+        url_lower = url.lower()
+        
+        # Very obvious readonly fragments that we're confident about
+        obvious_readonly_fragments = [
+            "eligibilitiesimpairments",  # Always readonly in practice
+            "lre%26educationalplacement",  # Always readonly
+            "lre&educationalplacement"     # Always readonly
+        ]
+        
+        # Check URL hash fragment
+        if "#" in url:
+            fragment = url.split("#")[1].lower()
+            if any(readonly in fragment for readonly in obvious_readonly_fragments):
+                return True
+        
+        # Check for explicit readonly indicators in URL
+        if any(indicator in url_lower for indicator in ["readonly", "view-only", "display-only"]):
+            return True
+            
+        return False
     
     @staticmethod
     def get_build_version(driver: webdriver.Chrome) -> str:
@@ -165,9 +204,8 @@ class SeleniumHelper:
                 }});
             """)
             
-            # Wait for the Promise to resolve
             WebDriverWait(driver, timeout + 5).until(
-                lambda d: d.execute_script("return true;")  # Promise will resolve
+                lambda d: d.execute_script("return true;")
             )
             
         except Exception as ex:
@@ -176,12 +214,11 @@ class SeleniumHelper:
                 SeleniumHelper.logger.warning(f"MutationObserver form detection failed, using simple fallback: {str(ex)}")
             
             try:
-                # Wait for document ready (if not already)
                 WebDriverWait(driver, 10).until(
                     lambda d: d.execute_script("return document.readyState === 'complete';")
                 )
                 
-                # Brief wait for rendering
+                # TODO: think about removing this sleep
                 time.sleep(0.8)
                 
                 # Try to find any visible form container
@@ -195,7 +232,7 @@ class SeleniumHelper:
                     )
                 )
             except TimeoutException:
-                # If no specific form container found, assume page is ready
+                # If no specific form container found assume page is ready
                 pass
     
     @staticmethod
@@ -212,7 +249,7 @@ class SeleniumHelper:
         
         try:
             if loading_elements:
-                # Wait for loading indicators to disappear
+                # TODO: move magic number to config 
                 WebDriverWait(driver, 10).until(
                     lambda d: not d.find_elements(By.CSS_SELECTOR, 
                         ".loading-wrapper, .blockUI, .blockMsg, .blockPage")
@@ -230,12 +267,22 @@ class SeleniumHelper:
             raise
     
     @staticmethod
-    def wait_for_form_save_popup(driver: webdriver.Chrome) -> None:
+    def wait_for_form_save_popup(driver: webdriver.Chrome, initial_requests: list = None) -> float:
         temp_start_time = time.time()
         
+        # Use provided initial_requests or get them now (fallback)
+        if initial_requests is None:
+            try:
+                initial_requests = SeleniumHelper.get_ajax_requests(driver)
+            except:
+                initial_requests = []
+        
+        time.sleep(0.1)  # enough time for DOM updates ?
+        
+        success_found = False
         while time.time() - temp_start_time < SeleniumHelper.timeout:
             try:
-                # Modern approach without jQuery dependency
+                # Check for success messages first
                 if SeleniumHelper.is_plan_page_url(driver.current_url):
                     script_result = driver.execute_script("""
                         var alertDiv = document.querySelector('div[role="alert"]');
@@ -248,63 +295,122 @@ class SeleniumHelper:
                     """)
                 
                 if script_result and "Form has been updated successfully" in script_result:
+                    success_found = True
                     break
+                
+                # Check network requests for errors every few seconds
+                elapsed = time.time() - temp_start_time
+                # TODO: think about this logic. Can we not wait for 3 sec?
+                if elapsed > 3:  # After 3 seconds, start checking network errors
+                    try:
+                        current_requests = SeleniumHelper.get_ajax_requests(driver)
+                        
+                        # Find new requests made during save operation
+                        new_requests = []
+                        if len(current_requests) > len(initial_requests):
+                            new_requests = current_requests[len(initial_requests):]
+                        
+                        # Check for save-related endpoints and their status codes
+                        form_save_endpoints = [
+                            "plan/Events/UpdateForm" if SeleniumHelper.is_plan_page_url(driver.current_url) else "plan/api/forms/",
+                            "/api/",
+                            "/update",
+                            "/save",
+                            "UpdateForm",
+                            "SaveForm"
+                        ]
+                        
+                        failed_requests = []
+                        save_requests_found = False
+                        
+                        for request in new_requests:
+                            request_url = request.get("url", "") if isinstance(request, dict) else str(request)
+                            request_status = request.get("status", 0) if isinstance(request, dict) else 0
+                            
+                            # Check if this is a save-related request
+                            is_save_request = any(endpoint in request_url for endpoint in form_save_endpoints)
+                            
+                            if is_save_request:
+                                save_requests_found = True
+                                
+                                # Check for error status codes (anything not 2xx)
+                                if isinstance(request_status, int) and (request_status < 200 or request_status >= 300):
+                                    if request_status != 0:  # 0 means pending, which we handle below
+                                        failed_requests.append({
+                                            'url': request_url,
+                                            'status': request_status,
+                                            'method': request.get('method', 'Unknown')
+                                        })
+                                        
+                                # Check for long-pending requests (>30s means stuck)
+                                # TODO: move 30 sec to config
+                                elif request_status == 0 or request_status == "pending":
+                                    request_duration = request.get("duration", 0)
+                                    if request_duration > 30000:  # 30+ seconds
+                                        failed_requests.append({
+                                            'url': request_url,
+                                            'status': 'pending_timeout',
+                                            'duration': request_duration
+                                        })
+
+                        # If we found failed requests then raise error immediately
+                        if failed_requests:
+                            error_details = []
+                            for req in failed_requests:
+                                if req['status'] == 'pending_timeout':
+                                    detail = f"URL: {req['url']} - Status: PENDING for {req['duration']}ms"
+                                else:
+                                    detail = f"URL: {req['url']} - Status: {req['status']} ({req.get('method', 'Unknown')})"
+                                error_details.append(detail)
+                                
+                            error_msg = f"Form save failed - Network errors detected:\n" + "\n".join(error_details)
+                            if SeleniumHelper.logger:
+                                SeleniumHelper.logger.error(error_msg)
+                            
+                            # Raise exception with detailed status code info for Excel colnm
+                            raise ValueError(f"Form save network error: {len(failed_requests)} failed request(s)")
+                    
+                    except ValueError:
+                         # Reraise ValueError looks like network errors 
+                        raise
+                    except Exception as e:
+                        if SeleniumHelper.logger:
+                            SeleniumHelper.logger.warning(f"Failed to check network requests: {str(e)}")
                     
             except UnexpectedAlertPresentException:
                 try:
                     Alert(driver).accept()
                 except:
                     pass
+            except ValueError:
+                # Reraise ValueError looks like network errors 
+                raise
             except Exception:
-                # Fallback: direct element search - but still need to check for success
+                # Fallback: direct element search but still need to check for success
                 try:
                     if SeleniumHelper.is_plan_page_url(driver.current_url):
                         alert_elem = driver.find_element(By.CSS_SELECTOR, 'div[role="alert"]')
                         if alert_elem and "Form has been updated successfully" in alert_elem.text:
-                            break
+                            success_found = True
+                        break
                     else:
                         notification_elem = driver.find_element(By.TAG_NAME, 'kendo-notification')
                         if notification_elem and "Form has been updated successfully" in notification_elem.text:
-                            break
+                            success_found = True
+                        break
                 except:
                     # If fallback also fails, continue the loop
                     pass
                     
-            time.sleep(0.25)
+            time.sleep(0.1)
 
-        # Check if we timed out without finding success message
         elapsed = time.time() - temp_start_time
-        if elapsed >= SeleniumHelper.timeout:
+        if elapsed >= SeleniumHelper.timeout and not success_found:
             error_msg = f"Form save popup timeout after {SeleniumHelper.timeout}s"
             if SeleniumHelper.logger:
                 SeleniumHelper.logger.error(error_msg)
             raise TimeoutException(error_msg)
 
-        # Check AJAX requests for save operation status
-        try:
-            requests = SeleniumHelper.get_ajax_requests(driver)
-            # Reverse to check most recent requests first
-            requests = list(reversed(requests))
-        except Exception as e:
-            if SeleniumHelper.logger:
-                SeleniumHelper.logger.warning(f"Failed to get AJAX requests: {str(e)}")
-            # Continue without AJAX validation if it fails
-            return elapsed
-        
-        error_occured = False
-        form_save_endpoint = "plan/Events/UpdateForm" if SeleniumHelper.is_plan_page_url(driver.current_url) else "plan/api/forms/"
-        
-        for request in requests:
-            request_url = request.get("url", "") if isinstance(request, dict) else str(request)
-            request_status = request.get("status", 0) if isinstance(request, dict) else 0
-            
-            if form_save_endpoint in request_url:
-                if request_status != 200 and request_status != "pending":
-                    error_occured = True
-                break
-
-        if error_occured:
-            raise ValueError("Exception occured while saving the form!")
         return elapsed
 
     @staticmethod
@@ -515,7 +621,7 @@ class SeleniumHelper:
         except Exception as e:
             SeleniumHelper.get_logger().error(f"Error during hybrid monitoring: {str(e)}")
             raise
-
+    
     @staticmethod
     def measure_standard_page_load_time(driver: webdriver.Chrome) -> float:
         """
@@ -626,31 +732,171 @@ class SeleniumHelper:
     
     @staticmethod
     def measure_form_save_time(driver: webdriver.Chrome) -> float:
-        # Force hard reload to ensure clean state
-        driver.execute_script("location.reload(true);")
-        SeleniumHelper.wait_for_form_page_load(driver)
+        # Check if this is a readonly form first (before any operations)
+        current_url = driver.current_url
+        if SeleniumHelper.is_likely_readonly_form(current_url):
+            if SeleniumHelper.logger:
+                SeleniumHelper.logger.info(f"Skipping save test for likely readonly form: {current_url}")
+            raise ValueError("Form is likely read-only based on URL structure and does not have a Save button")
+        
+        # Set Save button detection timeout to 15 seconds
+        SAVE_BUTTON_TIMEOUT = 15
         
         try:
-            # Wait for form to be ready for interaction
+            # Wait for form to be ready for interaction (without reload)
+            # Check if page is already loaded and form is ready
+            WebDriverWait(driver, 5).until(
+                lambda d: d.execute_script("return document.readyState === 'complete';")
+            )
+            
+            # Wait for any loading indicators to disappear
             loader_locator = SeleniumHelper.unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
-            WebDriverWait(driver, SeleniumHelper.timeout).until(loader_locator)
-            WebDriverWait(driver, SeleniumHelper.timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")))
+            WebDriverWait(driver, SAVE_BUTTON_TIMEOUT).until(loader_locator)
+            
+            # Ensure basic form elements are clickable
+            WebDriverWait(driver, SAVE_BUTTON_TIMEOUT).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")))
+            
         except Exception as ex:
             if SeleniumHelper.logger:
-                SeleniumHelper.logger.error(f"Form save preparation timeout: {str(ex)}")
+                SeleniumHelper.logger.warning(f"Form not immediately ready, trying with reload: {str(ex)}")
+            
+            # Fallback: reload if form is not ready
+            driver.execute_script("location.reload(true);")
+            SeleniumHelper.wait_for_form_page_load(driver)
+        
+            # Retry readiness check after reload
+            try:
+                loader_locator = SeleniumHelper.unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
+                WebDriverWait(driver, SAVE_BUTTON_TIMEOUT).until(loader_locator)
+                WebDriverWait(driver, SAVE_BUTTON_TIMEOUT).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")))
+            except Exception as retry_ex:
+                if SeleniumHelper.logger:
+                    SeleniumHelper.logger.error(f"Form save preparation timeout after reload: {str(retry_ex)}")
             raise
         
-        save_btns = driver.find_elements(By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")
+        # Hide interfering elements that can intercept clicks
+        SeleniumHelper._hide_interfering_elements(driver)
+        
+        # Comprehensive Save button detection for different form types
         save_btn_elem = None
-        for save_btn in save_btns:
-            if "Save" in save_btn.text:
-                save_btn_elem = save_btn
+        
+        # Strategy 1: Enhanced selectors for Kendo UI buttons and modern forms
+        enhanced_selectors = [
+            # Kendo UI buttons with specific structure
+            "button[kendobutton][type='submit']",                    # Kendo submit buttons
+            "button[kendobutton] span.k-button-text",                # Kendo button spans
+            "button.k-button.k-button-solid span.k-button-text",    # Kendo solid buttons
+            "button[role='button'] span.k-button-text",             # ARIA role buttons
+            
+            # Traditional selectors
+            "#btnUpdateForm",                                        # Standard form save button ID
+            "button[type='submit']",                                # Generic submit buttons  
+            "input[type='submit']",                                 # Submit inputs
+            ".k-button",                                            # Kendo button class
+            "button"                                                # All buttons as fallback
+        ]
+        
+        for selector in enhanced_selectors:
+            try:
+                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                for element in elements:
+                    # For span elements, get the parent button
+                    if element.tag_name == "span":
+                        button = element.find_element(By.XPATH, "./..")
+                        button_text = element.text.strip()
+                    else:
+                        button = element
+                        button_text = button.text.strip()
+                        
+                        # If button text is empty, try to get text from child span
+                        if not button_text:
+                            try:
+                                span_elem = button.find_element(By.CSS_SELECTOR, "span.k-button-text, .k-button-text, span")
+                                button_text = span_elem.text.strip()
+                            except:
+                                continue
+                    
+                    # Check if this is a Save button
+                    if "Save" in button_text and button.is_enabled() and button.is_displayed():
+                        save_btn_elem = button
+                        if SeleniumHelper.logger:
+                            SeleniumHelper.logger.debug(f"Found Save button using selector: {selector}, text: '{button_text}'")
                 break
                 
+                if save_btn_elem:
+                    break
+                    
+            except Exception as ex:
+                if SeleniumHelper.logger:
+                    SeleniumHelper.logger.debug(f"Selector '{selector}' failed: {str(ex)}")
+                continue
+        
+        # Strategy 2: Enhanced XPath search for Save buttons
+        if save_btn_elem is None:
+            try:
+                enhanced_xpath_selectors = [
+                    # Look for buttons containing "Save" in text or child elements
+                    "//button[contains(text(), 'Save') or .//span[contains(text(), 'Save')]]",
+                    "//button[@kendobutton and (.//span[contains(text(), 'Save')] or contains(text(), 'Save'))]",
+                    "//button[@role='button' and (.//span[contains(text(), 'Save')] or contains(text(), 'Save'))]",
+                    "//input[@type='submit' and contains(@value, 'Save')]", 
+                    "//*[contains(@class, 'k-button') and (.//span[contains(text(), 'Save')] or contains(text(), 'Save'))]"
+                ]
+                
+                for xpath in enhanced_xpath_selectors:
+                    try:
+                        buttons = driver.find_elements(By.XPATH, xpath)
+                        for button in buttons:
+                            if button.is_enabled() and button.is_displayed():
+                                save_btn_elem = button
+                                if SeleniumHelper.logger:
+                                    SeleniumHelper.logger.debug(f"Found Save button using XPath: {xpath}")
+                                break
+                        
+                        if save_btn_elem:
+                            break
+                            
+                    except Exception as ex:
+                        if SeleniumHelper.logger:
+                            SeleniumHelper.logger.debug(f"XPath '{xpath}' failed: {str(ex)}")
+                        continue
+                        
+            except Exception as ex:
+                if SeleniumHelper.logger:
+                    SeleniumHelper.logger.debug(f"XPath strategy failed: {str(ex)}")
+                pass
+        
+        # Strategy 3: Check if this might be a readonly form if no Save button found
+        if save_btn_elem is None:
+            # Simple check - if URL suggests readonly, treat as expected
+            if SeleniumHelper.is_likely_readonly_form(current_url):
+                if SeleniumHelper.logger:
+                    SeleniumHelper.logger.info(f"No Save button found on likely readonly form: {current_url}")
+                raise ValueError("Form is likely read-only based on URL structure and does not have a Save button")
+            else:
+                # Otherwise, this is an error that needs investigation
+                if SeleniumHelper.logger:
+                    SeleniumHelper.logger.error(f"Save button not found: {current_url} - Needs investigation")
+                    # Log available buttons for debugging
+                    try:
+                        all_buttons = driver.find_elements(By.TAG_NAME, "button")
+                        button_texts = [btn.text.strip() for btn in all_buttons if btn.text.strip()]
+                        SeleniumHelper.logger.debug(f"Available buttons on page: {button_texts}")
+                    except:
+                        pass
+                
+                raise NoSuchElementException("Save button not found - needs investigation")
+        
         if save_btn_elem is None:
             if SeleniumHelper.logger:
                 SeleniumHelper.logger.error("Save button not found on form")
             raise NoSuchElementException("'Save Form' was not found.")
+        
+        # Get initial network requests BEFORE clicking Save
+        try:
+            initial_requests = SeleniumHelper.get_ajax_requests(driver)
+        except:
+            initial_requests = []
             
         start_time = time.time()
         
@@ -663,20 +909,34 @@ class SeleniumHelper:
                 SeleniumHelper.logger.exception(f"Form filler error: {str(ex)}")
             # Don't re-raise - form filler errors shouldn't stop save measurement
             
-        # Retry logic for clicking save button
+        # Enhanced retry logic for clicking save button with JavaScript fallback
         attempts = 3
         start_time = time.time()
         while attempts > 0:
             attempts -= 1
             try:
-                WebDriverWait(driver, SeleniumHelper.timeout).until(SeleniumHelper.unpresence_of_element((By.CSS_SELECTOR, ".loader-circle")))
+                WebDriverWait(driver, SAVE_BUTTON_TIMEOUT).until(SeleniumHelper.unpresence_of_element((By.CSS_SELECTOR, ".loader-circle")))
                 driver.execute_script("window.scrollTo(0, 0);")
+                
+                # Hide interfering elements again before clicking (they might reappear)
+                SeleniumHelper._hide_interfering_elements(driver)
+                
+                # Try regular click first
                 save_btn_elem.click()
                 break
+                
             except ElementClickInterceptedException as ex:
-                if attempts > 0:  # Only sleep if we have more attempts
+                if attempts > 0:  # Only try JavaScript click if we have more attempts
                     if SeleniumHelper.logger:
-                        SeleniumHelper.logger.warning(f"Save button click intercepted, retrying... ({attempts} attempts left)")
+                        SeleniumHelper.logger.warning(f"Save button click intercepted, trying JavaScript click... ({attempts} attempts left)")
+                    
+                    try:
+                        # Force JavaScript click as fallback
+                        driver.execute_script("arguments[0].click();", save_btn_elem)
+                        break
+                    except Exception as js_ex:
+                        if SeleniumHelper.logger:
+                            SeleniumHelper.logger.warning(f"JavaScript click also failed: {str(js_ex)}")
                     time.sleep(1)
                     start_time = time.time()  # Reset timer after sleep
                 else:
@@ -685,7 +945,7 @@ class SeleniumHelper:
                     raise  # Re-raise on final attempt
                     
         try:
-            SeleniumHelper.wait_for_form_save_popup(driver)
+            SeleniumHelper.wait_for_form_save_popup(driver, initial_requests)
         except Exception as ex:
             if SeleniumHelper.logger:
                 SeleniumHelper.logger.error(f"Form save popup timeout: {str(ex)}")
@@ -694,6 +954,53 @@ class SeleniumHelper:
         elapsed = time.time() - start_time
         return elapsed
     
+    @staticmethod
+    def _hide_interfering_elements(driver: webdriver.Chrome):
+        """Hide elements that can interfere with Save button clicks"""
+        try:
+            driver.execute_script("""
+                // Hide iframe launcher that commonly intercepts clicks
+                var launcher = document.getElementById('launcher');
+                if (launcher) {
+                    launcher.style.display = 'none';
+                    launcher.style.visibility = 'hidden';
+                    launcher.style.zIndex = '-1';
+                }
+                
+                // Hide other common interfering elements
+                var interfering_selectors = [
+                    'iframe[title*="widget"]',
+                    'iframe[id="launcher"]', 
+                    '.widget-overlay',
+                    '.chat-widget',
+                    '.support-widget',
+                    '[id*="support"][id*="widget"]',
+                    '[class*="widget"][class*="overlay"]'
+                ];
+                
+                interfering_selectors.forEach(function(selector) {
+                    try {
+                        var elements = document.querySelectorAll(selector);
+                        elements.forEach(function(el) {
+                            el.style.display = 'none';
+                            el.style.visibility = 'hidden';
+                            el.style.zIndex = '-1';
+                        });
+                    } catch(e) {
+                        // Ignore selector errors
+                    }
+                });
+            """)
+            
+            if SeleniumHelper.logger:
+                SeleniumHelper.logger.debug("Hidden interfering elements that could intercept clicks")
+                
+        except Exception as ex:
+            # Not critical if hiding fails
+            if SeleniumHelper.logger:
+                SeleniumHelper.logger.debug(f"Could not hide interfering elements: {str(ex)}")
+            pass
+
     @staticmethod
     def get_ajax_requests(driver: webdriver.Chrome) -> list:
         try:
@@ -744,7 +1051,7 @@ class SeleniumHelper:
             results.text_length = element.textContent.trim().length;
             
             // Check for loading indicators
-            var loadingElements = element.querySelectorAll('.loading, .spinner, .blockUI, .loader-circle');
+            var loadingElements = element.querySelectorAll('.loading, .spinner, .blockUI, .loader-circle, .sk-activity-indicator, .sidekick.sk-activity-indicator');
             results.has_loading = loadingElements.length > 0;
             results.debug_info.loading_selectors = Array.from(loadingElements).map(el => el.className);
             

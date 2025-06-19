@@ -18,6 +18,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
 
 package_path = os.path.abspath('..')
 sys.path.append(package_path)
@@ -155,7 +156,7 @@ def measure_load_time(driver, url, loops, scenario):
         # Let measurement functions handle their own navigation
         
         # Check if scenario returns tuple (new format) or just time (old format)
-        if hasattr(scenario, '__name__') and 'form' in scenario.__name__:
+        if hasattr(scenario, '__name__') and 'form_page_load' in scenario.__name__:
             # New format returns (load_time, network_state)
             measured_time, network_state = scenario(driver, url)
             
@@ -173,8 +174,13 @@ def measure_load_time(driver, url, loops, scenario):
                     for req in slow_requests:
                         print(f"   {req.get('url', 'Unknown')} - {req.get('duration', 0):.0f}ms ({req.get('status', 'Unknown')})")
         else:
-            # Old format returns just load_time
-            measured_time = scenario(driver)
+            # Fixed: measure_form_save_time only takes driver argument
+            if hasattr(scenario, '__name__') and 'save' in scenario.__name__:
+                measured_time = scenario(driver)  # Only driver for save functions
+            elif hasattr(scenario, '__name__') and 'standard_page_load' in scenario.__name__:
+                measured_time = scenario(driver)  # Only driver for standard page load
+            else:
+                measured_time = scenario(driver, url)  # driver + url for other functions
             api_requests = []
         
         totals[j] = measured_time
@@ -330,143 +336,174 @@ def main():
         row[4].value = datetime.now().strftime('%y-%m-%d %H:%M:%S')
         print(f"\n{url}")
         logger.debug(f"Processing: {url}")
-        base_url = extract_base_url(url)
-        if prev_base_url != base_url or is_first_row:
-            if idm_auth:
-                SupportTech.login(driver)
-                time.sleep(3)
-                SupportTech.open_website(driver, base_url, "SFTDVTester")
-                # Initial navigation to establish session - this doesn't count as measurement
-                driver.get(url)
-            else:
-                SeleniumHelper.login_user(base_url, driver, "SFTDVTester", "ht2jGMM2GnC3bwX7")
-            build_version = SeleniumHelper.get_build_version(driver)
-            is_first_row = False
-
-        # Initial navigation to establish session - this doesn't count as measurement
-        driver.get(url)
-
-        scenario = SeleniumHelper.measure_form_page_load_time
-        is_form_page_url = SeleniumHelper.is_form_page_url(url)
-        if not is_form_page_url:
-                scenario = SeleniumHelper.measure_standard_page_load_time
-
-        error_in_page_loading = False
         
-        # Remove duplicate navigation - let measurement functions handle all loading
-        # For form pages, measure_form_page_load_time will handle its own navigation
-        # For standard pages, we need to navigate first
-        if not is_form_page_url:
+        try:
+            base_url = extract_base_url(url)
+            if prev_base_url != base_url or is_first_row:
+                if idm_auth:
+                    SupportTech.login(driver)
+                    time.sleep(3)
+                    SupportTech.open_website(driver, base_url, "SFTDVTester")
+                    # Initial navigation to establish session - this doesn't count as measurement
+                    driver.get(url)
+                else:
+                    SeleniumHelper.login_user(base_url, driver, "SFTDVTester", "ht2jGMM2GnC3bwX7")
+                build_version = SeleniumHelper.get_build_version(driver)
+                is_first_row = False
+
             driver.get(url)
 
-        if not error_in_page_loading:
-            try:
-                # Use standard measurement for all pages - no more mixed measurement
-                (first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, loops, scenario)
-                reset_styles([row[0], row[1]])
-            except TimeoutException as ex:
-                # Form load timeout - record error in column D
-                (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
-                row[3].value = f"Timeout waiting for form to load: {timeout}s"
-                mark_form_as_invalid(row)
-                error_in_page_loading = True
-                logger.error(f"Timeout waiting for form to load: {url}")
-            except Exception as e:
-                (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
-                row[3].value = f"Page speed measurement error: {str(e)[:50]}"
-                mark_form_as_invalid(row)
-                error_in_page_loading = True
-                logger.error(f"Page speed measurement error for {url}: {str(e)}")
+            scenario = SeleniumHelper.measure_form_page_load_time
+            is_form_page_url = SeleniumHelper.is_form_page_url(url)
+            if not is_form_page_url:
+                    scenario = SeleniumHelper.measure_standard_page_load_time
 
-        if not error_in_page_loading:
-            try:
-                # Wait for page to be fully loaded before checking title
-                WebDriverWait(driver, 10).until(
-                    lambda d: d.execute_script("return document.readyState") == "complete"
-                )
-                
-                # Try to find page title with multiple selectors and wait
-                page_title = None
-                title_selectors = ["h1.page-title", "h1", ".page-title", "title"]
-                
-                for selector in title_selectors:
-                    try:
-                        if selector == "title":
-                            page_title = driver.title
-                        else:
-                            element = WebDriverWait(driver, 5).until(
-                                EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-                            )
-                            page_title = element.text.strip()
-                        
-                        if page_title:  # Found a non-empty title
-                            break
-                    except:
-                        continue
-                
-                if page_title and ("Error" in page_title or page_title == "Access Restricted"):
-                    mark_form_as_invalid(row, color="0000FF")
-                    logger.error(f"Error detected '{page_title}' in {url}")
-                    row[3].value = page_title
+            error_in_page_loading = False
+            
+            if not is_form_page_url:
+                driver.get(url)
+
+            if not error_in_page_loading:
+                try:
+                    (first_load_time, min_time, max_time, mean_time) = measure_load_time(driver, url, loops, scenario)
+                    reset_styles([row[0], row[1]])
+                except TimeoutException as ex:
+                    # Form load timeout - record error in column D
+                    (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
+                    row[3].value = f"Timeout waiting for form to load: {timeout}s"
+                    mark_form_as_invalid(row)
                     error_in_page_loading = True
-                elif not page_title:
-                    logger.debug(f"No page title found for {url}, but continuing...")
+                    logger.error(f"Timeout waiting for form to load: {url}")
+                except Exception as e:
+                    (first_load_time, min_time, max_time, mean_time) = (timeout, timeout, timeout, timeout)
+                    row[3].value = f"Page speed measurement error: {str(e)[:50]}"
+                    mark_form_as_invalid(row)
+                    error_in_page_loading = True
+                    logger.error(f"Page speed measurement error for {url}: {str(e)}")
+
+            # SAVE MEASUREMENT SECTION
+            error_in_save = False
+            if is_form_page_url and not disable_save and not error_in_page_loading:
+                try:
+                    # Check if this is a likely readonly form before attempting save
+                    if SeleniumHelper.is_likely_readonly_form(url):
+                        if logger:
+                            logger.info(f"Skipping save measurement for likely readonly form: {url}")
+                        row[3].value = "Likely read-only form (no Save button expected)"
+                        row[10].value = ""
+                        row[11].value = ""
+                        row[12].value = ""
+                    else:
+                        (first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, loops, SeleniumHelper.measure_form_save_time)
+                        
+                except ValueError as ex:
+                    error_in_save = True
+                    error_msg = str(ex)
                     
-            except Exception as ex:
-                logger.debug(f"Page title check failed for {url}: {str(ex)}")
-                # Don't mark as error - just continue without title check
+                    if "likely read-only" in error_msg.lower() or "no save button" in error_msg.lower():
+                        logger.info(f"Form appears to be read-only: {url} - {error_msg}")
+                        row[3].value = "Likely read-only form (no Save button expected)"
+                        error_in_save = False  # This is not an error
+                    elif "non-functional" in error_msg.lower():
+                        mark_form_as_invalid(row, color="FF9900")  # Orange for non-functional buttons
+                        logger.error(f"Form save button non-functional: {url} - {error_msg}")
+                        row[3].value = "Save button found but non-functional"
+                    elif "network error" in error_msg.lower():
+                        mark_form_as_invalid(row)
+                        logger.error(f"Form save network error: {url} - {error_msg}")
+                        row[3].value = f"Save failed: Network error ({error_msg.split(':')[1].strip() if ':' in error_msg else 'Status code error'})"
+                    else:
+                        mark_form_as_invalid(row)
+                        logger.error(f"Form save exception: {url} - {error_msg}")
+                        row[3].value = "Exception occurred while saving the form!"
+                        
+                except TimeoutException as ex:
+                    mark_form_as_invalid(row)
+                    error_in_save = True
+                    logger.error(f"Form save timeout: {url} - No success confirmation after 30s")
+                    row[3].value = "Save timeout: No confirmation received"
+                    
+                except ElementClickInterceptedException as ex:
+                    mark_form_as_invalid(row, color="9933FF")
+                    error_in_save = True
+                    logger.error(f"Form save click intercepted: {url} - Save button not clickable")
+                    row[3].value = "Save button click intercepted"
+                    
+                except NoSuchElementException as ex:
+                    error_in_save = True
+                    error_msg = str(ex)
+                    
+                    # Simle handling - we can't always distinguish between readonly and errors
+                    if SeleniumHelper.is_likely_readonly_form(url):
+                        # If URL suggests readonly, treat as expected behavior
+                        logger.info(f"No Save button found on likely readonly form: {url}")
+                        row[3].value = "Likely read-only form (no Save button expected)"
+                        error_in_save = False  # This is not an error
+                    else:
+                        # Otherwise, treat as an error that needs investigation
+                        mark_form_as_invalid(row, color="FF6600")  # Orange for investigation needed
+                        logger.error(f"Save button not found: {url} - Needs investigation")
+                        row[3].value = "Save button not found "
+                    
+                except StaleElementReferenceException as ex:
+                    mark_form_as_invalid(row, color="550000")
+                    error_in_save = True
+                    logger.error(f"Form save stale element: {url} - DOM changed during save")
+                    row[3].value = "DOM changed during save"
+                    
+                except TypeError as ex:
+                    mark_form_as_invalid(row, color="FF6600")
+                    error_in_save = True
+                    logger.error(f"Form save TypeError: {url} - Function call error: {str(ex)}")
+                    row[3].value = "Function call error (TypeError)"
+                    
+                except Exception as ex:
+                    mark_form_as_invalid(row, color="800080")
+                    error_in_save = True
+                    logger.error(f"Form save unexpected error: {url} - {str(ex)}")
+                    row[3].value = f"Unexpected error: {str(ex)[:30]}"
 
-        error_in_save = False
-        if is_form_page_url and not disable_save and not error_in_page_loading:
-            try:
-                (first_save_time, min_save_time, max_save_time, mean_save_time) = measure_load_time(driver, url, loops, SeleniumHelper.measure_form_save_time)
-            except ValueError as ex:
-                mark_form_as_invalid(row)
-                error_in_save = True
-                logger.error(f"Exception occurred while saving the form: {url}")
-                row[3].value = "Exception occured while saving the form!"
-            except TimeoutException as ex:
-                mark_form_as_invalid(row)
-                error_in_save = True
-                logger.error(f"Form save timeout: {url}")
-            except ElementClickInterceptedException as ex:
-                mark_form_as_invalid(row, color="9933FF")
-                error_in_save = True
-                logger.error(f"Form save click intercepted: {url}")
-            except NoSuchElementException as ex:
-                error_in_save = True
-                logger.error(f"Form save element not found: {url}")
-            except StaleElementReferenceException as ex:
-                mark_form_as_invalid(row, color="550000")
-                error_in_save = True
-                logger.error(f"Form save stale element: {url}")
+            row[5].value = f"{first_load_time:.2f}"
+            row[6].value = f"{min_time:.2f}"
+            row[7].value = f"{max_time:.2f}"
+            row[8].value = f"{mean_time:.2f}"
 
-        row[5].value = f"{first_load_time:.2f}"
-        row[6].value = f"{min_time:.2f}"
-        row[7].value = f"{max_time:.2f}"
-        row[8].value = f"{mean_time:.2f}"
+            compare_measures(row[17], row[26], row[18])
+            compare_measures(row[8], row[17], row[9])
 
-        compare_measures(row[17], row[26], row[18])
-        compare_measures(row[8], row[17], row[9])
+            if is_form_page_url and not disable_save and not error_in_page_loading:
+                if not error_in_save:
+                    row[10].value = f"{min_save_time:.2f}"
+                    row[11].value = f"{max_save_time:.2f}"
+                    row[12].value = f"{mean_save_time:.2f}"
+                    compare_measures(row[21], row[29], row[22])
+                    compare_measures(row[12], row[21], row[13])
+                else:
+                    row[10].value = ""
+                    row[11].value = ""
+                    row[12].value = ""
 
-        if is_form_page_url and not disable_save and not error_in_page_loading:
-            if not error_in_save:
-                row[10].value = f"{min_save_time:.2f}"
-                row[11].value = f"{max_save_time:.2f}"
-                row[12].value = f"{mean_save_time:.2f}"
-                compare_measures(row[21], row[29], row[22])
-                compare_measures(row[12], row[21], row[13])
-            else:
+            if disable_save or error_in_page_loading:
                 row[10].value = ""
                 row[11].value = ""
                 row[12].value = ""
 
-        if disable_save or error_in_page_loading:
+            flag_high_load_time([row[5], row[6], row[7], row[8], row[10], row[11], row[12]], threshold)
+            
+        except Exception as critical_ex:
+            logger.error(f"Critical error processing {url}: {str(critical_ex)}")
+            row[3].value = f"Critical error: {str(critical_ex)[:40]}"
+            mark_form_as_invalid(row, color="000000")  # Black for critical errors
+            
+            # Set default values to prevent crashes
+            row[5].value = f"{timeout:.2f}"
+            row[6].value = f"{timeout:.2f}"
+            row[7].value = f"{timeout:.2f}"
+            row[8].value = f"{timeout:.2f}"
             row[10].value = ""
             row[11].value = ""
             row[12].value = ""
-
-        flag_high_load_time([row[5], row[6], row[7], row[8], row[10], row[11], row[12]], threshold)
+        
         prev_base_url = base_url
         head_cell_top.value = f"{build_version} {timestamp}"
         head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed}mb/s, loops: {loops}"
