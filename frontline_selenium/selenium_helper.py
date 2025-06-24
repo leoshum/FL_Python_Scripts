@@ -379,17 +379,17 @@ class SeleniumHelper:
             except Exception:
                 # Fallback: direct element search but still need to check for success
                 try:
-                if SeleniumHelper.is_plan_page_url(driver.current_url):
-                    alert_elem = driver.find_element(By.CSS_SELECTOR, 'div[role="alert"]')
+                    if SeleniumHelper.is_plan_page_url(driver.current_url):
+                        alert_elem = driver.find_element(By.CSS_SELECTOR, 'div[role="alert"]')
 
-                    if alert_elem and "Form has been updated successfully" in alert_elem.text:
+                        if alert_elem and "Form has been updated successfully" in alert_elem.text:
                             success_found = True
-                        break
-                else:
-                    notification_elem = driver.find_element(By.TAG_NAME, 'kendo-notification')
-                    if notification_elem and "Form has been updated successfully" in notification_elem.text:
+                            break
+                    else:
+                        notification_elem = driver.find_element(By.TAG_NAME, 'kendo-notification')
+                        if notification_elem and "Form has been updated successfully" in notification_elem.text:
                             success_found = True
-                        break
+                            break
                 except:
                     # If fallback also fails, continue the loop
                     pass

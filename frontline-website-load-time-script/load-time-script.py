@@ -64,99 +64,43 @@ class Config:
     # Network monitoring
     SLOW_REQUEST_THRESHOLD = 3000  # milliseconds (3 seconds) - threshold for flagging slow API requests
 
-    # Error classification
-    class ErrorTypes:
-        TIMEOUT = "timeout"
-        FALLBACK = "fallback"
-        API_ERROR = "api_error"
-        NETWORK_ERROR = "network_error"
-        READONLY = "readonly"
-        ELEMENT_NOT_FOUND = "element_not_found"
-        TECHNICAL = "technical"
-        FORM_LOAD_ERROR = "form_load_error"  # NEW: For form load errors during page load
-        TIMEOUT_ERROR = "timeout_error"
-        TECHNICAL_ERROR = "technical_error"
+
+# SIMPLE BUSINESS LOGIC EXCEPTIONS - NOT TECHNICAL ERRORS!
+class SaveButtonNotFoundError(Exception):
+    """Save button not found - this is NORMAL for some forms (not an error)"""
+    pass
+
+class ServerError(Exception):
+    """HTTP 500 server error - business logic problem"""
+    def __init__(self, message, status_code=None, url=None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.url = url
+
+class SavePopupError(Exception):
+    """Error popup appeared during save - business logic problem"""
+    def __init__(self, popup_message):
+        super().__init__(f"Save failed: {popup_message}")
+        self.popup_message = popup_message
 
 
 class MeasurementResult:
-    def __init__(self, success=True, error_type=None, error_message="", 
-                 first_measure=0.0, min_time=0.0, max_time=0.0, mean_time=0.0):
-        self.success = success
-        self.error_type = error_type
-        self.error_message = error_message
-        self.first_measure = first_measure
-        self.min_time = min_time
-        self.max_time = max_time
-        self.mean_time = mean_time
-    
-    @property
-    def is_timeout_or_fallback(self):
-        return self.error_type in [Config.ErrorTypes.TIMEOUT, Config.ErrorTypes.FALLBACK]
-
-
-class ErrorClassifier:
-    @staticmethod
-    def classify_load_error(error_message: str) -> Tuple[str, str]:
-        """SIMPLIFIED: Classify load error and return (error_type, simple_message)"""
-        error_lower = error_message.lower()
-        
-        # Chrome crashes - very common
-        if ("gethandleverifier" in error_lower or "stacktrace" in error_lower or 
-            "chrome" in error_lower or "driver" in error_lower):
-            return Config.ErrorTypes.TECHNICAL_ERROR, "Browser crashed - restart needed"
-        
-        # HTTP errors - server problems
-        if ("http 500" in error_lower or "500" in error_message or 
-            "server error" in error_lower or "internal server" in error_lower):
-            return Config.ErrorTypes.FORM_LOAD_ERROR, "Server error (HTTP 500)"
-        
-        # Network/connection issues
-        if ("timeout" in error_lower or "timed out" in error_lower or 
-            "connection" in error_lower or "network" in error_lower):
-            return Config.ErrorTypes.TIMEOUT_ERROR, "Page loading timeout"
-        
-        # Popup errors
-        if ("popup" in error_lower or "error has occurred" in error_lower):
-            return Config.ErrorTypes.FORM_LOAD_ERROR, "Page showed error popup"
-        
-        # Default - keep it simple
-        return Config.ErrorTypes.TECHNICAL_ERROR, "Page loading failed"
-    
-    @staticmethod
-    def classify_save_error(exception):
-        """SIMPLIFIED: Classify save error and return (error_type, simple_message)"""
-        error_msg = str(exception).lower()
-        
-        # Check for timeout specifically
-        if isinstance(exception, TimeoutException) or "timeout" in error_msg:
-            if "save success popup not found" in error_msg:
-                return Config.ErrorTypes.TIMEOUT_ERROR, "Save timeout - success popup not detected within 20 seconds"
-            else:
-                return Config.ErrorTypes.TIMEOUT_ERROR, "Save operation timeout"
-        
-        # Check for specific save errors
-        if "save failed:" in error_msg:
-            # Extract the actual error message after "Save failed:"
-            if "500" in error_msg or "server error" in error_msg:
-                return Config.ErrorTypes.API_ERROR, "Save failed due to server error (HTTP 500)"
-            else:
-                return Config.ErrorTypes.API_ERROR, "Save failed due to server error"
-        
-        # Chrome crashes
-        if ("gethandleverifier" in error_msg or "stacktrace" in error_msg or 
-            "chrome" in error_msg or "driver" in error_msg):
-            return Config.ErrorTypes.TECHNICAL_ERROR, "Browser crashed during save"
-        
-        # Button not found
-        if isinstance(exception, NoSuchElementException) or "no such element" in error_msg:
-            return Config.ErrorTypes.TECHNICAL_ERROR, "Save button not found"
-        
-        # Click issues
-        if "failed to click save button" in error_msg:
-            return Config.ErrorTypes.TECHNICAL_ERROR, "Could not click Save button"
-        
-        # Default
-        return Config.ErrorTypes.TECHNICAL_ERROR, "Save operation failed"
+    """Simple result for successful measurements - errors are handled as exceptions"""
+    def __init__(self, first_measure=0.0, min_time=0.0, max_time=0.0, mean_time=0.0, success=None, error=None):
+        # For backwards compatibility during transition, but success should always be True
+        if success is False and error:
+            # This is for legacy Excel writer compatibility
+            self.success = False
+            self.error = error  # Keep original error object/string
+            self.error_message = str(error)  # String representation for display
+            self.error_color = Config.Colors.RED  # Default error color
+        else:
+            # Normal case - successful measurement
+            self.success = True
+            self.first_measure = first_measure
+            self.min_time = min_time
+            self.max_time = max_time
+            self.mean_time = mean_time
 
 
 class FormMeasurer:
@@ -165,15 +109,6 @@ class FormMeasurer:
         self.logger = logger
     
     def is_frontline_api_url(self, url):
-        """
-        Check if URL belongs to Frontline Education API
-        
-        Args:
-            url (str): URL to check
-            
-        Returns:
-            bool: True if URL is Frontline Education API, False otherwise
-        """
         if not url:
             return False
             
@@ -190,308 +125,180 @@ class FormMeasurer:
             '/api/',
             '/plan/api/',
             '/planng/api/',
-            'api.frontlineeducation.com'
         ]
         
         return any(pattern in url_lower for pattern in api_patterns)
     
-    def _check_for_login_page(self):
-        """
-        Check if current page is a login page instead of the expected form
-        
-        Returns:
-            bool: True if login page detected, False otherwise
-        """
-        try:
-            # Check for common login page indicators
-            login_indicators = self.driver.execute_script("""
-                var indicators = [];
-                var pageText = document.body.innerText || document.body.textContent || '';
-                var pageHtml = document.body.innerHTML || '';
-                
-                // Check for login-specific text
-                var loginTexts = [
-                    'Reset your password',
-                    'Credentials Reminder',
-                    'Username:',
-                    'Password:',
-                    'Sign in',
-                    'Login',
-                    'Log in'
-                ];
-                
-                loginTexts.forEach(function(text) {
-                    if (pageText.includes(text)) {
-                        indicators.push('Login text found: ' + text);
-                    }
-                });
-                
-                // Check for login form elements
-                var loginElements = [
-                    'input[type="password"]',
-                    'input[name*="password"]',
-                    'input[name*="username"]',
-                    'input[name*="login"]',
-                    '.login-form',
-                    '#login',
-                    '.credentials'
-                ];
-                
-                loginElements.forEach(function(selector) {
-                    try {
-                        var elements = document.querySelectorAll(selector);
-                        if (elements.length > 0) {
-                            indicators.push('Login element found: ' + selector);
-                        }
-                    } catch(e) {
-                        // Skip invalid selectors
-                    }
-                });
-                
-                // Check for specific Frontline login elements
-                if (pageHtml.includes('ctlCredentialsReminder') || 
-                    pageHtml.includes('LoginControl') ||
-                    pageHtml.includes('PasswordReminder')) {
-                    indicators.push('Frontline login page detected');
-                }
-                
-                return indicators;
-            """)
-            
-            if login_indicators:
-                self.logger.warning(f"Login page detected: {login_indicators}")
-                return True
-                
-            return False
-            
-        except Exception as e:
-            self.logger.debug(f"Login page check failed: {e}")
-            return False
-    
-    def _check_for_form_content(self):
-        """
-        Check if page contains actual form content (not just login page)
-        
-        Returns:
-            bool: True if form content detected, False otherwise
-        """
-        try:
-            # Check for form-specific elements
-            form_indicators = self.driver.execute_script("""
-                var indicators = [];
-                
-                // Check for form elements
-                var formElements = [
-                    'form',
-                    'input[type="text"]',
-                    'input[type="email"]',
-                    'input[type="tel"]',
-                    'textarea',
-                    'select',
-                    'button[type="submit"]',
-                    '.k-button',
-                    '[kendobutton]',
-                    '.form-group',
-                    '.form-field'
-                ];
-                
-                var formElementCount = 0;
-                formElements.forEach(function(selector) {
-                    try {
-                        var elements = document.querySelectorAll(selector);
-                        formElementCount += elements.length;
-                    } catch(e) {
-                        // Skip invalid selectors
-                    }
-                });
-                
-                if (formElementCount > 3) {  // More than just login elements
-                    indicators.push('Form content detected: ' + formElementCount + ' form elements');
-                }
-                
-                // Check for Angular/Kendo UI components (typical for Frontline forms)
-                var angularElements = document.querySelectorAll('[ng-star-inserted], .k-widget, [kendo-]');
-                if (angularElements.length > 5) {
-                    indicators.push('Angular/Kendo form components detected: ' + angularElements.length);
-                }
-                
-                return indicators;
-            """)
-            
-            if form_indicators:
-                self.logger.debug(f"Form content detected: {form_indicators}")
-                return True
-                
-            return False
-            
-        except Exception as e:
-            self.logger.debug(f"Form content check failed: {e}")
-            return False
-    
     def measure_page_load(self, url, loops):
-        """PROPER ARCHITECTURE: Load once, measure multiple times with AUTH CHECK"""
-        try:
-            # 1. LOAD PAGE ONCE - with timing
-            self.logger.debug(f"Loading page: {url}")
-            load_start = time.time()
+        """CLEAN: No exception handling - let them bubble up to main()"""
+        # 1. LOAD PAGE ONCE - with timing
+        self.logger.debug(f"Loading page: {url}")
+        load_start = time.time()
+        
+        # Don't reload if we're already on the page (from open_new_tab)
+        if self.driver.current_url != url:
+            self.driver.get(url)
+        
+        # Wait for basic page load
+        self._wait_for_page_ready()
+        initial_load_time = time.time() - load_start
+        
+        # 2. IMPORTANT: Wait for Angular/AJAX requests to complete
+        # HTTP 500 errors often come from AJAX calls after initial page load
+        self.logger.debug("Waiting for Angular/AJAX requests to complete...")
+        time.sleep(2)  # Give time for AJAX requests
+        
+        # 3. CHECK FOR ERRORS ON LOADED PAGE (including AJAX errors)
+        self._check_for_page_errors()  # This will raise specific exceptions
+        
+        # 4. MEASURE MULTIPLE TIMES WITHOUT RELOADING
+        times = [initial_load_time]  # First measurement is the actual load
+        self.logger.info(f"Initial load: {initial_load_time:.1f}s")
+        
+        # Additional measurements (refresh/reload testing)
+        for i in range(1, loops):
+            measure_start = time.time()
             
-            # Don't reload if we're already on the page (from open_new_tab)
-            if self.driver.current_url != url:
-                self.driver.get(url)
-            
-            # Wait for basic page load
+            # Refresh page for additional measurements
+            self.driver.refresh()
             self._wait_for_page_ready()
-            initial_load_time = time.time() - load_start
             
-            # 2. CRITICAL: Check if we got a login page instead of the form
-            if self._check_for_login_page():
-                return MeasurementResult(
-                    success=False, 
-                    error_type=Config.ErrorTypes.FORM_LOAD_ERROR, 
-                    error_message="Authentication required - login page detected instead of form"
-                )
+            # Wait for AJAX after refresh too
+            time.sleep(1)
             
-            # 3. Check if we have actual form content
-            if not self._check_for_form_content():
-                return MeasurementResult(
-                    success=False, 
-                    error_type=Config.ErrorTypes.FORM_LOAD_ERROR, 
-                    error_message="No form content detected - possible authentication or access issue"
-                )
+            # Check for errors after refresh
+            self._check_for_page_errors()
             
-            # 4. IMPORTANT: Wait for Angular/AJAX requests to complete
-            # HTTP 500 errors often come from AJAX calls after initial page load
-            self.logger.debug("Waiting for Angular/AJAX requests to complete...")
-            time.sleep(2)  # Give time for AJAX requests
-            
-            # 5. CHECK FOR ERRORS ON LOADED PAGE (including AJAX errors)
-            errors = self._check_for_errors()
-            if errors:
-                self.logger.error(f"Page load errors detected: {errors}")
-                return MeasurementResult(
-                    success=False, 
-                    error_type=Config.ErrorTypes.FORM_LOAD_ERROR, 
-                    error_message=errors[0]
-                )
-            
-            # 6. MEASURE MULTIPLE TIMES WITHOUT RELOADING
-            times = [initial_load_time]  # First measurement is the actual load
-            self.logger.info(f"Initial load: {initial_load_time:.1f}s")
-            
-            # Additional measurements (refresh/reload testing)
-            for i in range(1, loops):
-                try:
-                    measure_start = time.time()
-                    
-                    # Refresh page for additional measurements
-                    self.driver.refresh()
-                    self._wait_for_page_ready()
-                    
-                    # Wait for AJAX after refresh too
-                    time.sleep(1)
-                    
-                    # Check for errors after refresh
-                    refresh_errors = self._check_for_errors()
-                    if refresh_errors:
-                        self.logger.warning(f"Errors after refresh {i+1}: {refresh_errors}")
-                        continue  # Skip this measurement
-                    
-                    measured_time = time.time() - measure_start
-                    times.append(measured_time)
-                    self.logger.info(f"Load {i+1}/{loops}: {measured_time:.1f}s")
-                    
-                except Exception as e:
-                    self.logger.warning(f"Load {i+1}/{loops} failed: {str(e)[:100]}")
-                    continue
-            
-            # 7. RETURN RESULTS
-            if not times:
-                raise Exception("All load measurements failed")
-            
-            return MeasurementResult(
-                success=True,
-                first_measure=times[0],
-                min_time=min(times),
-                max_time=max(times),
-                mean_time=sum(times) / len(times)
-            )
-            
-        except Exception as e:
-            self.logger.error(f"Page load measurement failed: {str(e)}")
-            error_type, error_message = ErrorClassifier.classify_load_error(str(e))
-            return MeasurementResult(success=False, error_type=error_type, error_message=error_message)
+            measured_time = time.time() - measure_start
+            times.append(measured_time)
+            self.logger.info(f"Load {i+1}/{loops}: {measured_time:.1f}s")
+        
+        # 5. RETURN RESULTS
+        return MeasurementResult(
+            first_measure=times[0],
+            min_time=min(times),
+            max_time=max(times),
+            mean_time=sum(times) / len(times)
+        )
     
     def measure_save_time(self, url, loops):
-        """
-        SIMPLE AND RELIABLE SAVE MEASUREMENT
+        """CLEAN: No exception handling - let them bubble up to main()"""
+        self.logger.info("Starting save measurement on already loaded page...")
         
-        Flow:
-        1. Page already loaded (no reload needed!)
-        2. Wait for Angular/dynamic content to fully render
-        3. Try to find Save button (20 times every 0.5 seconds)
-        4. If no button → return "Save button not found" (not an error!)
-        5. If button found → click and wait for success popup (20 seconds)
-        6. Monitor for errors during save process
+        # STEP 0: Wait for Angular/dynamic content to fully render
+        self._wait_for_angular_content()
         
-        Returns: MeasurementResult with clear status
-        """
-        try:
-            self.logger.info("Starting save measurement on already loaded page...")
+        # STEP 1: Find Save button with 20-second wait (page might render dynamically)
+        save_button = self._find_save_button_with_wait()
+        
+        if not save_button:
+            # This is NOT an error - just information
+            self.logger.info("No Save button found - this is normal for some forms")
+            raise SaveButtonNotFoundError()
+        
+        # STEP 2: We found a Save button - now measure save time
+        self.logger.info(f"Found Save button: '{save_button.text.strip()}' - starting save measurement")
+        
+        # Single save measurement (no loops needed)
+        save_start_time = time.time()
+        
+        # Click Save button
+        self._click_save_button_reliably(save_button)
+        
+        # Wait for save completion (20 seconds timeout)
+        self._wait_for_save_success_popup(timeout=20)
+        
+        save_elapsed_time = time.time() - save_start_time
+        
+        self.logger.info(f"Save completed successfully in {save_elapsed_time:.1f}s")
+        
+        return MeasurementResult(
+            first_measure=save_elapsed_time,
+            min_time=save_elapsed_time,
+            max_time=save_elapsed_time,
+            mean_time=save_elapsed_time
+        )
+    
+    def _check_for_page_errors(self):
+        """Check for page errors and raise simple business exceptions"""
+        # Check for error popups and HTTP errors
+        error_info = self.driver.execute_script("""
+            var result = { 
+                hasPopupError: false, 
+                popupMessage: '', 
+                hasServerError: false, 
+                serverErrorDetails: '' 
+            };
             
-            # STEP 0: Wait for Angular/dynamic content to fully render
-            self._wait_for_angular_content()
+            // 1. Check for visible error popups
+            var errorSelectors = [
+                '.k-notification-error',
+                '.alert-danger',
+                '.error',
+                '.error-popup',
+                '.popup-error',
+                '[role="alert"][class*="error"]',
+                '.notification-error'
+            ];
             
-            # STEP 1: Find Save button with 20-second wait (page might render dynamically)
-            save_button = self._find_save_button_with_wait()
+            for (var i = 0; i < errorSelectors.length; i++) {
+                var elements = document.querySelectorAll(errorSelectors[i]);
+                for (var j = 0; j < elements.length; j++) {
+                    var element = elements[j];
+                    if (element.offsetHeight > 0 && element.offsetWidth > 0) {
+                        var text = element.textContent || element.innerText || '';
+                        if (text.trim().length > 0) {
+                            result.hasPopupError = true;
+                            result.popupMessage = text.trim();
+                            return result;
+                        }
+                    }
+                }
+            }
             
-            if not save_button:
-                # This is NOT an error - just record that no save button exists
-                self.logger.info("No Save button found - this is normal for some forms")
-                return MeasurementResult(
-                    success=True,  # This is success! We successfully determined no save button
-                    error_type=None,
-                    error_message="No Save button found on this form",
-                    first_measure=0.0,
-                    min_time=0.0,
-                    max_time=0.0,
-                    mean_time=0.0
-                )
+            // 2. Check for HTTP 500 errors via Performance API (Frontline only)
+            try {
+                var entries = performance.getEntriesByType('resource');
+                for (var k = 0; k < entries.length; k++) {
+                    var entry = entries[k];
+                    var url = entry.name.toLowerCase();
+                    if (url.includes('frontlineeducation.com') && entry.responseStatus >= 500) {
+                        result.hasServerError = true;
+                        result.serverErrorDetails = 'HTTP ' + entry.responseStatus + ' - ' + entry.name;
+                        return result;
+                    }
+                }
+            } catch(perfError) {
+                // Performance API not available
+            }
             
-            # STEP 2: We found a Save button - now measure save time
-            self.logger.info(f"Found Save button: '{save_button.text.strip()}' - starting save measurement")
+            // 3. Check for server error text in page content
+            try {
+                var bodyText = document.body.innerText || document.body.textContent || '';
+                var lowerText = bodyText.toLowerCase();
+                
+                if (lowerText.includes('500') || 
+                    lowerText.includes('internal server error') ||
+                    lowerText.includes('server error')) {
+                    result.hasServerError = true;
+                    result.serverErrorDetails = 'Server error text found in page content';
+                    return result;
+                }
+            } catch(contentError) {
+                // Ignore content check errors
+            }
             
-            # Single save measurement (no loops needed)
-            save_start_time = time.time()
-            
-            # Click Save button
-            self._click_save_button_reliably(save_button)
-            
-            # Wait for save completion (20 seconds timeout)
-            self._wait_for_save_success_popup(timeout=20)
-            
-            save_elapsed_time = time.time() - save_start_time
-            
-            self.logger.info(f"Save completed successfully in {save_elapsed_time:.1f}s")
-            
-            return MeasurementResult(
-                success=True,
-                error_type=None,
-                error_message="",
-                first_measure=save_elapsed_time,
-                min_time=save_elapsed_time,
-                max_time=save_elapsed_time,
-                mean_time=save_elapsed_time
-            )
-            
-        except Exception as e:
-            # Real errors (network issues, timeouts, etc.)
-            self.logger.error(f"Save measurement failed: {str(e)}")
-            error_type, error_message = ErrorClassifier.classify_save_error(e)
-            return MeasurementResult(
-                success=False, 
-                error_type=error_type, 
-                error_message=error_message
-            )
+            return result;
+        """)
+        
+        # Raise simple business exceptions
+        if error_info.get('hasPopupError'):
+            popup_msg = error_info.get('popupMessage', 'Unknown popup error')
+            raise Exception(f"Page showed error popup: {popup_msg}")
+        
+        if error_info.get('hasServerError'):
+            server_details = error_info.get('serverErrorDetails', 'Unknown server error')
+            raise ServerError(f"Server error during page load: {server_details}")
     
     def _wait_for_angular_content(self, timeout=3):
         """
@@ -685,11 +492,7 @@ class FormMeasurer:
             raise Exception(f"Failed to click Save button: {str(e)}")
     
     def _wait_for_save_success_popup(self, timeout=20):
-        """
-        Wait for save success popup (20 seconds timeout) - IMPROVED ERROR DETECTION
-        
-        Uses Selenium WebDriverWait - best practice for waiting
-        """
+        """Wait for save success popup - let exceptions bubble up to main()"""
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.common.exceptions import TimeoutException
         
@@ -709,167 +512,149 @@ class FormMeasurer:
         check_interval = 0.1  # Check every 100ms for faster error detection
         
         while time.time() - start_time < timeout:
-            try:
-                # FIRST: Check for errors (HTTP 500, etc.) - do this more frequently
-                self._check_for_save_errors()
+            # FIRST: Check for errors (HTTP 500, etc.) - do this more frequently
+            self._check_for_save_errors()  # This will raise exceptions that bubble up
+            
+            # SECOND: Check for success popup using JavaScript (most reliable)
+            success_found = self.driver.execute_script("""
+                // Look for success messages in common popup locations
+                var successSelectors = [
+                    '.k-notification',           // Kendo notifications
+                    '.notification', 
+                    '.alert',
+                    '.toast',
+                    '[role="alert"]',
+                    '.popup',
+                    '.modal-body',
+                    '.success-message',
+                    '.k-notification-success'
+                ];
                 
-                # SECOND: Check for success popup using JavaScript (most reliable)
-                success_found = self.driver.execute_script("""
-                    // Look for success messages in common popup locations
-                    var successSelectors = [
-                        '.k-notification',           // Kendo notifications
-                        '.notification', 
-                        '.alert',
-                        '.toast',
-                        '[role="alert"]',
-                        '.popup',
-                        '.modal-body',
-                        '.success-message',
-                        '.k-notification-success'
-                    ];
+                var successKeywords = arguments[0];
+                
+                for (var i = 0; i < successSelectors.length; i++) {
+                    var elements = document.querySelectorAll(successSelectors[i]);
                     
-                    var successKeywords = arguments[0];
-                    
-                    for (var i = 0; i < successSelectors.length; i++) {
-                        var elements = document.querySelectorAll(successSelectors[i]);
+                    for (var j = 0; j < elements.length; j++) {
+                        var element = elements[j];
                         
-                        for (var j = 0; j < elements.length; j++) {
-                            var element = elements[j];
+                        // Only check visible elements
+                        if (element.offsetHeight > 0 && element.offsetWidth > 0) {
+                            var text = (element.textContent || element.innerText || '').toLowerCase();
                             
-                            // Only check visible elements
-                            if (element.offsetHeight > 0 && element.offsetWidth > 0) {
-                                var text = (element.textContent || element.innerText || '').toLowerCase();
-                                
-                                // Check if any success keyword is found
-                                for (var k = 0; k < successKeywords.length; k++) {
-                                    if (text.includes(successKeywords[k].toLowerCase())) {
-                                        return {
-                                            found: true,
-                                            text: element.textContent || element.innerText,
-                                            selector: successSelectors[i]
-                                        };
-                                    }
+                            // Check if any success keyword is found
+                            for (var k = 0; k < successKeywords.length; k++) {
+                                if (text.includes(successKeywords[k].toLowerCase())) {
+                                    return {
+                                        found: true,
+                                        text: element.textContent || element.innerText,
+                                        selector: successSelectors[i]
+                                    };
                                 }
                             }
                         }
                     }
-                    
-                    return { found: false };
-                """, success_keywords)
+                }
                 
-                if success_found['found']:
-                    elapsed = time.time() - start_time
-                    success_text = success_found['text'].strip()
-                    self.logger.info(f"Save success popup found after {elapsed:.1f}s: '{success_text}'")
-                    return
-                
-            except Exception as e:
-                # If we get a save error, re-raise it immediately
-                if "save failed:" in str(e).lower() or "500" in str(e):
-                    raise e
-                # Otherwise continue waiting
-                pass
+                return { found: false };
+            """, success_keywords)
+            
+            if success_found['found']:
+                elapsed = time.time() - start_time
+                success_text = success_found['text'].strip()
+                self.logger.info(f"Save success popup found after {elapsed:.1f}s: '{success_text}'")
+                return
             
             time.sleep(check_interval)  # Check every 100ms for faster response
         
         # Timeout reached - do one final error check
-        try:
-            self._check_for_save_errors()
-        except Exception as final_error:
-            # If we find an error at the end, report that instead of timeout
-            raise final_error
+        self._check_for_save_errors()  # This may raise an exception instead of timeout
         
-        # No errors found, just timeout
+        # No errors found, just timeout - raise Selenium's standard timeout
         elapsed = time.time() - start_time
         raise TimeoutException(f"Save success popup not found after {elapsed:.1f}s timeout")
     
     def _check_for_save_errors(self):
-        """Check for save errors (HTTP 500, error popups, etc.) - IMPROVED"""
-        try:
-            # Check for error popups and HTTP errors
-            error_found = self.driver.execute_script("""
-                var errorResult = { found: false, text: '', type: '' };
-                
-                // 1. Check for visible error popups
-                var errorSelectors = [
-                    '.k-notification-error',
-                    '.alert-danger',
-                    '.error',
-                    '.error-popup',
-                    '.popup-error',
-                    '[role="alert"][class*="error"]',
-                    '.notification-error'
-                ];
-                
-                for (var i = 0; i < errorSelectors.length; i++) {
-                    var elements = document.querySelectorAll(errorSelectors[i]);
-                    for (var j = 0; j < elements.length; j++) {
-                        var element = elements[j];
-                        if (element.offsetHeight > 0 && element.offsetWidth > 0) {
-                            var text = element.textContent || element.innerText || '';
-                            if (text.trim().length > 0) {
-                                errorResult.found = true;
-                                errorResult.text = text.trim();
-                                errorResult.type = 'popup';
-                                return errorResult;
-                            }
-                        }
-                    }
-                }
-                
-                // 2. Check for HTTP 500 errors via Performance API
-                try {
-                    var entries = performance.getEntriesByType('resource');
-                    for (var k = 0; k < entries.length; k++) {
-                        var entry = entries[k];
-                        if (entry.responseStatus >= 500) {
-                            errorResult.found = true;
-                            errorResult.text = 'HTTP ' + entry.responseStatus + ' server error';
-                            errorResult.type = 'http';
-                            return errorResult;
-                        }
-                    }
-                } catch(perfError) {
-                    // Performance API not available
-                }
-                
-                // 3. Check for server error text in page content
-                try {
-                    var bodyText = document.body.innerText || document.body.textContent || '';
-                    var lowerText = bodyText.toLowerCase();
-                    
-                    if (lowerText.includes('500') || 
-                        lowerText.includes('internal server error') ||
-                        lowerText.includes('server error') ||
-                        lowerText.includes('an error has occurred')) {
-                        errorResult.found = true;
-                        errorResult.text = 'Server error detected in page content';
-                        errorResult.type = 'content';
-                        return errorResult;
-                    }
-                } catch(contentError) {
-                    // Ignore content check errors
-                }
-                
-                return errorResult;
-            """)
+        """Check for save errors and raise simple business exceptions"""
+        # Same logic as _check_for_page_errors but for save context
+        error_info = self.driver.execute_script("""
+            var result = { 
+                hasPopupError: false, 
+                popupMessage: '', 
+                hasServerError: false, 
+                serverErrorDetails: '' 
+            };
             
-            if error_found['found']:
-                error_text = error_found['text']
-                error_type = error_found['type']
+            // 1. Check for visible error popups
+            var errorSelectors = [
+                '.k-notification-error',
+                '.alert-danger',
+                '.error',
+                '.error-popup',
+                '.popup-error',
+                '[role="alert"][class*="error"]',
+                '.notification-error'
+            ];
+            
+            for (var i = 0; i < errorSelectors.length; i++) {
+                var elements = document.querySelectorAll(errorSelectors[i]);
+                for (var j = 0; j < elements.length; j++) {
+                    var element = elements[j];
+                    if (element.offsetHeight > 0 && element.offsetWidth > 0) {
+                        var text = element.textContent || element.innerText || '';
+                        if (text.trim().length > 0) {
+                            result.hasPopupError = true;
+                            result.popupMessage = text.trim();
+                            return result;
+                        }
+                    }
+                }
+            }
+            
+            // 2. Check for HTTP 500 errors via Performance API (Frontline only)
+            try {
+                var entries = performance.getEntriesByType('resource');
+                for (var k = 0; k < entries.length; k++) {
+                    var entry = entries[k];
+                    var url = entry.name.toLowerCase();
+                    if (url.includes('frontlineeducation.com') && entry.responseStatus >= 500) {
+                        result.hasServerError = true;
+                        result.serverErrorDetails = 'HTTP ' + entry.responseStatus + ' - ' + entry.name;
+                        return result;
+                    }
+                }
+            } catch(perfError) {
+                // Performance API not available
+            }
+            
+            // 3. Check for server error text in page content
+            try {
+                var bodyText = document.body.innerText || document.body.textContent || '';
+                var lowerText = bodyText.toLowerCase();
                 
-                self.logger.error(f"Save error detected ({error_type}): {error_text}")
-                
-                # Classify the error based on content
-                if "500" in error_text or "server error" in error_text.lower():
-                    raise Exception(f"Save failed: HTTP 500 server error - {error_text}")
-                else:
-                    raise Exception(f"Save failed: {error_text}")
-                
-        except Exception as e:
-            if "Save failed:" in str(e):
-                raise e  # Re-raise save errors
-            # Ignore other exceptions during error checking
+                if (lowerText.includes('500') || 
+                    lowerText.includes('internal server error') ||
+                    lowerText.includes('server error') ||
+                    lowerText.includes('an error has occurred')) {
+                    result.hasServerError = true;
+                    result.serverErrorDetails = 'Server error text found in page content';
+                    return result;
+                }
+            } catch(contentError) {
+                // Ignore content check errors
+            }
+            
+            return result;
+        """)
+        
+        # Raise simple business exceptions
+        if error_info.get('hasPopupError'):
+            popup_msg = error_info.get('popupMessage', 'Unknown popup error')
+            raise SavePopupError(popup_msg)
+        
+        if error_info.get('hasServerError'):
+            server_details = error_info.get('serverErrorDetails', 'Unknown server error')
+            raise ServerError(f"Server error during save: {server_details}")
     
     def _wait_for_page_ready(self, timeout=10):
         """Wait for page to be ready - SIMPLE and RELIABLE"""
@@ -912,163 +697,6 @@ class FormMeasurer:
         
         self.logger.warning(f"Page ready timeout after {timeout}s")
         return False
-    
-    def _check_for_errors(self):
-        errors = []
-        
-        try:
-            # 1. Check for visible error popups/notifications
-            popup_errors = self.driver.execute_script("""
-                var errors = [];
-                var errorSelectors = [
-                    '.k-notification-error',
-                    '.k-widget.k-notification.k-notification-error',
-                    '[role="alert"]',
-                    '.alert-danger',
-                    '.error-message',
-                    '.error-popup',
-                    '.popup-error'
-                ];
-                
-                errorSelectors.forEach(function(selector) {
-                    try {
-                        var elements = document.querySelectorAll(selector);
-                        for (var i = 0; i < elements.length; i++) {
-                            var el = elements[i];
-                            if (el.offsetHeight > 0 && el.offsetWidth > 0) {
-                                var text = el.textContent || el.innerText || '';
-                                if (text.toLowerCase().includes('error') || 
-                                    text.toLowerCase().includes('occurred') ||
-                                    text.toLowerCase().includes('500') ||
-                                    text.toLowerCase().includes('internal server') ||
-                                    text.toLowerCase().includes('server error')) {
-                                    errors.push('Page showed error: ' + text.substring(0, 100));
-                                    break;
-                                }
-                            }
-                        }
-                    } catch(e) {
-                        // Skip invalid selectors
-                    }
-                });
-                
-                return errors;
-            """)
-            
-            if popup_errors:
-                errors.extend(popup_errors)
-            
-            # 2. Check for HTTP errors via Performance API - FILTERED for Frontline APIs only
-            http_errors = self.driver.execute_script("""
-                var errors = [];
-                var filteredUrls = [];  // For debugging
-                try {
-                    var entries = performance.getEntriesByType('resource');
-                    entries.forEach(function(entry) {
-                        // Only check URLs that contain frontlineeducation.com
-                        var url = entry.name.toLowerCase();
-                        if (url.includes('frontlineeducation.com')) {
-                            // Check for HTTP 500+ errors
-                            if (entry.responseStatus >= 500) {
-                                errors.push('HTTP ' + entry.responseStatus + ' error: ' + entry.name);
-                            }
-                            // Also check for failed requests (responseStatus might be 0) - but only for API endpoints
-                            else if (entry.responseStatus === 0 && 
-                                    (url.includes('/api/') || url.includes('/plan/api/') || url.includes('/planng/api/'))) {
-                                // API requests with status 0 often indicate server errors
-                                errors.push('Failed API request (possible server error): ' + entry.name);
-                            }
-                        } else if (entry.responseStatus >= 400) {
-                            // Log filtered out URLs for debugging (only if they have errors)
-                            filteredUrls.push('Filtered out (non-Frontline): ' + entry.name + ' (status: ' + entry.responseStatus + ')');
-                        }
-                    });
-                    
-                    // Additional check: Look for recent failed navigation requests - only Frontline domains
-                    var navigationEntries = performance.getEntriesByType('navigation');
-                    navigationEntries.forEach(function(entry) {
-                        var url = entry.name.toLowerCase();
-                        if (url.includes('frontlineeducation.com') && entry.responseStatus >= 500) {
-                            errors.push('HTTP ' + entry.responseStatus + ' navigation error');
-                        }
-                    });
-                    
-                } catch(e) {
-                    // Performance API not available
-                }
-                return {errors: errors, filtered: filteredUrls};
-            """)
-            
-            if http_errors and http_errors.get('errors'):
-                errors.extend(http_errors['errors'])
-            
-            # Log filtered URLs for debugging (only first few to avoid spam)
-            if http_errors and http_errors.get('filtered'):
-                filtered_count = len(http_errors['filtered'])
-                if filtered_count > 0:
-                    self.logger.debug(f"Filtered out {filtered_count} non-Frontline error URLs (e.g., Google Maps, etc.)")
-                    # Log first 2 filtered URLs for debugging
-                    for i, filtered_url in enumerate(http_errors['filtered'][:2]):
-                        self.logger.debug(f"  {filtered_url}")
-                    if filtered_count > 2:
-                        self.logger.debug(f"  ... and {filtered_count - 2} more")
-            
-            # 3. Check for JavaScript errors in console (additional check)
-            console_errors = self.driver.execute_script("""
-                var errors = [];
-                try {
-                    // Check if there are any visible error messages in DOM
-                    var errorTexts = document.body.innerText || document.body.textContent || '';
-                    if (errorTexts.toLowerCase().includes('500') || 
-                        errorTexts.toLowerCase().includes('internal server error') ||
-                        errorTexts.toLowerCase().includes('server error')) {
-                        errors.push('Page contains server error text');
-                    }
-                    
-                    // Check for failed network requests in a different way
-                    // Look for error indicators in the page
-                    var errorIndicators = [
-                        'An error has occurred',
-                        'Error occurred',
-                        'Internal Server Error',
-                        'HTTP Error 500',
-                        'Server Error',
-                        'Something went wrong'
-                    ];
-                    
-                    var pageText = document.body.innerText || document.body.textContent || '';
-                    errorIndicators.forEach(function(indicator) {
-                        if (pageText.includes(indicator)) {
-                            errors.push('Error indicator found: ' + indicator);
-                        }
-                    });
-                    
-                    // Check for error elements that might be hidden but still present
-                    var hiddenErrors = document.querySelectorAll('[class*="error"], [id*="error"]');
-                    for (var i = 0; i < hiddenErrors.length; i++) {
-                        var errorEl = hiddenErrors[i];
-                        var errorText = errorEl.textContent || errorEl.innerText || '';
-                        if (errorText.toLowerCase().includes('500') || 
-                            errorText.toLowerCase().includes('server error') ||
-                            errorText.toLowerCase().includes('internal server')) {
-                            errors.push('Hidden error element: ' + errorText.substring(0, 100));
-                            break;
-                        }
-                    }
-                    
-                } catch(e) {
-                    // Ignore
-                }
-                return errors;
-            """)
-            
-            if console_errors:
-                errors.extend(console_errors)
-                
-        except Exception as e:
-            self.logger.debug(f"Error detection failed: {e}")
-        
-        return errors
 
 
 class ExcelResultWriter:
@@ -1088,13 +716,7 @@ class ExcelResultWriter:
     def write_save_result(row, result):
         """Write save measurement result to Excel row"""
         if result.success:
-            # Check if this is a "No Save button found" case
-            if "No Save button found" in result.error_message:
-                ExcelResultWriter._clear_save_columns(row)
-                row[Config.ExcelColumns.ERROR_MESSAGE].value = "No Save button found"
-                reset_styles([row[Config.ExcelColumns.ERROR_MESSAGE]])
-            else:
-                ExcelResultWriter._write_times(row, result, [Config.ExcelColumns.SAVE_MIN, Config.ExcelColumns.SAVE_MAX, Config.ExcelColumns.SAVE_MEAN])
+            ExcelResultWriter._write_times(row, result, [Config.ExcelColumns.SAVE_MIN, Config.ExcelColumns.SAVE_MAX, Config.ExcelColumns.SAVE_MEAN])
         else:
             # Real save error - write error and clear columns
             ExcelResultWriter._write_error(row, result)
@@ -1109,34 +731,13 @@ class ExcelResultWriter:
                 row[col_idx].value = f"{times[i]:.{Config.LOAD_TIME_DECIMAL_PLACES}f}"
     
     @staticmethod
-    def _write_fallback_times(row, result, columns):
-        """Write timeout values for fallback cases"""
-        timeout_val = Config.DEFAULT_TIMEOUT
-        for col_idx in columns:
-            row[col_idx].value = f"{timeout_val:.{Config.LOAD_TIME_DECIMAL_PLACES}f}"
-    
-    @staticmethod
     def _write_error(row, result):
         """Write error message and apply appropriate formatting"""
         row[Config.ExcelColumns.ERROR_MESSAGE].value = result.error_message
         
-        color_map = {
-            Config.ErrorTypes.TIMEOUT_ERROR: Config.Colors.RED,
-            Config.ErrorTypes.FORM_LOAD_ERROR: Config.Colors.RED,
-            Config.ErrorTypes.API_ERROR: Config.Colors.RED,
-            Config.ErrorTypes.NETWORK_ERROR: Config.Colors.RED,
-            Config.ErrorTypes.TECHNICAL_ERROR: Config.Colors.PURPLE,
-            # Legacy error types for backward compatibility
-            Config.ErrorTypes.TIMEOUT: Config.Colors.RED,
-            Config.ErrorTypes.FALLBACK: Config.Colors.RED,
-            Config.ErrorTypes.ELEMENT_NOT_FOUND: Config.Colors.ORANGE,
-            Config.ErrorTypes.TECHNICAL: Config.Colors.PURPLE,
-            Config.ErrorTypes.READONLY: None  # No coloring for readonly
-        }
-        
-        color = color_map.get(result.error_type, Config.Colors.PURPLE)
-        if color:
-            mark_form_as_invalid(row, color)
+        # Use color from the structured exception
+        if result.error_color:
+            mark_form_as_invalid(row, result.error_color)
     
     @staticmethod
     def _clear_save_columns(row):
@@ -1304,15 +905,15 @@ def close_current_tab(driver):
 
 def process_form_in_new_tab(driver, url, measurer, loops, logger, is_form_page, disable_save):
     """
-    Process form in a fresh new tab - BOTH load and save measurements
+    Process form in a fresh new tab - CLEAN exception handling
     
     CORRECT FLOW:
     1. Open new tab
-    2. Load form + measure load time
-    3. On SAME tab: measure save time (if it's a form page)
+    2. Load form + measure load time (exceptions bubble up)
+    3. On SAME tab: measure save time if applicable (exceptions bubble up)
     4. Close tab
     
-    Returns: (load_result, save_result)
+    Returns: (load_result, save_result) - exceptions bubble up to main()
     """
     load_result = None
     save_result = None
@@ -1324,32 +925,19 @@ def process_form_in_new_tab(driver, url, measurer, loops, logger, is_form_page, 
         new_tab = driver.window_handles[-1]
         driver.switch_to.window(new_tab)
         
-        # 2. Load and measure form in new tab
+        # 2. Load and measure form in new tab - NO EXCEPTION HANDLING
         logger.debug(f"Measuring page load in new tab...")
-        load_result = measurer.measure_page_load(url, loops)
+        load_result = measurer.measure_page_load(url, loops)  # Let exceptions bubble up
         
-        # 3. If load successful AND it's a form page AND save not disabled
-        if load_result.success and is_form_page and not disable_save:
-            logger.debug(f"Load successful - now measuring save on SAME tab (no reload needed)")
-            # IMPORTANT: Form is already loaded! No need to reload or open another tab
-            save_result = measurer.measure_save_time(url, loops)  # Form already loaded
+        # 3. If it's a form page AND save not disabled - NO EXCEPTION HANDLING
+        if is_form_page and not disable_save:
+            logger.debug(f"Load successful - now measuring save on SAME tab")
+            save_result = measurer.measure_save_time(url, loops)  # Let exceptions bubble up
         else:
-            if not load_result.success:
-                logger.debug(f"Skipping save measurement - load failed")
-            elif not is_form_page:
+            if not is_form_page:
                 logger.debug(f"Skipping save measurement - not a form page")
             elif disable_save:
                 logger.debug(f"Skipping save measurement - save disabled")
-        
-        return load_result, save_result
-        
-    except Exception as e:
-        logger.error(f"Error processing form in new tab: {e}")
-        
-        # Return error result for load if we don't have one yet
-        if not load_result:
-            error_type, error_message = ErrorClassifier.classify_load_error(str(e))
-            load_result = MeasurementResult(success=False, error_type=error_type, error_message=error_message)
         
         return load_result, save_result
         
@@ -1462,6 +1050,10 @@ def main():
         print(f"\n{url}")
         logger.debug(f"Processing: {url}")
         
+        # CENTRALIZED EXCEPTION HANDLING - SINGLE POINT
+        load_result = None
+        save_result = None
+        
         try:
             base_url = extract_base_url(url)
             if prev_base_url != base_url or is_first_row:
@@ -1478,100 +1070,119 @@ def main():
             driver.get(url)
             is_form_page_url = SeleniumHelper.is_form_page_url(url)
 
-            # LOAD MEASUREMENT - choose approach based on user preference
+            # LOAD MEASUREMENT - NO TRY/CATCH - let exceptions bubble up
             if use_new_tabs:
                 print(f"Using NEW TAB approach for cleaner measurements")
                 load_result, save_result = process_form_in_new_tab(driver, url, measurer, loops, logger, is_form_page_url, disable_save)
             else:
                 print(f"Using SINGLE TAB approach (legacy)")
-                load_result = measurer.measure_page_load(url, loops)
-                save_result = None
-            
-            # Write load result to Excel
-            ExcelResultWriter.write_load_result(row, load_result)
-            
-            if load_result.success:
-                print(f"Load successful: {load_result.mean_time:.1f}s average")
+                load_result = measurer.measure_page_load(url, loops)  # Let exceptions bubble up
                 
-                # SAVE MEASUREMENT - handle based on approach
-                if use_new_tabs:
-                    # Save result already obtained in new tab approach
-                    if save_result:
-                        ExcelResultWriter.write_save_result(row, save_result)
-                        if save_result.success:
-                            if "No Save button found" in save_result.error_message:
-                                print(f"No Save button found - this is normal for some forms")
-                            else:
-                                print(f"Save successful: {save_result.mean_time:.1f}s average")
-                        else:
-                            print(f"Save failed: {save_result.error_message}")
-                    else:
-                        print(f"Save measurement skipped")
-                        ExcelResultWriter._clear_save_columns(row)
+                # SAVE MEASUREMENT - NO TRY/CATCH - let exceptions bubble up
+                if is_form_page_url and not disable_save:
+                    print(f"Measuring save time...")
+                    save_result = measurer.measure_save_time(url, loops)  # Let exceptions bubble up
                 else:
-                    # SINGLE TAB approach - save measurement on same page
-                    if is_form_page_url and not disable_save:
-                        print(f"Measuring save time...")
-                        save_result = measurer.measure_save_time(url, loops)
-                        ExcelResultWriter.write_save_result(row, save_result)
-                        
-                        if save_result.success:
-                            if "No Save button found" in save_result.error_message:
-                                print(f"No Save button found - this is normal for some forms")
-                            else:
-                                print(f"Save successful: {save_result.mean_time:.1f}s average")
-                        else:
-                            print(f"Save failed: {save_result.error_message}")
-                    else:
-                        print(f"Skipping save measurement (not a form page or disabled)")
-                        ExcelResultWriter._clear_save_columns(row)
-                
-                # Update comparisons only when load successful
-                compare_measures(row[17], row[26], row[18])
-                compare_measures(row[8], row[17], row[9])
-                flag_high_load_time([row[5], row[6], row[7], row[8], row[10], row[11], row[12]], threshold)
-                
+                    print(f"Skipping save measurement (not a form page or disabled)")
+            
+            # SUCCESS CASE - both load and save completed without exceptions
+            ExcelResultWriter.write_load_result(row, load_result)
+            print(f"Load successful: {load_result.mean_time:.1f}s average")
+            
+            if save_result:
+                ExcelResultWriter.write_save_result(row, save_result)
+                print(f"Save successful: {save_result.mean_time:.1f}s average")
             else:
-                print(f"Load failed: {load_result.error_message}")
-                # Clear save columns and comparisons when load failed
+                print(f"Save measurement skipped")
                 ExcelResultWriter._clear_save_columns(row)
-                row[18].value = ""  # Clear load comparison
-                row[9].value = ""   # Clear other comparison
             
-            # NO NEED TO CLOSE TAB if using new tabs - already handled
-            # For single tab approach, we stay on the same tab
+            # Update comparisons only when load successful
+            compare_measures(row[17], row[26], row[18])
+            compare_measures(row[8], row[17], row[9])
+            flag_high_load_time([row[5], row[6], row[7], row[8], row[10], row[11], row[12]], threshold)
             
-        except Exception as critical_ex:
-            # SIMPLIFIED CRITICAL ERROR HANDLING
-            error_msg = str(critical_ex)
+        # CENTRALIZED EXCEPTION HANDLING - BUSINESS LOGIC EXCEPTIONS
+        except SaveButtonNotFoundError:
+            # This is informational, not an error
+            print(f"No Save button found - this is normal for some forms")
+            logger.info(f"No Save button found for {url}")
             
-            # Make error message readable
-            if "gethandleverifier" in error_msg.lower() or "stacktrace" in error_msg.lower():
-                simple_error = "Browser crashed - restart needed"
-            elif "timeout" in error_msg.lower():
-                simple_error = "Connection timeout"
-            elif "connection" in error_msg.lower():
-                simple_error = "Network connection failed"
+            # Load succeeded, just no save button
+            if load_result:
+                ExcelResultWriter.write_load_result(row, load_result)
+                print(f"Load successful: {load_result.mean_time:.1f}s average")
+            
+            # Clear save columns and add info message
+            ExcelResultWriter._clear_save_columns(row)
+            # Don't write error message for this case - it's normal
+            
+        except SavePopupError as e:
+            # Save failed due to popup error
+            print(f"Save failed: {e.popup_message}")
+            logger.error(f"Save popup error for {url}: {e.popup_message}")
+            
+            # Load succeeded, save failed
+            if load_result:
+                ExcelResultWriter.write_load_result(row, load_result)
+                print(f"Load successful: {load_result.mean_time:.1f}s average")
+            
+            # Write save error
+            save_result = MeasurementResult(success=False, error=str(e))
+            ExcelResultWriter.write_save_result(row, save_result)
+            
+        except ServerError as e:
+            # HTTP 500 or other server error
+            print(f"Server error: {str(e)}")
+            logger.error(f"Server error for {url}: {str(e)}")
+            
+            # This affects load measurement
+            load_result = MeasurementResult(success=False, error=str(e))
+            ExcelResultWriter.write_load_result(row, load_result)
+            ExcelResultWriter._clear_save_columns(row)
+            
+        except TimeoutException as e:
+            # Selenium timeout (save success popup not found, etc.)
+            print(f"Timeout: {str(e)}")
+            logger.error(f"Timeout for {url}: {str(e)}")
+            
+            # This could be load or save timeout
+            if load_result and load_result.success:
+                # Load succeeded, save timed out
+                ExcelResultWriter.write_load_result(row, load_result)
+                save_result = MeasurementResult(success=False, error=f"Save timeout: {str(e)}")
+                ExcelResultWriter.write_save_result(row, save_result)
             else:
-                simple_error = "Processing failed"
+                # Load timed out
+                load_result = MeasurementResult(success=False, error=f"Load timeout: {str(e)}")
+                ExcelResultWriter.write_load_result(row, load_result)
+                ExcelResultWriter._clear_save_columns(row)
+                
+        except Exception as e:
+            # Generic popup errors and other business logic issues
+            error_msg = str(e)
+            print(f"Error: {error_msg}")
+            logger.error(f"Error for {url}: {error_msg}")
             
-            print(f"Critical error: {simple_error}")
-            logger.error(f"Critical error for {url}: {error_msg}")
+            # Determine if this is load or save error based on context
+            if load_result and load_result.success:
+                # Load succeeded, save failed
+                ExcelResultWriter.write_load_result(row, load_result)
+                save_result = MeasurementResult(success=False, error=error_msg)
+                ExcelResultWriter.write_save_result(row, save_result)
+            else:
+                # Load failed
+                load_result = MeasurementResult(success=False, error=error_msg)
+                ExcelResultWriter.write_load_result(row, load_result)
+                ExcelResultWriter._clear_save_columns(row)
             
             # CLEANUP: Try to close any open tabs and return to original
             try:
-                close_current_tab(driver)
-                print(f"Cleaned up open tabs")
+                if len(driver.window_handles) > 1:
+                    driver.close()
+                    driver.switch_to.window(driver.window_handles[0])
+                    logger.debug("Cleaned up open tabs after error")
             except:
-                print(f"Could not clean up tabs - continuing anyway")
-            
-            # Write simple error message to Excel
-            row[Config.ExcelColumns.ERROR_MESSAGE].value = simple_error
-            mark_form_as_invalid(row, color=Config.Colors.RED)
-            
-            # Clear all measurement columns
-            ExcelResultWriter._clear_load_columns(row)
-            ExcelResultWriter._clear_save_columns(row)
+                logger.warning("Could not clean up tabs after error")
         
         prev_base_url = base_url
         head_cell_top.value = f"{build_version} {timestamp}"
