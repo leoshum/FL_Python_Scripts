@@ -379,14 +379,15 @@ class SeleniumHelper:
             except Exception:
                 # Fallback: direct element search but still need to check for success
                 try:
-                    if SeleniumHelper.is_plan_page_url(driver.current_url):
-                        alert_elem = driver.find_element(By.CSS_SELECTOR, 'div[role="alert"]')
-                        if alert_elem and "Form has been updated successfully" in alert_elem.text:
+                if SeleniumHelper.is_plan_page_url(driver.current_url):
+                    alert_elem = driver.find_element(By.CSS_SELECTOR, 'div[role="alert"]')
+
+                    if alert_elem and "Form has been updated successfully" in alert_elem.text:
                             success_found = True
                         break
-                    else:
-                        notification_elem = driver.find_element(By.TAG_NAME, 'kendo-notification')
-                        if notification_elem and "Form has been updated successfully" in notification_elem.text:
+                else:
+                    notification_elem = driver.find_element(By.TAG_NAME, 'kendo-notification')
+                    if notification_elem and "Form has been updated successfully" in notification_elem.text:
                             success_found = True
                         break
                 except:
@@ -447,503 +448,34 @@ class SeleniumHelper:
     def measure_form_page_load_time(driver: webdriver.Chrome, url: str) -> tuple:
         """
         Measure page load time for form pages with hybrid monitoring.
-        Combines API request monitoring with loading indicator detection.
+        Uses the new PerformanceManager for improved reliability.
         """
-        SeleniumHelper.get_logger().debug(f"Starting hybrid monitoring for: {url}")
+        from .performance_manager import get_performance_manager
         
-        start_time = time.time()  # Add missing start_time definition
-        
-        try:
-            # Store current URL and clear performance entries
-            current_url = driver.current_url
-            driver.execute_script("performance.clearResourceTimings();")
-            
-            # Refresh the page to get clean reload
-            driver.refresh()
-            
-            # Enable network monitoring immediately after refresh
-            driver.execute_cdp_cmd('Network.enable', {})
-            
-            # Hybrid monitoring script - checks BOTH API requests AND loading indicators
-            monitoring_script = """
-            return new Promise((resolve) => {                
-                let documentReady = false;
-                let lastActivityTime = Date.now();
-                let checkInterval;
-                
-                const loadingSelectors = [
-                    '.loading', '.spinner', '.blockUI', '.loader-circle',
-                    '.loading-wrapper', '.blockMsg', '.blockPage',
-                    '.k-loading-mask',           // Kendo Grid loader
-                    '[kendogridloading]',        // Kendo Grid loading attribute
-                    '.k-loading-text',           // Kendo loading text
-                    '.k-loading-image',          // Kendo loading image
-                    '.k-i-loading',              // Kendo loading icon
-                    '.loading-overlay',          // Generic loading overlay
-                    '.spinner-border',           // Bootstrap spinner
-                    '.fa-spinner'                // FontAwesome spinner
-                ];
-                
-                const formApiPatterns = [
-                    '/sections/',
-                    '/exceptionalities/', 
-                    '/distributionrecipients/',
-                    '/getDistribution',              // Covers all getDistribution* endpoints
-                    '/translationProjects/',
-                    '/entity-locking/',
-                    '/getSectionHistory/',
-                    '/lookupValues/',
-                    '/events/',
-                    '/api/'                          // Catch any API request
-                ];
-                
-                function checkHybridState() {
-                    const now = Date.now();
-                    const resources = performance.getEntriesByType('resource');
-                    
-                    if (!documentReady && document.readyState === 'complete') {
-                        documentReady = true;
-                    }
-                    
-                    const visibleLoaders = loadingSelectors.filter(selector => {
-                        try {
-                            const elements = document.querySelectorAll(selector);
-                            return Array.from(elements).some(el => {
-                                const style = window.getComputedStyle(el);
-                                return style.display !== 'none' && 
-                                       style.visibility !== 'hidden' && 
-                                       style.opacity !== '0' &&
-                                       el.offsetHeight > 0 && 
-                                       el.offsetWidth > 0;
-                            });
-                        } catch (e) {
-                            return false;
-                        }
-                    });
-                    
-                    const allApiRequests = resources
-                        .filter(r => formApiPatterns.some(pattern => r.name.includes(pattern)))
-                        .map(r => ({
-                            url: r.name,
-                            duration: r.duration,
-                            status: r.responseEnd > 0 ? 'COMPLETED' : 'PENDING'
-                        }));
-                    
-                    const pendingApiRequests = allApiRequests.filter(r => r.status === 'PENDING');
-                    
-                    const recentSlowRequests = allApiRequests.filter(r => {
-                        const isRecent = (now - (performance.timing.navigationStart + r.responseEnd)) < 10000; // 10 seconds
-                        const isSlow = r.duration > 3000; // >3 seconds
-                        return (r.status === 'PENDING' || (isRecent && isSlow));
-                    });
-                    
-                    const hasActivity = visibleLoaders.length > 0 || 
-                                       pendingApiRequests.length > 0 || 
-                                       recentSlowRequests.length > 0;
-                    
-                    if (hasActivity) {
-                        lastActivityTime = now;
-                    }
-                    
-                    const timeSinceLastActivity = now - lastActivityTime;
-                    const isFullyLoaded = documentReady && 
-                                         visibleLoaders.length === 0 && 
-                                         pendingApiRequests.length === 0 && 
-                                         recentSlowRequests.length === 0 &&
-                                         timeSinceLastActivity > 3000; // 3 seconds of inactivity
-                    
-                    if (isFullyLoaded) {
-                        clearInterval(checkInterval);
-                        
-                        const networkState = {
-                            allApiRequests: allApiRequests,
-                            apiRequests: allApiRequests.length,
-                            pendingApi: pendingApiRequests.length,
-                            totalRequests: resources.length,
-                            loadersFound: loadingSelectors.length,
-                            activeLoaders: visibleLoaders.length
-                        };
-                        
-                        resolve(networkState);
-                    }
-                }
-                
-                checkHybridState();
-                checkInterval = setInterval(checkHybridState, 500);
-                
-                setTimeout(() => {
-                    clearInterval(checkInterval);
-                    
-                    const resources = performance.getEntriesByType('resource');
-                    const allApiRequests = resources
-                        .filter(r => formApiPatterns.some(pattern => r.name.includes(pattern)))
-                        .map(r => ({
-                            url: r.name,
-                            duration: r.duration,
-                            status: r.responseEnd > 0 ? 'COMPLETED' : 'PENDING'
-                        }));
-                    
-                    const networkState = {
-                        allApiRequests: allApiRequests,
-                        apiRequests: allApiRequests.length,
-                        pendingApi: allApiRequests.filter(r => r.status === 'PENDING').length,
-                        totalRequests: resources.length,
-                        timeout: true
-                    };
-                    
-                    resolve(networkState);
-                }, 30000);  // 30 seconds timeout
-            });
-            """
-            
-            # Wait for the Promise to resolve with extended timeout
-            network_state = WebDriverWait(driver, 35).until(
-                lambda d: d.execute_script(monitoring_script)
-            )
-            
-            SeleniumHelper.get_logger().debug("Hybrid monitoring completed successfully")
-            SeleniumHelper.get_logger().debug(f"Network state: {network_state}")
-            
-            # Calculate total load time
-            load_time = time.time() - start_time
-            
-            return load_time, network_state
-                
-        except Exception as e:
-            SeleniumHelper.get_logger().error(f"Error during hybrid monitoring: {str(e)}")
-            raise
+        manager = get_performance_manager(driver, SeleniumHelper.get_logger())
+        return manager.measure_form_page_load_time(url)
     
     @staticmethod
     def measure_standard_page_load_time(driver: webdriver.Chrome) -> float:
         """
-        Modern page load measurement using Navigation Timing API.
-        Provides accurate, browser-native timing without polling overhead.
-        Handles all page types with comprehensive fallback support.
+        Measure standard page load time using Navigation Timing API.
+        Uses the new PerformanceManager for improved reliability.
         """
-        try:
-            # STEP 1: Mark start time and trigger reload FIRST
-            start_time = time.time()
-            driver.execute_script("location.reload(true);")
-            
-            # STEP 2: Wait for document ready state
-            WebDriverWait(driver, 30).until(
-                lambda d: d.execute_script("return document.readyState === 'complete';")
-            )
-            
-            # STEP 3: Use JavaScript Promise for page readiness detection
-            load_time = driver.execute_script("""
-                return new Promise((resolve, reject) => {
-                    const startTime = performance.now();
-                    const maxWaitTime = 30000; // 30 seconds max
-                    
-                    const checkPageReady = () => {
-                        const elapsed = performance.now() - startTime;
-                        
-                        // Timeout protection
-                        if (elapsed > maxWaitTime) {
-                            // Return current elapsed time instead of rejecting
-                            const finalTime = elapsed / 1000;
-                            resolve(finalTime);
-                            return;
-                        }
-                        
-                        // Document is already complete (checked above)
-                        
-                        // Check for loading indicators (comprehensive coverage)
-                        const loadingSelectors = [
-                            '.loading', '.spinner', '.blockUI', '.loader-circle',
-                            '.loading-wrapper', '.blockMsg', '.blockPage'
-                        ];
-                        
-                        const hasLoadingIndicators = loadingSelectors.some(selector => 
-                            document.querySelector(selector)
-                        );
-                        
-                        // Check for pending requests
-                        let hasPendingRequests = false;
-                        try {
-                            const entries = performance.getEntriesByType('resource') || [];
-                            const recentRequests = entries.filter(entry => 
-                                entry.startTime > (Date.now() - 3000) // Last 3 seconds
-                            );
-                            
-                            hasPendingRequests = recentRequests.some(entry => 
-                                entry.responseEnd === 0 && 
-                                (Date.now() - entry.startTime) < 1000 // Less than 1 second old
-                            );
-                        } catch (e) {
-                            hasPendingRequests = false;
-                        }
-                        
-                        // Page is ready when document is complete, no loading indicators, no pending requests
-                        const isPageReady = !hasLoadingIndicators && !hasPendingRequests;
-                        
-                        if (isPageReady) {
-                            // Use Navigation Timing API for precise measurement
-                            const navigationTiming = performance.timing;
-                            const loadCompleteTime = navigationTiming.loadEventEnd - navigationTiming.navigationStart;
-                            
-                            // If loadEventEnd is not available yet, use current elapsed time
-                            const finalTime = loadCompleteTime > 0 ? 
-                                loadCompleteTime / 1000 : 
-                                elapsed / 1000;
-                            
-                            resolve(finalTime);
-                        } else {
-                            // Continue checking with requestAnimationFrame (no blocking!)
-                            requestAnimationFrame(checkPageReady);
-                        }
-                    };
-                    
-                    // Start checking immediately
-                    checkPageReady();
-                });
-            """)
-            
-            # Wait for the Promise to resolve and return the timing
-            return WebDriverWait(driver, 35).until(
-                lambda d: d.execute_script("return arguments[0];", load_time)
-            )
-            
-        except Exception as ex:
-            # Fallback to original method if modern approach fails
-            if SeleniumHelper.logger:
-                SeleniumHelper.logger.warning(f"Navigation Timing API failed for standard page, using fallback: {str(ex)}")
-            
-            # Simple fallback method - use the start_time we already captured
-            try:
-                # Wait for document ready (if not already)
-                WebDriverWait(driver, 10).until(
-                    lambda d: d.execute_script("return document.readyState === 'complete';")
-                )
-            except TimeoutException:
-                pass
-            
-            return time.time() - start_time
+        from .performance_manager import get_performance_manager
+        
+        manager = get_performance_manager(driver, SeleniumHelper.get_logger())
+        return manager.measure_standard_page_load_time()
     
     @staticmethod
     def measure_form_save_time(driver: webdriver.Chrome) -> float:
-        # Check if this is a readonly form first (before any operations)
-        current_url = driver.current_url
-        if SeleniumHelper.is_likely_readonly_form(current_url):
-            if SeleniumHelper.logger:
-                SeleniumHelper.logger.info(f"Skipping save test for likely readonly form: {current_url}")
-            raise ValueError("Form is likely read-only based on URL structure and does not have a Save button")
+        """
+        Measure form save time.
+        Uses the new PerformanceManager for improved reliability.
+        """
+        from .performance_manager import get_performance_manager
         
-        # Set Save button detection timeout to 15 seconds
-        SAVE_BUTTON_TIMEOUT = 15
-        
-        try:
-            # Wait for form to be ready for interaction (without reload)
-            # Check if page is already loaded and form is ready
-            WebDriverWait(driver, 5).until(
-                lambda d: d.execute_script("return document.readyState === 'complete';")
-            )
-            
-            # Wait for any loading indicators to disappear
-            loader_locator = SeleniumHelper.unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
-            WebDriverWait(driver, SAVE_BUTTON_TIMEOUT).until(loader_locator)
-            
-            # Ensure basic form elements are clickable
-            WebDriverWait(driver, SAVE_BUTTON_TIMEOUT).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")))
-            
-        except Exception as ex:
-            if SeleniumHelper.logger:
-                SeleniumHelper.logger.warning(f"Form not immediately ready, trying with reload: {str(ex)}")
-            
-            # Fallback: reload if form is not ready
-            driver.execute_script("location.reload(true);")
-            SeleniumHelper.wait_for_form_page_load(driver)
-        
-            # Retry readiness check after reload
-            try:
-                loader_locator = SeleniumHelper.unpresence_of_element((By.CSS_SELECTOR, ".blockUI .blockOverlay"))
-                WebDriverWait(driver, SAVE_BUTTON_TIMEOUT).until(loader_locator)
-                WebDriverWait(driver, SAVE_BUTTON_TIMEOUT).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#btnUpdateForm, button[type='submit']")))
-            except Exception as retry_ex:
-                if SeleniumHelper.logger:
-                    SeleniumHelper.logger.error(f"Form save preparation timeout after reload: {str(retry_ex)}")
-            raise
-        
-        # Hide interfering elements that can intercept clicks
-        SeleniumHelper._hide_interfering_elements(driver)
-        
-        # Comprehensive Save button detection for different form types
-        save_btn_elem = None
-        
-        # Strategy 1: Enhanced selectors for Kendo UI buttons and modern forms
-        enhanced_selectors = [
-            # Kendo UI buttons with specific structure
-            "button[kendobutton][type='submit']",                    # Kendo submit buttons
-            "button[kendobutton] span.k-button-text",                # Kendo button spans
-            "button.k-button.k-button-solid span.k-button-text",    # Kendo solid buttons
-            "button[role='button'] span.k-button-text",             # ARIA role buttons
-            
-            # Traditional selectors
-            "#btnUpdateForm",                                        # Standard form save button ID
-            "button[type='submit']",                                # Generic submit buttons  
-            "input[type='submit']",                                 # Submit inputs
-            ".k-button",                                            # Kendo button class
-            "button"                                                # All buttons as fallback
-        ]
-        
-        for selector in enhanced_selectors:
-            try:
-                elements = driver.find_elements(By.CSS_SELECTOR, selector)
-                for element in elements:
-                    # For span elements, get the parent button
-                    if element.tag_name == "span":
-                        button = element.find_element(By.XPATH, "./..")
-                        button_text = element.text.strip()
-                    else:
-                        button = element
-                        button_text = button.text.strip()
-                        
-                        # If button text is empty, try to get text from child span
-                        if not button_text:
-                            try:
-                                span_elem = button.find_element(By.CSS_SELECTOR, "span.k-button-text, .k-button-text, span")
-                                button_text = span_elem.text.strip()
-                            except:
-                                continue
-                    
-                    # Check if this is a Save button
-                    if "Save" in button_text and button.is_enabled() and button.is_displayed():
-                        save_btn_elem = button
-                        if SeleniumHelper.logger:
-                            SeleniumHelper.logger.debug(f"Found Save button using selector: {selector}, text: '{button_text}'")
-                break
-                
-                if save_btn_elem:
-                    break
-                    
-            except Exception as ex:
-                if SeleniumHelper.logger:
-                    SeleniumHelper.logger.debug(f"Selector '{selector}' failed: {str(ex)}")
-                continue
-        
-        # Strategy 2: Enhanced XPath search for Save buttons
-        if save_btn_elem is None:
-            try:
-                enhanced_xpath_selectors = [
-                    # Look for buttons containing "Save" in text or child elements
-                    "//button[contains(text(), 'Save') or .//span[contains(text(), 'Save')]]",
-                    "//button[@kendobutton and (.//span[contains(text(), 'Save')] or contains(text(), 'Save'))]",
-                    "//button[@role='button' and (.//span[contains(text(), 'Save')] or contains(text(), 'Save'))]",
-                    "//input[@type='submit' and contains(@value, 'Save')]", 
-                    "//*[contains(@class, 'k-button') and (.//span[contains(text(), 'Save')] or contains(text(), 'Save'))]"
-                ]
-                
-                for xpath in enhanced_xpath_selectors:
-                    try:
-                        buttons = driver.find_elements(By.XPATH, xpath)
-                        for button in buttons:
-                            if button.is_enabled() and button.is_displayed():
-                                save_btn_elem = button
-                                if SeleniumHelper.logger:
-                                    SeleniumHelper.logger.debug(f"Found Save button using XPath: {xpath}")
-                                break
-                        
-                        if save_btn_elem:
-                            break
-                            
-                    except Exception as ex:
-                        if SeleniumHelper.logger:
-                            SeleniumHelper.logger.debug(f"XPath '{xpath}' failed: {str(ex)}")
-                        continue
-                        
-            except Exception as ex:
-                if SeleniumHelper.logger:
-                    SeleniumHelper.logger.debug(f"XPath strategy failed: {str(ex)}")
-                pass
-        
-        # Strategy 3: Check if this might be a readonly form if no Save button found
-        if save_btn_elem is None:
-            # Simple check - if URL suggests readonly, treat as expected
-            if SeleniumHelper.is_likely_readonly_form(current_url):
-                if SeleniumHelper.logger:
-                    SeleniumHelper.logger.info(f"No Save button found on likely readonly form: {current_url}")
-                raise ValueError("Form is likely read-only based on URL structure and does not have a Save button")
-            else:
-                # Otherwise, this is an error that needs investigation
-                if SeleniumHelper.logger:
-                    SeleniumHelper.logger.error(f"Save button not found: {current_url} - Needs investigation")
-                    # Log available buttons for debugging
-                    try:
-                        all_buttons = driver.find_elements(By.TAG_NAME, "button")
-                        button_texts = [btn.text.strip() for btn in all_buttons if btn.text.strip()]
-                        SeleniumHelper.logger.debug(f"Available buttons on page: {button_texts}")
-                    except:
-                        pass
-                
-                raise NoSuchElementException("Save button not found - needs investigation")
-        
-        if save_btn_elem is None:
-            if SeleniumHelper.logger:
-                SeleniumHelper.logger.error("Save button not found on form")
-            raise NoSuchElementException("'Save Form' was not found.")
-        
-        # Get initial network requests BEFORE clicking Save
-        try:
-            initial_requests = SeleniumHelper.get_ajax_requests(driver)
-        except:
-            initial_requests = []
-            
-        start_time = time.time()
-        
-        from frontline_selenium.page_filler import PageFormFiller
-        try:
-            if not SeleniumHelper.options.get("disable_filler", False):
-                PageFormFiller.fill_form(driver)
-        except Exception as ex:
-            if SeleniumHelper.logger:
-                SeleniumHelper.logger.exception(f"Form filler error: {str(ex)}")
-            # Don't re-raise - form filler errors shouldn't stop save measurement
-            
-        # Enhanced retry logic for clicking save button with JavaScript fallback
-        attempts = 3
-        start_time = time.time()
-        while attempts > 0:
-            attempts -= 1
-            try:
-                WebDriverWait(driver, SAVE_BUTTON_TIMEOUT).until(SeleniumHelper.unpresence_of_element((By.CSS_SELECTOR, ".loader-circle")))
-                driver.execute_script("window.scrollTo(0, 0);")
-                
-                # Hide interfering elements again before clicking (they might reappear)
-                SeleniumHelper._hide_interfering_elements(driver)
-                
-                # Try regular click first
-                save_btn_elem.click()
-                break
-                
-            except ElementClickInterceptedException as ex:
-                if attempts > 0:  # Only try JavaScript click if we have more attempts
-                    if SeleniumHelper.logger:
-                        SeleniumHelper.logger.warning(f"Save button click intercepted, trying JavaScript click... ({attempts} attempts left)")
-                    
-                    try:
-                        # Force JavaScript click as fallback
-                        driver.execute_script("arguments[0].click();", save_btn_elem)
-                        break
-                    except Exception as js_ex:
-                        if SeleniumHelper.logger:
-                            SeleniumHelper.logger.warning(f"JavaScript click also failed: {str(js_ex)}")
-                    time.sleep(1)
-                    start_time = time.time()  # Reset timer after sleep
-                else:
-                    if SeleniumHelper.logger:
-                        SeleniumHelper.logger.error(f"Save button click failed after all retries: {str(ex)}")
-                    raise  # Re-raise on final attempt
-                    
-        try:
-            SeleniumHelper.wait_for_form_save_popup(driver, initial_requests)
-        except Exception as ex:
-            if SeleniumHelper.logger:
-                SeleniumHelper.logger.error(f"Form save popup timeout: {str(ex)}")
-            raise
-            
-        elapsed = time.time() - start_time
-        return elapsed
+        manager = get_performance_manager(driver, SeleniumHelper.get_logger())
+        return manager.measure_form_save_time()
     
     @staticmethod
     def _hide_interfering_elements(driver: webdriver.Chrome):
@@ -1100,9 +632,9 @@ class SeleniumHelper:
                 return True
             except Exception as e:
                 # Log unexpected exceptions but don't suppress them
-                if SeleniumHelper.logger:
-                    SeleniumHelper.logger.warning(f"Unexpected exception in unpresence_of_element: {str(e)}")
-                raise
+                    if SeleniumHelper.logger:
+                        SeleniumHelper.logger.warning(f"Unexpected exception in unpresence_of_element: {str(e)}")
+            raise
         return _predicate
 
     @staticmethod
