@@ -7,6 +7,7 @@ import argparse
 import logging
 from datetime import datetime
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver.common.by import By
 
 # Add parent directory to path for imports (frontline_selenium is in parent directory)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,17 +42,25 @@ class Config:
     # Decimal precision
     LOAD_TIME_DECIMAL_PLACES = 1
     
+    # Payload size monitoring
+    PAYLOAD_SIZE_THRESHOLD = 500.0
+    
     # Excel column indices
     class ExcelColumns:
+        FROM_NAME = 0
+        FORM_URL = 1
+        JIRA_TICKET = 2
         ERROR_MESSAGE = 3
-        TIMESTAMP = 4
-        LOAD_FIRST = 5
-        LOAD_MIN = 6
-        LOAD_MAX = 7
-        LOAD_MEAN = 8
-        SAVE_MIN = 10
-        SAVE_MAX = 11
-        SAVE_MEAN = 12
+        PAYLOAD_SIZE = 4
+        TIMESTAMP = 5          
+        LOAD_FIRST = 6
+        LOAD_MIN = 7            
+        LOAD_MAX = 8           
+        LOAD_MEAN = 9         
+        SAVE_FIRST = 10
+        SAVE_MIN = 11         
+        SAVE_MAX = 12          
+        SAVE_MEAN = 13
     
     # Color codes for Excel formatting
     class Colors:
@@ -80,7 +89,7 @@ class Config:
 
 class MeasurementResult:
     def __init__(self, success=True, error_type=None, error_message="", 
-                 first_measure=0.0, min_time=0.0, max_time=0.0, mean_time=0.0):
+                 first_measure=0.0, min_time=0.0, max_time=0.0, mean_time=0.0, payload_size=0.0):
         self.success = success
         self.error_type = error_type
         self.error_message = error_message
@@ -88,6 +97,7 @@ class MeasurementResult:
         self.min_time = min_time
         self.max_time = max_time
         self.mean_time = mean_time
+        self.payload_size = payload_size
     
     @property
     def is_timeout_or_fallback(self):
@@ -408,12 +418,16 @@ class FormMeasurer:
             if not times:
                 raise Exception("All load measurements failed")
             
+            # 8. CALCULATE PAYLOAD SIZE - only for successful loads
+            payload_size = self._calculate_payload_size(url)
+            
             return MeasurementResult(
                 success=True,
                 first_measure=times[0],
                 min_time=min(times),
                 max_time=max(times),
-                mean_time=sum(times) / len(times)
+                mean_time=sum(times) / len(times),
+                payload_size=payload_size
             )
             
         except Exception as e:
@@ -432,8 +446,6 @@ class FormMeasurer:
         4. If no button → return "Save button not found" (not an error!)
         5. If button found → click and wait for success popup (20 seconds)
         6. Monitor for errors during save process
-        
-        Returns: MeasurementResult with clear status
         """
         try:
             self.logger.info("Starting save measurement on already loaded page...")
@@ -513,7 +525,7 @@ class FormMeasurer:
                 }
                 
                 // Fallback: Just check if we have Angular elements
-                var angularElements = document.querySelectorAll('[ng-star-inserted], [kendobutton]');
+                var angularElements = document.querySelectorAll('[ng-star-inserted], [kendo-button]');
                 return angularElements.length > 0;
             """)
             
@@ -914,6 +926,12 @@ class FormMeasurer:
         return False
     
     def _check_for_errors(self):
+        """
+        Check for CRITICAL errors on the page - IGNORE external resource failures
+        
+        Returns:
+            list: List of CRITICAL error messages found, empty if no critical errors
+        """
         errors = []
         
         try:
@@ -954,16 +972,17 @@ class FormMeasurer:
                 
                 return errors;
             """)
-            
+
             if popup_errors:
                 errors.extend(popup_errors)
-            
+
             # 2. Check for HTTP errors via Performance API - FILTERED for Frontline APIs only
             http_errors = self.driver.execute_script("""
                 var errors = [];
                 var filteredUrls = [];  // For debugging
                 try {
                     var entries = performance.getEntriesByType('resource');
+
                     entries.forEach(function(entry) {
                         // Only check URLs that contain frontlineeducation.com
                         var url = entry.name.toLowerCase();
@@ -998,91 +1017,163 @@ class FormMeasurer:
                 }
                 return {errors: errors, filtered: filteredUrls};
             """)
-            
+
             if http_errors and http_errors.get('errors'):
                 errors.extend(http_errors['errors'])
-            
-            # Log filtered URLs for debugging (only first few to avoid spam)
+                
+            # Log filtered URLs for debugging
             if http_errors and http_errors.get('filtered'):
-                filtered_count = len(http_errors['filtered'])
-                if filtered_count > 0:
-                    self.logger.debug(f"Filtered out {filtered_count} non-Frontline error URLs (e.g., Google Maps, etc.)")
-                    # Log first 2 filtered URLs for debugging
-                    for i, filtered_url in enumerate(http_errors['filtered'][:2]):
-                        self.logger.debug(f"  {filtered_url}")
-                    if filtered_count > 2:
-                        self.logger.debug(f"  ... and {filtered_count - 2} more")
+                for filtered_url in http_errors['filtered']:
+                    self.logger.debug(f"Filtered external error: {filtered_url}")
+                    
+        except Exception as e:
+            self.logger.debug(f"Error checking failed: {e}")
+        
+        return errors
+    
+    def _calculate_payload_size(self, url):
+        """
+        Calculate payload size from Frontline API requests during page load
+        
+        Uses Performance API to analyze network requests and calculate total
+        payload size from Frontline Education API endpoints only.
+        
+        Args:
+            url (str): Current page URL for context
             
-            # 3. Check for JavaScript errors in console (additional check)
-            console_errors = self.driver.execute_script("""
-                var errors = [];
+        Returns:
+            float: Payload size in KB, 0.0 if calculation fails or no API data
+        """
+        try:
+            self.logger.debug("Calculating payload size from API requests...")
+            
+            # Get network performance data via JavaScript
+            payload_data = self.driver.execute_script("""
                 try {
-                    // Check if there are any visible error messages in DOM
-                    var errorTexts = document.body.innerText || document.body.textContent || '';
-                    if (errorTexts.toLowerCase().includes('500') || 
-                        errorTexts.toLowerCase().includes('internal server error') ||
-                        errorTexts.toLowerCase().includes('server error')) {
-                        errors.push('Page contains server error text');
-                    }
+                    var totalSize = 0;
+                    var apiRequestCount = 0;
+                    var allRequests = [];
                     
-                    // Check for failed network requests in a different way
-                    // Look for error indicators in the page
-                    var errorIndicators = [
-                        'An error has occurred',
-                        'Error occurred',
-                        'Internal Server Error',
-                        'HTTP Error 500',
-                        'Server Error',
-                        'Something went wrong'
-                    ];
+                    // Get all network requests from Performance API
+                    var entries = performance.getEntriesByType('resource');
                     
-                    var pageText = document.body.innerText || document.body.textContent || '';
-                    errorIndicators.forEach(function(indicator) {
-                        if (pageText.includes(indicator)) {
-                            errors.push('Error indicator found: ' + indicator);
+                    entries.forEach(function(entry) {
+                        var requestUrl = entry.name || '';
+                        var size = 0;
+                        
+                        // Calculate request size - prefer transferSize, fallback to decodedBodySize
+                        if (entry.transferSize && entry.transferSize > 0) {
+                            size = entry.transferSize;
+                        } else if (entry.decodedBodySize && entry.decodedBodySize > 0) {
+                            size = entry.decodedBodySize;
+                        }
+                        
+                        // Only count Frontline Education API requests
+                        var isFrontlineAPI = requestUrl.toLowerCase().includes('frontlineeducation.com') && 
+                                           (requestUrl.includes('/api/') || 
+                                            requestUrl.includes('/plan/api/') || 
+                                            requestUrl.includes('/planng/api/'));
+                        
+                        if (isFrontlineAPI && size > 0) {
+                            totalSize += size;
+                            apiRequestCount++;
+                            allRequests.push({
+                                url: requestUrl.substring(0, 100), // Truncate for logging
+                                size: size
+                            });
                         }
                     });
                     
-                    // Check for error elements that might be hidden but still present
-                    var hiddenErrors = document.querySelectorAll('[class*="error"], [id*="error"]');
-                    for (var i = 0; i < hiddenErrors.length; i++) {
-                        var errorEl = hiddenErrors[i];
-                        var errorText = errorEl.textContent || errorEl.innerText || '';
-                        if (errorText.toLowerCase().includes('500') || 
-                            errorText.toLowerCase().includes('server error') ||
-                            errorText.toLowerCase().includes('internal server')) {
-                            errors.push('Hidden error element: ' + errorText.substring(0, 100));
-                            break;
-                        }
-                    }
+                    return {
+                        totalSize: totalSize,
+                        apiRequestCount: apiRequestCount,
+                        requests: allRequests,
+                        success: true
+                    };
                     
-                } catch(e) {
-                    // Ignore
+                } catch (error) {
+                    return {
+                        totalSize: 0,
+                        apiRequestCount: 0,
+                        requests: [],
+                        success: false,
+                        error: error.toString()
+                    };
                 }
-                return errors;
             """)
             
-            if console_errors:
-                errors.extend(console_errors)
-                
+            if not payload_data or not payload_data.get('success', False):
+                error_msg = payload_data.get('error', 'Unknown error') if payload_data else 'No data returned'
+                self.logger.warning(f"Payload calculation failed: {error_msg}")
+                return 0.0
+            
+            total_bytes = payload_data.get('totalSize', 0)
+            request_count = payload_data.get('apiRequestCount', 0)
+            requests = payload_data.get('requests', [])
+            
+            if total_bytes == 0:
+                self.logger.debug("No Frontline API payload data found")
+                return 0.0
+            
+            # Convert bytes to KB
+            total_kb = total_bytes / 1024.0
+            
+            self.logger.info(f"Payload analysis: {total_kb:.1f} KB from {request_count} API requests")
+            
+            # Log detailed breakdown if debug enabled
+            if self.logger.isEnabledFor(logging.DEBUG) and requests:
+                self.logger.debug("API Request breakdown:")
+                for req in requests[:5]:  # Log first 5 requests
+                    size_kb = req['size'] / 1024.0
+                    self.logger.debug(f"  {size_kb:.1f} KB - {req['url']}")
+                if len(requests) > 5:
+                    remaining_kb = sum(req['size'] for req in requests[5:]) / 1024.0
+                    self.logger.debug(f"  {remaining_kb:.1f} KB - {len(requests)-5} more requests")
+            
+            return round(total_kb, 1)
+            
         except Exception as e:
-            self.logger.debug(f"Error detection failed: {e}")
-        
-        return errors
+            self.logger.warning(f"Payload size calculation failed: {str(e)}")
+            return 0.0
 
 
 class ExcelResultWriter:
+    @staticmethod
+    def reset_row_values(row):
+        # Clear all measurement values
+        measurement_columns = [            
+            Config.ExcelColumns.ERROR_MESSAGE,
+            Config.ExcelColumns.PAYLOAD_SIZE,
+            Config.ExcelColumns.LOAD_FIRST,
+            Config.ExcelColumns.LOAD_MIN,
+            Config.ExcelColumns.LOAD_MAX,
+            Config.ExcelColumns.LOAD_MEAN,
+            Config.ExcelColumns.SAVE_FIRST,
+            Config.ExcelColumns.SAVE_MIN,
+            Config.ExcelColumns.SAVE_MAX,
+            Config.ExcelColumns.SAVE_MEAN
+        ]
+        
+        for col_idx in measurement_columns:
+            row[col_idx].value = ""
+            row[col_idx].font = Font(color="000000")
+            row[col_idx].fill = PatternFill()
+        
+        row[Config.ExcelColumns.TIMESTAMP].font = Font(color="000000")
+        row[Config.ExcelColumns.TIMESTAMP].fill = PatternFill()
+
     @staticmethod
     def write_load_result(row, result):
         """Write load measurement result to Excel row"""
         if result.success:
             ExcelResultWriter._write_times(row, result, [Config.ExcelColumns.LOAD_FIRST, Config.ExcelColumns.LOAD_MIN, Config.ExcelColumns.LOAD_MAX, Config.ExcelColumns.LOAD_MEAN])
-            reset_styles([row[Config.ExcelColumns.ERROR_MESSAGE], row[Config.ExcelColumns.TIMESTAMP]])
+            ExcelResultWriter._write_payload_size(row, result)
         else:
             ExcelResultWriter._write_error(row, result)
             # DON'T WRITE FALLBACK TIMES - THEY'RE MISLEADING!
             # Only write error message, leave time columns empty
             ExcelResultWriter._clear_load_columns(row)
+            ExcelResultWriter._clear_payload_column(row)
     
     @staticmethod
     def write_save_result(row, result):
@@ -1092,11 +1183,10 @@ class ExcelResultWriter:
             if "No Save button found" in result.error_message:
                 ExcelResultWriter._clear_save_columns(row)
                 row[Config.ExcelColumns.ERROR_MESSAGE].value = "No Save button found"
-                reset_styles([row[Config.ExcelColumns.ERROR_MESSAGE]])
             else:
                 ExcelResultWriter._write_times(row, result, [Config.ExcelColumns.SAVE_MIN, Config.ExcelColumns.SAVE_MAX, Config.ExcelColumns.SAVE_MEAN])
+                row[Config.ExcelColumns.ERROR_MESSAGE].value = ""
         else:
-            # Real save error - write error and clear columns
             ExcelResultWriter._write_error(row, result)
             ExcelResultWriter._clear_save_columns(row)
     
@@ -1149,6 +1239,25 @@ class ExcelResultWriter:
         """Clear load time columns"""
         for col_idx in [Config.ExcelColumns.LOAD_FIRST, Config.ExcelColumns.LOAD_MIN, Config.ExcelColumns.LOAD_MAX, Config.ExcelColumns.LOAD_MEAN]:
             row[col_idx].value = ""
+
+    @staticmethod
+    def _write_payload_size(row, result):
+        """Write payload size to Excel row with color coding for critical sizes"""
+        if result.payload_size > 0:
+            row[Config.ExcelColumns.PAYLOAD_SIZE].value = f"{result.payload_size:.1f} KB"
+            
+            if result.payload_size > Config.PAYLOAD_SIZE_THRESHOLD:
+                row[Config.ExcelColumns.PAYLOAD_SIZE].font = Font(color=Config.Colors.RED)
+            else:
+                row[Config.ExcelColumns.PAYLOAD_SIZE].font = Font(color="000000")
+        else:
+            row[Config.ExcelColumns.PAYLOAD_SIZE].value = "N/A"
+            row[Config.ExcelColumns.PAYLOAD_SIZE].font = Font(color="000000")
+    
+    @staticmethod
+    def _clear_payload_column(row):
+        row[Config.ExcelColumns.PAYLOAD_SIZE].value = ""
+        row[Config.ExcelColumns.PAYLOAD_SIZE].font = Font(color="000000")
 
 
 class HideBacktraceFormatter(logging.Formatter):
@@ -1403,8 +1512,6 @@ def main():
 
     wb = load_workbook(input_file, data_only=True)
     wb_sheet = wb.active
-    wb_sheet.cell(row=1, column=31).value = "."
-    wb_sheet.cell(row=1, column=31).value = ""
     specify_sheet_layout(wb_sheet)
 
     options = Options()
@@ -1416,33 +1523,36 @@ def main():
     head_cell_bottom.alignment = Alignment(horizontal='center')
 
     for row in wb_sheet.iter_rows(min_row=5):
-        for i in range(14, 18):
+        for i in range(15, 19):
             row[i + 9].value = row[i].value
 
-        for i in range(19, 22):
+        for i in range(20, 23):
             row[i + 8].value = row[i].value
 
-        reset_styles([row[14], row[15], row[16], 
-                      row[17], row[23], row[24], 
-                      row[25], row[26], row[27],
-                      row[19], row[20], row[21],
-                      row[9], row[13], row[18],
-                      row[28], row[29], row[22]])
+        reset_styles([row[15], row[16], row[17], 
+                      row[18], row[24], row[25], 
+                      row[26], row[27], row[28],
+                      row[20], row[21], row[22],
+                      row[10], row[14], row[19],
+                      row[29], row[30], row[23]])
 
-        for i in range(5, 9):
+        for i in range(6, 10):
             row[i + 9].value = row[i].value
 
-        for i in range(10, 13):
+        for i in range(11, 14):
             row[i + 9].value = row[i].value
 
-        flag_high_load_time([row[14], row[15], row[16], 
-                             row[17], row[24], row[24], 
-                             row[25], row[26], row[27],
-                             row[19], row[20], row[21],
-                             row[28], row[29]], threshold)
-        for i in range(3, 13):
+        flag_high_load_time([row[15], row[16], row[17], 
+                             row[18], row[25], row[25], 
+                             row[26], row[27], row[28],
+                             row[20], row[21], row[22],
+                             row[29], row[30]], threshold)
+        
+        
+        for i in range(4, 14):
             row[i].value = ""
-        reset_styles([row[3], row[4], row[5], row[6], row[7], row[8], row[10], row[11], row[12]])
+            
+        reset_styles([row[3], row[4], row[6], row[7], row[8], row[9], row[11], row[12], row[13]])
 
     build_version = ""
     prev_base_url = ""
@@ -1458,9 +1568,14 @@ def main():
             continue
         
         processed_records += 1
-        row[4].value = datetime.now().strftime('%y-%m-%d %H:%M:%S')
+        
+        ExcelResultWriter.reset_row_values(row)
+        reset_styles([row[Config.ExcelColumns.FROM_NAME], row[Config.ExcelColumns.FORM_URL]])
+        
         print(f"\n{url}")
         logger.debug(f"Processing: {url}")
+        
+        row[Config.ExcelColumns.TIMESTAMP].value = datetime.now().strftime('%y-%m-%d %H:%M:%S')
         
         try:
             base_url = extract_base_url(url)
@@ -1478,12 +1593,9 @@ def main():
             driver.get(url)
             is_form_page_url = SeleniumHelper.is_form_page_url(url)
 
-            # LOAD MEASUREMENT - choose approach based on user preference
             if use_new_tabs:
-                print(f"Using NEW TAB approach for cleaner measurements")
                 load_result, save_result = process_form_in_new_tab(driver, url, measurer, loops, logger, is_form_page_url, disable_save)
             else:
-                print(f"Using SINGLE TAB approach (legacy)")
                 load_result = measurer.measure_page_load(url, loops)
                 save_result = None
             
@@ -1506,7 +1618,6 @@ def main():
                         else:
                             print(f"Save failed: {save_result.error_message}")
                     else:
-                        print(f"Save measurement skipped")
                         ExcelResultWriter._clear_save_columns(row)
                 else:
                     # SINGLE TAB approach - save measurement on same page
@@ -1523,20 +1634,17 @@ def main():
                         else:
                             print(f"Save failed: {save_result.error_message}")
                     else:
-                        print(f"Skipping save measurement (not a form page or disabled)")
                         ExcelResultWriter._clear_save_columns(row)
                 
-                # Update comparisons only when load successful
-                compare_measures(row[17], row[26], row[18])
-                compare_measures(row[8], row[17], row[9])
-                flag_high_load_time([row[5], row[6], row[7], row[8], row[10], row[11], row[12]], threshold)
+                compare_measures(row[18], row[27], row[19])
+                compare_measures(row[9], row[18], row[10])
+                flag_high_load_time([row[6], row[7], row[8], row[9], row[11], row[12], row[13]], threshold)
                 
             else:
                 print(f"Load failed: {load_result.error_message}")
-                # Clear save columns and comparisons when load failed
                 ExcelResultWriter._clear_save_columns(row)
-                row[18].value = ""  # Clear load comparison
-                row[9].value = ""   # Clear other comparison
+                row[19].value = ""
+                row[10].value = ""
             
             # NO NEED TO CLOSE TAB if using new tabs - already handled
             # For single tab approach, we stay on the same tab
@@ -1558,10 +1666,8 @@ def main():
             print(f"Critical error: {simple_error}")
             logger.error(f"Critical error for {url}: {error_msg}")
             
-            # CLEANUP: Try to close any open tabs and return to original
             try:
                 close_current_tab(driver)
-                print(f"Cleaned up open tabs")
             except:
                 print(f"Could not clean up tabs - continuing anyway")
             
