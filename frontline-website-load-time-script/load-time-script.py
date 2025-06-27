@@ -349,7 +349,7 @@ class FormMeasurer:
             self.logger.debug(f"Loading page: {url}")
             load_start = time.time()
             
-            # Don't reload if we're already on the page (from open_new_tab)
+            # Navigate to URL if not already there
             if self.driver.current_url != url:
                 self.driver.get(url)
             
@@ -1479,26 +1479,22 @@ def configure_logger(file_name: str, processing_filename: str) -> logging.Logger
     return logger
 
 
-def open_new_tab(driver, url):
-    """Open new tab but don't navigate yet - let FormMeasurer handle navigation"""
-    driver.execute_script("window.open('about:blank', '_blank');")
-    driver.switch_to.window(driver.window_handles[-1])  # Switch to new tab
-
-
 def close_current_tab(driver):
-    """Close current tab and switch to first tab"""
-    if len(driver.window_handles) > 1:
+    """Close current tab and switch to the first one"""
+    try:
         driver.close()
-        driver.switch_to.window(driver.window_handles[0])  # Switch to first tab
+        driver.switch_to.window(driver.window_handles[0])
+    except:
+        pass  # Ignore cleanup errors
 
 
-def process_form_in_new_tab(driver, url, measurer, loops, logger, is_form_page, disable_save):
+def process_form(driver, url, measurer, loops, logger, is_form_page, disable_save):
     """
     Flow:
     1. Open new tab
     2. Load form + measure load time
-    3. On SAME tab: measure save time (if it's a form page)
-    4. Close tab
+    3. If successful: measure save time on same tab
+    4. Close tab and return results
     """
     load_result = None
     save_result = None
@@ -1558,8 +1554,6 @@ def main():
     parser.add_argument("--disable_save", action="store_true")
     parser.add_argument("--disable_filler", action="store_true", default=False)
     parser.add_argument("--idm_auth", action="store_true", default=False)
-    parser.add_argument("--use_new_tabs", action="store_true", default=True, 
-                        help="Use new tabs for each form (default: True, cleaner measurements)")
     my_namespace = parser.parse_args()
 
     input_file = my_namespace.input_file
@@ -1567,9 +1561,6 @@ def main():
     disable_save = my_namespace.disable_save
     disable_filler = my_namespace.disable_filler
     idm_auth = my_namespace.idm_auth
-    use_new_tabs = my_namespace.use_new_tabs
-    threshold = 15
-    timeout = Config.DEFAULT_TIMEOUT
 
     logger = configure_logger("script-log", input_file)
     SeleniumHelper.set_options({
@@ -1621,7 +1612,7 @@ def main():
                              row[18], row[25], row[25], 
                              row[26], row[27], row[28],
                              row[20], row[21], row[22],
-                             row[29], row[30]], threshold)
+                             row[29], row[30]], 15)
         
         
         for i in range(4, 14):
@@ -1668,11 +1659,7 @@ def main():
             driver.get(url)
             is_form_page_url = SeleniumHelper.is_form_page_url(url)
 
-            if use_new_tabs:
-                load_result, save_result = process_form_in_new_tab(driver, url, measurer, loops, logger, is_form_page_url, disable_save)
-            else:
-                load_result = measurer.measure_page_load(url, loops)
-                save_result = None
+            load_result, save_result = process_form(driver, url, measurer, loops, logger, is_form_page_url, disable_save)
             
             # Write load result to Excel
             ExcelResultWriter.write_load_result(row, load_result)
@@ -1680,40 +1667,20 @@ def main():
             if load_result.success:
                 print(f"Load successful: {load_result.mean_time:.1f}s average")
                 
-                # SAVE MEASUREMENT - handle based on approach
-                if use_new_tabs:
-                    # Save result already obtained in new tab approach
-                    if save_result:
-                        ExcelResultWriter.write_save_result(row, save_result)
-                        if save_result.success:
-                            if "No Save button found" in save_result.error_message:
-                                print(f"No Save button found - this is normal for some forms")
-                            else:
-                                print(f"Save successful: {save_result.mean_time:.1f}s average")
+                # Process save result if available
+                if save_result:
+                    ExcelResultWriter.write_save_result(row, save_result)
+                    if save_result.success:
+                        if "No Save button found" in save_result.error_message:
+                            print(f"No Save button found - this is normal for some forms")
                         else:
-                            print(f"Save failed: {save_result.error_message}")
+                            print(f"Save successful: {save_result.mean_time:.1f}s average")
                     else:
-                        ExcelResultWriter._clear_save_columns(row)
-                else:
-                    # SINGLE TAB approach - save measurement on same page
-                    if is_form_page_url and not disable_save:
-                        print(f"Measuring save time...")
-                        save_result = measurer.measure_save_time(url, loops)
-                        ExcelResultWriter.write_save_result(row, save_result)
-                        
-                        if save_result.success:
-                            if "No Save button found" in save_result.error_message:
-                                print(f"No Save button found - this is normal for some forms")
-                            else:
-                                print(f"Save successful: {save_result.mean_time:.1f}s average")
-                        else:
-                            print(f"Save failed: {save_result.error_message}")
-                    else:
-                        ExcelResultWriter._clear_save_columns(row)
+                        print(f"Save failed: {save_result.error_message}")
                 
                 compare_measures(row[18], row[27], row[19])
                 compare_measures(row[9], row[18], row[10])
-                flag_high_load_time([row[6], row[7], row[8], row[9], row[11], row[12], row[13]], threshold)
+                flag_high_load_time([row[6], row[7], row[8], row[9], row[11], row[12], row[13]], 15)
                 
             else:
                 print(f"Load failed: {load_result.error_message}")
@@ -1751,7 +1718,7 @@ def main():
         
         prev_base_url = base_url
         head_cell_top.value = f"{build_version} {timestamp}"
-        head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed}mb/s, loops: {loops}, {'NEW TABS' if use_new_tabs else 'SINGLE TAB'}"
+        head_cell_bottom.value = f"{((time.time() - start_time) / 60):.2f}m, {network_speed}mb/s, loops: {loops}"
         wb.save(input_file)
     
     driver.quit()
@@ -1763,7 +1730,6 @@ def main():
     
     print(f"\n" + "="*60)
     print(f"PROCESSING COMPLETED!\n")
-    print(f"Measurement approach: {'NEW TABS (cleaner measurements)' if use_new_tabs else 'SINGLE TAB (legacy)'}")
     print(f"Loops per record: {loops}")
     print(f"Total records processed: {processed_records}")
     print(f"Total time: {hours:02d}h {minutes:02d}m {seconds:02d}s")
