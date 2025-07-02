@@ -179,15 +179,6 @@ class FormMeasurer:
         self.logger = logger
     
     def is_frontline_api_url(self, url):
-        """
-        Check if URL belongs to Frontline Education API
-        
-        Args:
-            url (str): URL to check
-            
-        Returns:
-            bool: True if URL is Frontline Education API, False otherwise
-        """
         if not url:
             return False
             
@@ -419,12 +410,12 @@ class FormMeasurer:
     def measure_save_time(self, url, loops):
         """
         Flow:
-        1. Page already loaded (no reload needed!)
-        2. Wait for Angular/dynamic content to fully render
-        3. Try to find Save button (20 times every 0.5 seconds)
-        4. If no button → return "Save button not found"
-        5. If button found → click and wait for success popup (20 seconds)
-        6. Monitor for errors during save process
+        1. Wait for Angular content to stabilize
+        2. Fill required form fields if needed
+        3. Find Save button (with 20-second retry logic)
+        4. Click Save and measure time
+        5. Wait for success popup or completion
+        6. Check errors during save
         """
         try:
             self.logger.info("Starting save measurement on already loaded page...")
@@ -432,14 +423,16 @@ class FormMeasurer:
             # STEP 0: Wait for Angular/dynamic content to fully render
             self._wait_for_angular_content()
             
+            # STEP 0.5: Fill required form fields if needed
+            self._fill_required_fields_if_needed()
+            
             # STEP 1: Find Save button with 20-second wait (page might render dynamically)
             save_button = self._find_save_button_with_wait()
             
             if not save_button:
-                # This is NOT an error - just record that no save button exists
-                self.logger.info("No Save button found - this is normal for some forms")
+                self.logger.info("No Save button found")
                 return MeasurementResult(
-                    success=True,  # This is success! We successfully determined no save button
+                    success=True,
                     error_type=None,
                     error_message="No Save button found on this form",
                     first_measure=0.0,
@@ -448,16 +441,13 @@ class FormMeasurer:
                     mean_time=0.0
                 )
             
-            # STEP 2: We found a Save button - now measure save time
+            # We found a Save button - now measure save time
             self.logger.info(f"Found Save button: '{save_button.text.strip()}' - starting save measurement")
             
-            # Single save measurement (no loops needed)
             save_start_time = time.time()
             
-            # Click Save button
             self._click_save_button_reliably(save_button)
             
-            # Wait for save completion (20 seconds timeout)
             self._wait_for_save_success_popup(timeout=20)
             
             save_elapsed_time = time.time() - save_start_time
@@ -475,7 +465,6 @@ class FormMeasurer:
             )
             
         except Exception as e:
-            # Real errors (network issues, timeouts, etc.)
             self.logger.error(f"Save measurement failed: {str(e)}")
             error_type, error_message = ErrorClassifier.classify_save_error(e)
             return MeasurementResult(
@@ -485,10 +474,6 @@ class FormMeasurer:
             )
     
     def _wait_for_angular_content(self, timeout=3):
-        """
-        Wait for Angular content to fully render - SIMPLIFIED        
-        Since we now have retry logic, just a quick check for Angular stability
-        """
         self.logger.debug("Quick check for Angular content stability...")
         
         try:
@@ -516,10 +501,29 @@ class FormMeasurer:
         except Exception as e:
             self.logger.debug(f"Angular check failed: {e}")
     
+    def _fill_required_fields_if_needed(self):
+        """
+        Fill required form fields to prevent validation errors during save
+        Uses the existing PageFormFiller infrastructure and respects disable_filler option
+        """
+        try:
+            from frontline_selenium.selenium_helper import SeleniumHelper
+            if hasattr(SeleniumHelper, 'options') and SeleniumHelper.options.get("disable_filler", False):
+                self.logger.debug("Form filler disabled in options - skipping form filling")
+                return
+                
+            from frontline_selenium.page_filler import PageFormFiller
+            PageFormFiller.fill_form(self.driver)
+            self.logger.info("Form filled successfully using PageFormFiller")
+            
+        except ImportError:
+            self.logger.debug("PageFormFiller not available - skipping form fill")
+        except Exception as e:
+            self.logger.warning(f"Form filling failed (continuing anyway): {str(e)}")
+    
     def _find_save_button_with_wait(self, max_attempts=20, delay=0.5):
         """
-        Find Save button with smart retry logic        
-        USER'S BRILLIANT IDEA: Try 20 times every 0.5 sec
+        Find Save button with smart retry logic
         Total max time: 20 * 0.5 = 10 sec
         """
         from selenium.webdriver.common.by import By
@@ -614,30 +618,25 @@ class FormMeasurer:
             if attempt < max_attempts:
                 time.sleep(delay)
         
-        # No Save button found after all attempts
         total_time = max_attempts * delay
         self.logger.debug(f"No Save button found after {max_attempts} attempts ({total_time}s total)")
         return None
     
     def _is_save_button(self, button_text):
-        """Check if button text indicates a Save button"""
         if not button_text:
             return False
         
         text_lower = button_text.lower()
         
-        # Positive indicators
         save_keywords = ['save', 'update', 'submit']
         has_save_keyword = any(keyword in text_lower for keyword in save_keywords)
         
-        # Negative indicators
         exclude_keywords = ['cancel', 'close', 'back', 'previous', 'next', 'delete']
         has_exclude_keyword = any(keyword in text_lower for keyword in exclude_keywords)
         
         return has_save_keyword and not has_exclude_keyword
     
     def _click_save_button_reliably(self, save_button):
-        """Click Save button using Selenium best practices"""
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.support import expected_conditions as EC
         from selenium.common.exceptions import ElementClickInterceptedException
@@ -815,9 +814,7 @@ class FormMeasurer:
         raise TimeoutException(f"Save success popup not found after {elapsed:.1f}s timeout")
     
     def _check_for_save_errors(self):
-        """Check for save errors"""
         try:
-            # Check for error popups and HTTP errors
             error_found = self.driver.execute_script("""
                 var errorResult = { found: false, text: '', type: '' };
                 
@@ -925,7 +922,6 @@ class FormMeasurer:
         
         while time.time() < end_time:
             try:
-                # Check document ready state
                 ready_state = self.driver.execute_script("return document.readyState")
                 if ready_state == "complete":                    
                     loading_indicators = self.driver.execute_script("""
@@ -957,12 +953,6 @@ class FormMeasurer:
         return False
     
     def _check_for_errors(self):
-        """
-        Check for CRITICAL errors on the page - IGNORE external resource failures
-        
-        Returns:
-            list: List of CRITICAL error messages found, empty if no critical errors
-        """
         errors = []
         
         try:
@@ -1097,18 +1087,6 @@ class FormMeasurer:
         return errors
     
     def _calculate_payload_size(self, url):
-        """
-        Calculate payload size from Frontline API requests during page load
-        
-        Uses Performance API to analyze network requests and calculate total
-        payload size from Frontline Education API endpoints only.
-        
-        Args:
-            url (str): Current page URL for context
-            
-        Returns:
-            float: Payload size in KB, 0.0 if calculation fails or no API data
-        """
         try:
             self.logger.debug("Calculating payload size from API requests...")
             

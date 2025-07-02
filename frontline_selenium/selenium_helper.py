@@ -445,38 +445,11 @@ class SeleniumHelper:
             raise
 
     @staticmethod
-    def measure_form_page_load_time(driver: webdriver.Chrome, url: str) -> tuple:
-        """
-        Measure page load time for form pages with hybrid monitoring.
-        Uses the new PerformanceManager for improved reliability.
-        """
-        from .performance_manager import get_performance_manager
-        
-        manager = get_performance_manager(driver, SeleniumHelper.get_logger())
-        return manager.measure_form_page_load_time(url)
-    
-    @staticmethod
-    def measure_standard_page_load_time(driver: webdriver.Chrome) -> float:
-        """
-        Measure standard page load time using Navigation Timing API.
-        Uses the new PerformanceManager for improved reliability.
-        """
-        from .performance_manager import get_performance_manager
-        
-        manager = get_performance_manager(driver, SeleniumHelper.get_logger())
-        return manager.measure_standard_page_load_time()
-    
-    @staticmethod
-    def measure_form_save_time(driver: webdriver.Chrome) -> float:
-        """
-        Measure form save time.
-        Uses the new PerformanceManager for improved reliability.
-        """
-        from .performance_manager import get_performance_manager
-        
-        manager = get_performance_manager(driver, SeleniumHelper.get_logger())
-        return manager.measure_form_save_time()
-    
+    def format_page_load_times(driver: webdriver.Chrome, test_start_time: float, logger: logging.Logger, url: str):
+        load_time = time.time() - test_start_time
+        logger.info(f"Form page load time: {load_time:.1f}s")
+        return load_time
+
     @staticmethod
     def _hide_interfering_elements(driver: webdriver.Chrome):
         """Hide elements that can interfere with Save button clicks"""
