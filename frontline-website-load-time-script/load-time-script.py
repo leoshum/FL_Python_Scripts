@@ -209,97 +209,19 @@ class FormMeasurer:
         
         return any(pattern in url_lower for pattern in api_patterns)
     
-    def _check_for_login_page(self):
-        """
-        Check if current page is a login page instead of the expected form
-        
-        Returns:
-            bool: True if login page detected, False otherwise
-        """
-        try:
-            # Check for common login page indicators
-            login_indicators = self.driver.execute_script("""
-                var indicators = [];
-                var pageText = document.body.innerText || document.body.textContent || '';
-                var pageHtml = document.body.innerHTML || '';
-                
-                // Check for login-specific text
-                var loginTexts = [
-                    'Reset your password',
-                    'Credentials Reminder',
-                    'Username:',
-                    'Password:',
-                    'Sign in',
-                    'Login',
-                    'Log in'
-                ];
-                
-                loginTexts.forEach(function(text) {
-                    if (pageText.includes(text)) {
-                        indicators.push('Login text found: ' + text);
-                    }
-                });
-                
-                // Check for login form elements
-                var loginElements = [
-                    'input[type="password"]',
-                    'input[name*="password"]',
-                    'input[name*="username"]',
-                    'input[name*="login"]',
-                    '.login-form',
-                    '#login',
-                    '.credentials'
-                ];
-                
-                loginElements.forEach(function(selector) {
-                    try {
-                        var elements = document.querySelectorAll(selector);
-                        if (elements.length > 0) {
-                            indicators.push('Login element found: ' + selector);
-                        }
-                    } catch(e) {
-                        // Skip invalid selectors
-                    }
-                });
-                
-                // Check for specific Frontline login elements
-                if (pageHtml.includes('ctlCredentialsReminder') || 
-                    pageHtml.includes('LoginControl') ||
-                    pageHtml.includes('PasswordReminder')) {
-                    indicators.push('Frontline login page detected');
-                }
-                
-                return indicators;
-            """)
-            
-            if login_indicators:
-                self.logger.warning(f"Login page detected: {login_indicators}")
-                return True
-                
-            return False
-            
-        except Exception as e:
-            self.logger.debug(f"Login page check failed: {e}")
-            return False
-    
     def _check_for_form_content(self):
-        """
-        Check if page contains actual form content (not just login page)
-        
-        Returns:
-            bool: True if form content detected, False otherwise
-        """
         try:
             # Check for form-specific elements
             form_indicators = self.driver.execute_script("""
                 var indicators = [];
                 
-                // Check for form elements
                 var formElements = [
                     'form',
                     'input[type="text"]',
                     'input[type="email"]',
                     'input[type="tel"]',
+                    'input[type="radio"]',
+                    'input[type="checkbox"]',
                     'textarea',
                     'select',
                     'button[type="submit"]',
@@ -309,117 +231,152 @@ class FormMeasurer:
                     '.form-field'
                 ];
                 
-                var formElementCount = 0;
+                var kendoElements = [
+                    'kendo-combobox',
+                    'kendo-datepicker',
+                    'kendo-textbox',
+                    'kendo-maskedtextbox',
+                    'kendo-dropdownlist',
+                    'kendo-checkbox',
+                    'kendo-tabstrip',
+                    '[kendocheckbox]',
+                    '[kendotextbox]',
+                    '[kendocombobox]',
+                    '[kendodatepicker]',
+                    '.k-checkbox',
+                    '.k-textbox',
+                    '.k-combobox',
+                    '.k-datepicker',
+                    '.k-input',
+                    '.k-widget'
+                ];
+                
+                // Check for Accelify/Frontline specific elements
+                var frontlineElements = [
+                    'accelify-signature',
+                    'accelify-form-builder-field',
+                    'accelify-reactive-form-field-value',
+                    'accelify-checkbox-list',
+                    'accelify-lookup-type',
+                    'accelify-date-picker',
+                    '.signatureButton',
+                    '.js-form-field-value',
+                    '.js-checkbox-list',
+                    '.js-radio-button-list'
+                ];
+                
+                var totalFormElements = 0;
+                var detectedTypes = [];
+                
+                // Count standard form elements
                 formElements.forEach(function(selector) {
                     try {
                         var elements = document.querySelectorAll(selector);
-                        formElementCount += elements.length;
+                        if (elements.length > 0) {
+                            totalFormElements += elements.length;
+                            detectedTypes.push(selector + ': ' + elements.length);
+                        }
                     } catch(e) {
                         // Skip invalid selectors
                     }
                 });
                 
-                if (formElementCount > 3) {  // More than just login elements
-                    indicators.push('Form content detected: ' + formElementCount + ' form elements');
-                }
+                // Count Kendo UI elements
+                kendoElements.forEach(function(selector) {
+                    try {
+                        var elements = document.querySelectorAll(selector);
+                        if (elements.length > 0) {
+                            totalFormElements += elements.length;
+                            detectedTypes.push(selector + ': ' + elements.length);
+                        }
+                    } catch(e) {
+                        // Skip invalid selectors
+                    }
+                });
+                
+                // Count Frontline specific elements
+                frontlineElements.forEach(function(selector) {
+                    try {
+                        var elements = document.querySelectorAll(selector);
+                        if (elements.length > 0) {
+                            totalFormElements += elements.length;
+                            detectedTypes.push(selector + ': ' + elements.length);
+                        }
+                    } catch(e) {
+                        // Skip invalid selectors
+                    }
+                });
                 
                 // Check for Angular/Kendo UI components (typical for Frontline forms)
-                var angularElements = document.querySelectorAll('[ng-star-inserted], .k-widget, [kendo-]');
+                var angularElements = document.querySelectorAll('[ng-star-inserted], .k-widget, [kendo-], [_nghost-], [_ngcontent-]');
                 if (angularElements.length > 5) {
-                    indicators.push('Angular/Kendo form components detected: ' + angularElements.length);
+                    detectedTypes.push('Angular components: ' + angularElements.length);
+                }
+                
+                // Lower threshold - even 2-3 form elements could indicate a valid form
+                if (totalFormElements > 2) {
+                    indicators.push('Form content detected - ' + totalFormElements + ' total elements');
+                    indicators.push('Types: ' + detectedTypes.join(', '));
+                }
+                
+                // Additional check for form-specific text content
+                var formKeywords = ['consent', 'signature', 'parent', 'guardian', 'evaluation', 'services'];
+                var pageText = document.body.textContent.toLowerCase();
+                var keywordMatches = formKeywords.filter(keyword => pageText.includes(keyword));
+                if (keywordMatches.length >= 2 && totalFormElements > 0) {
+                    indicators.push('Form keywords detected: ' + keywordMatches.join(', '));
                 }
                 
                 return indicators;
             """)
             
             if form_indicators:
-                self.logger.debug(f"Form content detected: {form_indicators}")
+                self.logger.info(f"Form content detected: {form_indicators}")
                 return True
                 
+            self.logger.warning("No form content detected - possible authentication or access issue")
             return False
             
         except Exception as e:
-            self.logger.debug(f"Form content check failed: {e}")
+            self.logger.error(f"Form content check failed: {e}")
             return False
     
     def measure_page_load(self, url, loops):
         """PROPER ARCHITECTURE: Load once, measure multiple times with AUTH CHECK"""
         try:
-            # 1. LOAD PAGE ONCE - with timing
-            self.logger.debug(f"Loading page: {url}")
-            load_start = time.time()
+            times = []
             
-            # Navigate to URL if not already there
-            if self.driver.current_url != url:
-                self.driver.get(url)
-            
-            # Wait for basic page load
-            self._wait_for_page_ready()
-            initial_load_time = time.time() - load_start
-            
-            # 2. CRITICAL: Check if we got a login page instead of the form
-            if self._check_for_login_page():
-                return MeasurementResult(
-                    success=False, 
-                    error_type=Config.ErrorTypes.FORM_LOAD_ERROR, 
-                    error_message="Authentication required - login page detected instead of form"
-                )
-            
-            # 3. Check if we have actual form content
-            if not self._check_for_form_content():
-                return MeasurementResult(
-                    success=False, 
-                    error_type=Config.ErrorTypes.FORM_LOAD_ERROR, 
-                    error_message="No form content detected - possible authentication or access issue"
-                )
-            
-            # 4. IMPORTANT: Wait for Angular/AJAX requests to complete
-            self.logger.debug("Waiting for Angular/AJAX requests to complete...")
-            time.sleep(2)  # Give time for AJAX requests
-            
-            # 5. CHECK FOR ERRORS ON LOADED PAGE (including AJAX errors)
-            errors = self._check_for_errors()
-            if errors:
-                self.logger.error(f"Page load errors detected: {errors}")
-                return MeasurementResult(
-                    success=False, 
-                    error_type=Config.ErrorTypes.FORM_LOAD_ERROR, 
-                    error_message=errors[0]
-                )
-            
-            # 6. MEASURE MULTIPLE TIMES WITHOUT RELOADING
-            times = [initial_load_time]
-            self.logger.info(f"Initial load: {initial_load_time:.1f}s")
-            
-            # Additional measurements (refresh/reload testing)
-            for i in range(1, loops):
-                try:
-                    measure_start = time.time()
+            for i in range(loops):
+                self.logger.debug(f"Load measurement {i+1}/{loops}")
+                measure_start = time.time()
+                
+                if i == 0:
+                    if self.driver.current_url != url:
+                        self.logger.debug(f"URL mismatch, navigating to: {url}")
+                        self.driver.get(url)
+                    else:
+                        self.logger.debug("URL matches, using already loaded page")
                     
+                    self._wait_for_page_ready()
+                else:
+                    self.logger.debug(f"Refreshing page for measurement {i+1}")
                     self.driver.refresh()
                     self._wait_for_page_ready()
-                    
-                    # Wait for AJAX after refresh too
-                    time.sleep(1)
-                    
-                    refresh_errors = self._check_for_errors()
-                    if refresh_errors:
-                        self.logger.warning(f"Errors after refresh {i+1}: {refresh_errors}")
-                        continue
-                    
-                    measured_time = time.time() - measure_start
-                    times.append(measured_time)
-                    self.logger.info(f"Load {i+1}/{loops}: {measured_time:.1f}s")
-                    
-                except Exception as e:
-                    self.logger.warning(f"Load {i+1}/{loops} failed: {str(e)[:100]}")
-                    continue
+                
+                load_time = time.time() - measure_start
+                
+                validation_result = self._validate_page_after_load()
+                if not validation_result['success']:
+                    self.logger.error(f"Page validation failed on measurement {i+1}: {validation_result['error']}")
+                    return MeasurementResult(
+                        success=False,
+                        error_type=Config.ErrorTypes.FORM_LOAD_ERROR,
+                        error_message=validation_result['error']
+                    )
+                
+                times.append(load_time)
+                self.logger.info(f"Load {i+1}/{loops}: {load_time:.1f}s")
             
-            # 7. RETURN RESULTS
-            if not times:
-                raise Exception("All load measurements failed")
-            
-            # 8. CALCULATE PAYLOAD SIZE - only for successful loads
             payload_size = self._calculate_payload_size(url)
             
             return MeasurementResult(
@@ -435,6 +392,29 @@ class FormMeasurer:
             self.logger.error(f"Page load measurement failed: {str(e)}")
             error_type, error_message = ErrorClassifier.classify_load_error(str(e))
             return MeasurementResult(success=False, error_type=error_type, error_message=error_message)
+
+    def _validate_page_after_load(self):
+        try:
+            if not self._check_for_form_content():
+                return {
+                    'success': False, 
+                    'error': "No form content detected - possible authentication or access issue"
+                }
+            
+            errors = self._check_for_errors()
+            if errors:
+                return {
+                    'success': False,
+                    'error': errors[0]
+                }
+            
+            return {'success': True, 'error': None}
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f"Page validation failed: {str(e)}"
+            }
     
     def measure_save_time(self, url, loops):
         """
@@ -814,6 +794,7 @@ class FormMeasurer:
                         self.logger.info(f"Save success popup found after {elapsed:.1f}s: '{success_text}' (selector: {success_selector})")
                     else:
                         self.logger.info(f"Save success message found on page after {elapsed:.1f}s: '{success_text}' (type: {success_type})")
+                    
                     return
                 
             except Exception as e:
@@ -823,12 +804,14 @@ class FormMeasurer:
             
             time.sleep(check_interval)
         
+        elapsed = time.time() - start_time
+        
+        # Final error check only on timeout
         try:
             self._check_for_save_errors()
         except Exception as final_error:
             raise final_error
         
-        elapsed = time.time() - start_time
         raise TimeoutException(f"Save success popup not found after {elapsed:.1f}s timeout")
     
     def _check_for_save_errors(self):
@@ -944,11 +927,7 @@ class FormMeasurer:
             try:
                 # Check document ready state
                 ready_state = self.driver.execute_script("return document.readyState")
-                if ready_state == "complete":
-                    
-                    # TODO: think to remove this. We have retry logic, just change 0.2 to 0.5
-                    time.sleep(1)
-                    
+                if ready_state == "complete":                    
                     loading_indicators = self.driver.execute_script("""
                         var loadingSelectors = [
                             '.loading', '.spinner', '.loader', 
@@ -972,7 +951,7 @@ class FormMeasurer:
             except Exception as e:
                 self.logger.debug(f"Page ready check error: {e}")
                 
-            time.sleep(0.2)
+            time.sleep(0.5)
         
         self.logger.warning(f"Page ready timeout after {timeout}s")
         return False
@@ -1428,9 +1407,6 @@ def flag_high_load_time(cells, threshold):
                 time_value = float(cell.value)
                 if time_value > threshold:
                     cell.font = Font(color=Config.Colors.RED)
-                else:
-                    # Make TEXT black for normal load times
-                    cell.font = Font(color="000000")
             except (ValueError, TypeError):
                 # If it's not a number (like error text), set to black
                 cell.font = Font(color="000000")
@@ -1681,7 +1657,6 @@ def main():
                 compare_measures(row[18], row[27], row[19])
                 compare_measures(row[9], row[18], row[10])
                 flag_high_load_time([row[6], row[7], row[8], row[9], row[11], row[12], row[13]], 15)
-                
             else:
                 print(f"Load failed: {load_result.error_message}")
                 ExcelResultWriter._clear_save_columns(row)
