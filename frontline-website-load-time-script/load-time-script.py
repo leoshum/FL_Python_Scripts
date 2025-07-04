@@ -178,154 +178,70 @@ class FormMeasurer:
         self.driver = driver
         self.logger = logger
     
-    def is_frontline_api_url(self, url):
-        if not url:
-            return False
-            
-        # Convert to lowercase for case-insensitive comparison
-        url_lower = url.lower()
-        
-        # Check if URL contains frontlineeducation.com domain
-        if 'frontlineeducation.com' not in url_lower:
-            return False
-            
-        # Additional check: must be an API endpoint
-        # Common API patterns in Frontline Education
-        api_patterns = [
-            '/api/',
-            '/plan/api/',
-            '/planng/api/',
-            'api.frontlineeducation.com'
-        ]
-        
-        return any(pattern in url_lower for pattern in api_patterns)
-    
-    def _check_for_form_content(self):
+    def _check_for_form_content(self, url):
+        """Check if page contains form content with enhanced validation"""
         try:
-            # Check for form-specific elements
-            form_indicators = self.driver.execute_script("""
-                var indicators = [];
-                
-                var formElements = [
-                    'form',
-                    'input[type="text"]',
-                    'input[type="email"]',
-                    'input[type="tel"]',
-                    'input[type="radio"]',
-                    'input[type="checkbox"]',
-                    'textarea',
-                    'select',
-                    'button[type="submit"]',
-                    '.k-button',
-                    '[kendobutton]',
-                    '.form-group',
-                    '.form-field'
-                ];
-                
-                var kendoElements = [
-                    'kendo-combobox',
-                    'kendo-datepicker',
-                    'kendo-textbox',
-                    'kendo-maskedtextbox',
-                    'kendo-dropdownlist',
-                    'kendo-checkbox',
-                    'kendo-tabstrip',
-                    '[kendocheckbox]',
-                    '[kendotextbox]',
-                    '[kendocombobox]',
-                    '[kendodatepicker]',
-                    '.k-checkbox',
-                    '.k-textbox',
-                    '.k-combobox',
-                    '.k-datepicker',
-                    '.k-input',
-                    '.k-widget'
-                ];
-                
-                // Check for Accelify/Frontline specific elements
-                var frontlineElements = [
-                    'accelify-signature',
-                    'accelify-form-builder-field',
-                    'accelify-reactive-form-field-value',
-                    'accelify-checkbox-list',
-                    'accelify-lookup-type',
-                    'accelify-date-picker',
-                    '.signatureButton',
-                    '.js-form-field-value',
-                    '.js-checkbox-list',
-                    '.js-radio-button-list'
-                ];
-                
-                var totalFormElements = 0;
-                var detectedTypes = [];
-                
-                // Count standard form elements
-                formElements.forEach(function(selector) {
-                    try {
-                        var elements = document.querySelectorAll(selector);
-                        if (elements.length > 0) {
-                            totalFormElements += elements.length;
-                            detectedTypes.push(selector + ': ' + elements.length);
-                        }
-                    } catch(e) {
-                        // Skip invalid selectors
-                    }
-                });
-                
-                // Count Kendo UI elements
-                kendoElements.forEach(function(selector) {
-                    try {
-                        var elements = document.querySelectorAll(selector);
-                        if (elements.length > 0) {
-                            totalFormElements += elements.length;
-                            detectedTypes.push(selector + ': ' + elements.length);
-                        }
-                    } catch(e) {
-                        // Skip invalid selectors
-                    }
-                });
-                
-                // Count Frontline specific elements
-                frontlineElements.forEach(function(selector) {
-                    try {
-                        var elements = document.querySelectorAll(selector);
-                        if (elements.length > 0) {
-                            totalFormElements += elements.length;
-                            detectedTypes.push(selector + ': ' + elements.length);
-                        }
-                    } catch(e) {
-                        // Skip invalid selectors
-                    }
-                });
-                
-                // Check for Angular/Kendo UI components (typical for Frontline forms)
-                var angularElements = document.querySelectorAll('[ng-star-inserted], .k-widget, [kendo-], [_nghost-], [_ngcontent-]');
-                if (angularElements.length > 5) {
-                    detectedTypes.push('Angular components: ' + angularElements.length);
-                }
-                
-                // Lower threshold - even 2-3 form elements could indicate a valid form
-                if (totalFormElements > 2) {
-                    indicators.push('Form content detected - ' + totalFormElements + ' total elements');
-                    indicators.push('Types: ' + detectedTypes.join(', '));
-                }
-                
-                // Additional check for form-specific text content
-                var formKeywords = ['consent', 'signature', 'parent', 'guardian', 'evaluation', 'services'];
-                var pageText = document.body.textContent.toLowerCase();
-                var keywordMatches = formKeywords.filter(keyword => pageText.includes(keyword));
-                if (keywordMatches.length >= 2 && totalFormElements > 0) {
-                    indicators.push('Form keywords detected: ' + keywordMatches.join(', '));
-                }
-                
-                return indicators;
-            """)
+            # Check page readiness
+            ready_state = self.driver.execute_script("return document.readyState;")
+            if ready_state != "complete":
+                self.logger.warning(f"Page not fully loaded: {ready_state}")
+                return False
             
-            if form_indicators:
-                self.logger.info(f"Form content detected: {form_indicators}")
-                return True
+            # Define form element selectors
+            form_selectors = [
+                # Standard HTML form elements
+                'form', 'input[type="text"]', 'input[type="email"]', 'input[type="tel"]',
+                'input[type="radio"]', 'input[type="checkbox"]', 'textarea', 'select',
+                'button[type="submit"]',
                 
-            self.logger.warning("No form content detected - possible authentication or access issue")
+                # Kendo UI elements
+                '.k-button', '[kendobutton]', '.form-group', '.form-field',
+                'kendo-combobox', 'kendo-datepicker', 'kendo-textbox', 'kendo-maskedtextbox',
+                'kendo-dropdownlist', 'kendo-checkbox', 'kendo-tabstrip',
+                '[kendocheckbox]', '[kendotextbox]', '[kendocombobox]', '[kendodatepicker]',
+                '.k-checkbox', '.k-textbox', '.k-combobox', '.k-datepicker', '.k-input', '.k-widget',
+                
+                # Frontline/Accelify specific elements
+                'accelify-signature', 'accelify-form-builder-field', 'accelify-reactive-form-field-value',
+                'accelify-checkbox-list', 'accelify-lookup-type', 'accelify-date-picker',
+                '.signatureButton', '.js-form-field-value', '.js-checkbox-list', '.js-radio-button-list'
+            ]
+            
+            # Count form elements
+            total_elements = 0
+            for selector in form_selectors:
+                try:
+                    elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                    total_elements += len(elements)
+                except Exception:
+                    continue
+            
+            # Count Angular components
+            angular_elements = 0
+            try:
+                angular_components = self.driver.find_elements(By.CSS_SELECTOR, '[ng-reflect], [_ngcontent], [ng-version]')
+                angular_elements = len(angular_components)
+            except Exception:
+                pass
+            
+            # Enhanced validation logic
+            if total_elements > 0:
+                self.logger.info(f"Form content detected - {total_elements} total elements + {angular_elements} Angular")
+                return True
+            elif angular_elements > 3:
+                # Check for form-related keywords in page content
+                try:
+                    page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
+                    form_keywords = ['consent', 'signature', 'parent', 'guardian', 'evaluation', 'services']
+                    
+                    keyword_matches = sum(1 for keyword in form_keywords if keyword in page_text)
+                    if keyword_matches > 0:
+                        self.logger.info(f"Form content detected via Angular + keywords - {angular_elements} Angular components")
+                        return True
+                except Exception:
+                    pass
+            
+            self.logger.warning(f"No form content detected - {total_elements} elements, {angular_elements} Angular")
             return False
             
         except Exception as e:
@@ -333,12 +249,16 @@ class FormMeasurer:
             return False
     
     def measure_page_load(self, url, loops):
-        """PROPER ARCHITECTURE: Load once, measure multiple times with AUTH CHECK"""
         try:
             times = []
+            payload_size = 0.0  # Will calculate only once for first measurement
             
             for i in range(loops):
                 self.logger.debug(f"Load measurement {i+1}/{loops}")
+                
+                # Clear Performance API before each measurement for clean data
+                self.driver.execute_script("performance.clearResourceTimings();")
+                
                 measure_start = time.time()
                 
                 if i == 0:
@@ -354,7 +274,14 @@ class FormMeasurer:
                     self.driver.refresh()
                     self._wait_for_page_ready()
                 
+                # Wait for API requests to complete
+                self._wait_for_api_requests_complete(url)
+                
                 load_time = time.time() - measure_start
+                
+                # Calculate payload ONLY for first measurement (cleanest data)
+                if i == 0:
+                    payload_size = self._calculate_payload_size(url)
                 
                 validation_result = self._validate_page_after_load()
                 if not validation_result['success']:
@@ -367,8 +294,6 @@ class FormMeasurer:
                 
                 times.append(load_time)
                 self.logger.info(f"Load {i+1}/{loops}: {load_time:.1f}s")
-            
-            payload_size = self._calculate_payload_size(url)
             
             return MeasurementResult(
                 success=True,
@@ -386,7 +311,7 @@ class FormMeasurer:
 
     def _validate_page_after_load(self):
         try:
-            if not self._check_for_form_content():
+            if not self._check_for_form_content(self.driver.current_url):
                 return {
                     'success': False, 
                     'error': "No form content detected - possible authentication or access issue"
@@ -526,7 +451,6 @@ class FormMeasurer:
         Find Save button with smart retry logic
         Total max time: 20 * 0.5 = 10 sec
         """
-        from selenium.webdriver.common.by import By
         
         self.logger.debug(f"Searching for Save button ({max_attempts} attempts, {delay}s intervals)...")
         
@@ -1052,35 +976,18 @@ class FormMeasurer:
                                 // API requests with status 0 often indicate server errors
                                 errors.push('Failed API request (possible server error): ' + entry.name);
                             }
-                        } else if (entry.responseStatus >= 400) {
-                            // Log filtered out URLs for debugging (only if they have errors)
-                            filteredUrls.push('Filtered out (non-Frontline): ' + entry.name + ' (status: ' + entry.responseStatus + ')');
-                        }
-                    });
-                    
-                    // Additional check: Look for recent failed navigation requests - only Frontline domains
-                    var navigationEntries = performance.getEntriesByType('navigation');
-                    navigationEntries.forEach(function(entry) {
-                        var url = entry.name.toLowerCase();
-                        if (url.includes('frontlineeducation.com') && entry.responseStatus >= 500) {
-                            errors.push('HTTP ' + entry.responseStatus + ' navigation error');
                         }
                     });
                     
                 } catch(e) {
                     // Performance API not available
                 }
-                return {errors: errors, filtered: filteredUrls};
+                return {errors: errors};
             """)
 
             if http_errors and http_errors.get('errors'):
                 errors.extend(http_errors['errors'])
                 
-            # Log filtered URLs for debugging
-            if http_errors and http_errors.get('filtered'):
-                for filtered_url in http_errors['filtered']:
-                    self.logger.debug(f"Filtered external error: {filtered_url}")
-                    
         except Exception as e:
             self.logger.debug(f"Error checking failed: {e}")
         
@@ -1088,14 +995,17 @@ class FormMeasurer:
     
     def _calculate_payload_size(self, url):
         try:
-            self.logger.debug("Calculating payload size from API requests...")
+            self.logger.debug("Calculating payload size for current resource...")
+            
+            current_domain = self._extract_domain_from_url(url)
             
             # Get network performance data via JavaScript
             payload_data = self.driver.execute_script("""
                 try {
+                    var currentDomain = arguments[0];
                     var totalSize = 0;
                     var apiRequestCount = 0;
-                    var allRequests = [];
+                    var debugInfo = [];
                     
                     // Get all network requests from Performance API
                     var entries = performance.getEntriesByType('resource');
@@ -1104,33 +1014,73 @@ class FormMeasurer:
                         var requestUrl = entry.name || '';
                         var size = 0;
                         
-                        // Calculate request size - prefer transferSize, fallback to decodedBodySize
+                        // Calculate request size - NETWORK TRANSFER PRIORITY
                         if (entry.transferSize && entry.transferSize > 0) {
                             size = entry.transferSize;
                         } else if (entry.decodedBodySize && entry.decodedBodySize > 0) {
                             size = entry.decodedBodySize;
+                        } else if (entry.encodedBodySize && entry.encodedBodySize > 0) {
+                            size = entry.encodedBodySize;
                         }
                         
-                        // Only count Frontline Education API requests
-                        var isFrontlineAPI = requestUrl.toLowerCase().includes('frontlineeducation.com') && 
-                                           (requestUrl.includes('/api/') || 
-                                            requestUrl.includes('/plan/api/') || 
-                                            requestUrl.includes('/planng/api/'));
+                        // Check if this request is from the same domain as the form
+                        var requestDomain = '';
+                        try {
+                            var urlObj = new URL(requestUrl);
+                            requestDomain = urlObj.hostname.toLowerCase();
+                        } catch(e) {
+                            return; // Skip invalid URLs
+                        }
                         
-                        if (isFrontlineAPI && size > 0) {
-                            totalSize += size;
-                            apiRequestCount++;
-                            allRequests.push({
-                                url: requestUrl.substring(0, 100), // Truncate for logging
-                                size: size
+                        // DEBUG: Log all requests to our domain
+                        if (requestDomain === currentDomain) {
+                            var isStaticResource = (
+                                requestUrl.endsWith('.css') ||
+                                requestUrl.endsWith('.js') ||
+                                requestUrl.endsWith('.png') ||
+                                requestUrl.endsWith('.jpg') ||
+                                requestUrl.endsWith('.jpeg') ||
+                                requestUrl.endsWith('.gif') ||
+                                requestUrl.endsWith('.svg') ||
+                                requestUrl.endsWith('.ico') ||
+                                requestUrl.endsWith('.woff') ||
+                                requestUrl.endsWith('.woff2') ||
+                                requestUrl.endsWith('.ttf') ||
+                                requestUrl.endsWith('.eot') ||
+                                requestUrl.includes('/Content/') ||
+                                requestUrl.includes('/Scripts/') ||
+                                requestUrl.includes('/fonts/') ||
+                                requestUrl.includes('/images/')
+                            );
+                            
+                            // Only count API requests (not all non-static requests)
+                            var isApiRequest = requestUrl.includes('/plan/api/');
+                            
+                            debugInfo.push({
+                                url: requestUrl,
+                                transferSize: entry.transferSize || 0,
+                                decodedBodySize: entry.decodedBodySize || 0,
+                                encodedBodySize: entry.encodedBodySize || 0,
+                                size: size,
+                                isStatic: isStaticResource,
+                                isApi: isApiRequest,
+                                responseEnd: entry.responseEnd,
+                                included: isApiRequest && size > 0
                             });
+                            
+                            // Count only API requests
+                            if (isApiRequest && size > 0) {
+                                totalSize += size;
+                                apiRequestCount++;
+                            }
                         }
                     });
                     
                     return {
                         totalSize: totalSize,
                         apiRequestCount: apiRequestCount,
-                        requests: allRequests,
+                        debugInfo: debugInfo,
+                        totalEntries: entries.length,
                         success: true
                     };
                     
@@ -1138,24 +1088,36 @@ class FormMeasurer:
                     return {
                         totalSize: 0,
                         apiRequestCount: 0,
-                        requests: [],
+                        debugInfo: [],
+                        totalEntries: 0,
                         success: false,
                         error: error.toString()
                     };
                 }
-            """)
+            """, current_domain)
             
             if not payload_data or not payload_data.get('success', False):
-                error_msg = payload_data.get('error', 'Unknown error') if payload_data else 'No data returned'
-                self.logger.warning(f"Payload calculation failed: {error_msg}")
+                self.logger.debug("No API payload data found")
                 return 0.0
+            
+            # DEBUG LOGGING
+            debug_info = payload_data.get('debugInfo', [])
+            total_entries = payload_data.get('totalEntries', 0)
+            
+            self.logger.debug(f"Performance API has {total_entries} total requests")
+            self.logger.debug(f"Found {len(debug_info)} requests to domain {current_domain}")
+            
+            for req in debug_info:
+                status = "INCLUDED" if req['included'] else "EXCLUDED"
+                self.logger.debug(f"  {status}: {req['url']}")
+                self.logger.debug(f"    Transfer: {req['transferSize']}b, Decoded: {req['decodedBodySize']}b, Encoded: {req['encodedBodySize']}b")
+                self.logger.debug(f"    Final size: {req['size']}b, Static: {req['isStatic']}, ResponseEnd: {req['responseEnd']}")
             
             total_bytes = payload_data.get('totalSize', 0)
             request_count = payload_data.get('apiRequestCount', 0)
-            requests = payload_data.get('requests', [])
             
             if total_bytes == 0:
-                self.logger.debug("No Frontline API payload data found")
+                self.logger.debug("No API payload data found")
                 return 0.0
             
             # Convert bytes to KB
@@ -1163,21 +1125,98 @@ class FormMeasurer:
             
             self.logger.info(f"Payload analysis: {total_kb:.1f} KB from {request_count} API requests")
             
-            # Log detailed breakdown if debug enabled
-            if self.logger.isEnabledFor(logging.DEBUG) and requests:
-                self.logger.debug("API Request breakdown:")
-                for req in requests[:5]:  # Log first 5 requests
-                    size_kb = req['size'] / 1024.0
-                    self.logger.debug(f"  {size_kb:.1f} KB - {req['url']}")
-                if len(requests) > 5:
-                    remaining_kb = sum(req['size'] for req in requests[5:]) / 1024.0
-                    self.logger.debug(f"  {remaining_kb:.1f} KB - {len(requests)-5} more requests")
-            
             return round(total_kb, 1)
             
         except Exception as e:
             self.logger.warning(f"Payload size calculation failed: {str(e)}")
             return 0.0
+
+    def _wait_for_api_requests_complete(self, url):
+        """Wait only for API requests to complete (not static resources)"""
+        try:
+            start_time = time.time()
+            max_wait = 5.0
+            current_domain = self._extract_domain_from_url(url)
+            
+            self.logger.debug(f"Waiting for API requests to {current_domain} to complete...")
+            
+            while time.time() - start_time < max_wait:
+                pending_api_requests = self.driver.execute_script("""
+                    try {
+                        var currentDomain = arguments[0];
+                        var pendingApiCount = 0;
+                        var totalApiCount = 0;
+                        
+                        var entries = performance.getEntriesByType('resource');
+                        
+                        entries.forEach(function(entry) {
+                            var requestUrl = entry.name || '';
+                            
+                            // Get request domain
+                            var requestDomain = '';
+                            try {
+                                var urlObj = new URL(requestUrl);
+                                requestDomain = urlObj.hostname.toLowerCase();
+                            } catch(e) {
+                                return; // Skip invalid URLs
+                            }
+                            
+                            // Only check requests to our domain
+                            if (requestDomain === currentDomain) {
+                                // Only count API requests
+                                var isApiRequest = requestUrl.includes('/plan/api/');
+                                
+                                if (isApiRequest) {
+                                    totalApiCount++;
+                                    if (entry.responseEnd === 0) {
+                                        pendingApiCount++;
+                                    }
+                                }
+                            }
+                        });
+                        
+                        return {
+                            pendingCount: pendingApiCount,
+                            totalApiCount: totalApiCount,
+                            success: true
+                        };
+                    } catch(e) {
+                        return {success: false, error: e.toString()};
+                    }
+                """, current_domain)
+                
+                if not pending_api_requests.get('success'):
+                    break
+                    
+                pending_count = pending_api_requests.get('pendingCount', 0)
+                total_api_count = pending_api_requests.get('totalApiCount', 0)
+                
+                if pending_count == 0:
+                    elapsed = time.time() - start_time
+                    self.logger.debug(f"All {total_api_count} API requests completed after {elapsed:.2f}s")
+                    return True
+                    
+                self.logger.debug(f"Still waiting: {pending_count} pending API requests out of {total_api_count}")
+                time.sleep(0.2)
+            
+            # Timeout
+            elapsed = time.time() - start_time
+            self.logger.debug(f"API request wait timeout after {elapsed:.2f}s")
+            return True  # Continue anyway
+            
+        except Exception as e:
+            self.logger.debug(f"API request wait failed: {e}")
+            return True
+
+    def _extract_domain_from_url(self, url):
+        """Extract domain from URL for payload matching"""
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            return parsed.hostname.lower() if parsed.hostname else ''
+        except Exception as e:
+            self.logger.debug(f"Failed to extract domain from {url}: {e}")
+            return ''
 
 
 class ExcelResultWriter:
@@ -1639,8 +1678,7 @@ def main():
                 print(f"Load failed: {load_result.error_message}")
                 ExcelResultWriter._clear_save_columns(row)
                 row[19].value = ""
-                row[10].value = ""            
-            
+                row[10].value = ""
         except Exception as critical_ex:
             error_msg = str(critical_ex)
             
