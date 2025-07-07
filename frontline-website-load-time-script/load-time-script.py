@@ -399,8 +399,6 @@ class FormMeasurer:
             )
     
     def _wait_for_angular_content(self, timeout=3):
-        self.logger.debug("Quick check for Angular content stability...")
-        
         try:
             # Quick check for Angular stability
             angular_ready = self.driver.execute_script("""
@@ -418,13 +416,10 @@ class FormMeasurer:
             """)
             
             if not angular_ready:
-                self.logger.debug("Angular not ready, waiting briefly...")
                 time.sleep(timeout)
-            else:
-                self.logger.debug("Angular appears ready")
                 
         except Exception as e:
-            self.logger.debug(f"Angular check failed: {e}")
+            pass
     
     def _fill_required_fields_if_needed(self):
         """
@@ -434,7 +429,6 @@ class FormMeasurer:
         try:
             from frontline_selenium.selenium_helper import SeleniumHelper
             if hasattr(SeleniumHelper, 'options') and SeleniumHelper.options.get("disable_filler", False):
-                self.logger.debug("Form filler disabled in options - skipping form filling")
                 return
                 
             from frontline_selenium.page_filler import PageFormFiller
@@ -442,7 +436,7 @@ class FormMeasurer:
             self.logger.info("Form filled successfully using PageFormFiller")
             
         except ImportError:
-            self.logger.debug("PageFormFiller not available - skipping form fill")
+            pass
         except Exception as e:
             self.logger.warning(f"Form filling failed (continuing anyway): {str(e)}")
     
@@ -451,8 +445,6 @@ class FormMeasurer:
         Find Save button with smart retry logic
         Total max time: 20 * 0.5 = 10 sec
         """
-        
-        self.logger.debug(f"Searching for Save button ({max_attempts} attempts, {delay}s intervals)...")
         
         # All selectors
         save_button_selectors = [
@@ -476,8 +468,6 @@ class FormMeasurer:
         ]
         
         for attempt in range(1, max_attempts + 1):
-            self.logger.debug(f"Save button search attempt {attempt}/{max_attempts}")
-            
             # Strategy 1: Try CSS selectors
             for selector in save_button_selectors:
                 try:
@@ -486,7 +476,6 @@ class FormMeasurer:
                         if element.is_displayed() and element.is_enabled():
                             button_text = element.text.strip() or element.get_attribute('value') or ''
                             if self._is_save_button(button_text):
-                                self.logger.debug(f"Found Save button: '{button_text}' using selector: {selector} (attempt {attempt})")
                                 return element
                 except Exception:
                     continue
@@ -499,7 +488,6 @@ class FormMeasurer:
                         if element.is_displayed() and element.is_enabled():
                             button_text = element.text.strip() or element.get_attribute('value') or ''
                             if self._is_save_button(button_text):
-                                self.logger.debug(f"Found Save button: '{button_text}' using xpath: {xpath} (attempt {attempt})")
                                 return element
                 except Exception:
                     continue
@@ -532,8 +520,6 @@ class FormMeasurer:
                 """)
                 
                 if save_button:
-                    button_text = save_button.text.strip() or save_button.get_attribute('value') or ''
-                    self.logger.debug(f"Found Save button via JavaScript: '{button_text}' (attempt {attempt})")
                     return save_button
                     
             except Exception:
@@ -542,8 +528,6 @@ class FormMeasurer:
             if attempt < max_attempts:
                 time.sleep(delay)
         
-        total_time = max_attempts * delay
-        self.logger.debug(f"No Save button found after {max_attempts} attempts ({total_time}s total)")
         return None
     
     def _is_save_button(self, button_text):
@@ -576,10 +560,8 @@ class FormMeasurer:
             
             # Try normal click first
             save_button.click()
-            self.logger.debug("Save button clicked successfully")
             
         except ElementClickInterceptedException:
-            self.logger.debug("Click intercepted, using JavaScript click...")
             self.driver.execute_script("arguments[0].click();", save_button)
             
         except Exception as e:
@@ -588,8 +570,6 @@ class FormMeasurer:
     def _wait_for_save_success_popup(self, timeout=20):
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.common.exceptions import TimeoutException
-        
-        self.logger.debug(f"Waiting for save success popup (timeout: {timeout}s)...")
         
         start_time = time.time()
         
@@ -995,8 +975,6 @@ class FormMeasurer:
     
     def _calculate_payload_size(self, url):
         try:
-            self.logger.debug("Calculating payload size for current resource...")
-            
             current_domain = self._extract_domain_from_url(url)
             
             # Get network performance data via JavaScript
@@ -1097,27 +1075,12 @@ class FormMeasurer:
             """, current_domain)
             
             if not payload_data or not payload_data.get('success', False):
-                self.logger.debug("No API payload data found")
                 return 0.0
-            
-            # DEBUG LOGGING
-            debug_info = payload_data.get('debugInfo', [])
-            total_entries = payload_data.get('totalEntries', 0)
-            
-            self.logger.debug(f"Performance API has {total_entries} total requests")
-            self.logger.debug(f"Found {len(debug_info)} requests to domain {current_domain}")
-            
-            for req in debug_info:
-                status = "INCLUDED" if req['included'] else "EXCLUDED"
-                self.logger.debug(f"  {status}: {req['url']}")
-                self.logger.debug(f"    Transfer: {req['transferSize']}b, Decoded: {req['decodedBodySize']}b, Encoded: {req['encodedBodySize']}b")
-                self.logger.debug(f"    Final size: {req['size']}b, Static: {req['isStatic']}, ResponseEnd: {req['responseEnd']}")
             
             total_bytes = payload_data.get('totalSize', 0)
             request_count = payload_data.get('apiRequestCount', 0)
             
             if total_bytes == 0:
-                self.logger.debug("No API payload data found")
                 return 0.0
             
             # Convert bytes to KB
@@ -1196,7 +1159,6 @@ class FormMeasurer:
                     self.logger.debug(f"All {total_api_count} API requests completed after {elapsed:.2f}s")
                     return True
                     
-                self.logger.debug(f"Still waiting: {pending_count} pending API requests out of {total_api_count}")
                 time.sleep(0.2)
             
             # Timeout
@@ -1205,7 +1167,6 @@ class FormMeasurer:
             return True  # Continue anyway
             
         except Exception as e:
-            self.logger.debug(f"API request wait failed: {e}")
             return True
 
     def _extract_domain_from_url(self, url):
