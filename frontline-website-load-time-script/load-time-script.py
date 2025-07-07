@@ -179,13 +179,8 @@ class FormMeasurer:
         self.logger = logger
     
     def _check_for_form_content(self, url):
-        """Check if page contains form content with enhanced validation"""
         try:
-            # Check page readiness
-            ready_state = self.driver.execute_script("return document.readyState;")
-            if ready_state != "complete":
-                self.logger.warning(f"Page not fully loaded: {ready_state}")
-                return False
+            total_elements = 0
             
             # Define form element selectors
             form_selectors = [
@@ -207,8 +202,6 @@ class FormMeasurer:
                 '.signatureButton', '.js-form-field-value', '.js-checkbox-list', '.js-radio-button-list'
             ]
             
-            # Count form elements
-            total_elements = 0
             for selector in form_selectors:
                 try:
                     elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
@@ -226,7 +219,6 @@ class FormMeasurer:
             
             # Enhanced validation logic
             if total_elements > 0:
-                self.logger.info(f"Form content detected - {total_elements} total elements + {angular_elements} Angular")
                 return True
             elif angular_elements > 3:
                 # Check for form-related keywords in page content
@@ -236,7 +228,6 @@ class FormMeasurer:
                     
                     keyword_matches = sum(1 for keyword in form_keywords if keyword in page_text)
                     if keyword_matches > 0:
-                        self.logger.info(f"Form content detected via Angular + keywords - {angular_elements} Angular components")
                         return True
                 except Exception:
                     pass
@@ -433,7 +424,6 @@ class FormMeasurer:
                 
             from frontline_selenium.page_filler import PageFormFiller
             PageFormFiller.fill_form(self.driver)
-            self.logger.info("Form filled successfully using PageFormFiller")
             
         except ImportError:
             pass
@@ -693,11 +683,8 @@ class FormMeasurer:
                     success_type = success_found.get('type', 'unknown')
                     success_selector = success_found.get('selector', 'unknown')
                     
-                    if success_type == 'popup':
-                        self.logger.info(f"Save success popup found after {elapsed:.1f}s: '{success_text}' (selector: {success_selector})")
-                    else:
-                        self.logger.info(f"Save success message found on page after {elapsed:.1f}s: '{success_text}' (type: {success_type})")
-                    
+                    # Simplified success logging - just confirm success was detected
+                    self.logger.info(f"Save success confirmed after {elapsed:.1f}s")
                     return
                 
             except Exception as e:
