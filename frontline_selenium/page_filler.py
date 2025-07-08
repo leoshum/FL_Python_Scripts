@@ -19,7 +19,7 @@ class PageFormFiller:
         PageFormFiller.logger = logger
 
     @staticmethod
-    def fill_form(driver: webdriver.Chrome) -> None:
+    def fill_form(driver: webdriver.Chrome) -> None:        
         PageFormFiller.fill_form_radio_buttons(driver)
         PageFormFiller.fill_form_checkboxes(driver)
         #PageFormFiller.fill_form_drop_down_lists(driver)
@@ -28,6 +28,9 @@ class PageFormFiller:
         PageFormFiller.fill_form_textareas(driver)
         PageFormFiller.fill_form_rich_text_editors(driver)
         PageFormFiller.fill_form_date_time_picker(driver)
+        PageFormFiller.fill_form_phones(driver)
+        PageFormFiller.fill_form_emails(driver)
+        PageFormFiller.fill_form_zipcodes(driver)
     
     def create_script(file_name: str, params: dict={}) -> str:
         with open(PageFormFiller.scripts_directory + file_name, "r") as script_file:
@@ -238,4 +241,27 @@ class PageFormFiller:
                 except Exception as ex:
                     PageFormFiller.logger.exception(ex)
 
+    @staticmethod
+    def fill_form_phones(driver: webdriver.Chrome) -> None:
+        try:
+            script = PageFormFiller.create_script("phone.js")
+            result = driver.execute_script(script)            
+        except Exception as ex:
+            PageFormFiller.logger.exception(ex)
+
+    @staticmethod
+    def fill_form_emails(driver: webdriver.Chrome) -> None:
+        try:
+            script = PageFormFiller.create_script("email.js")
+            result = driver.execute_script(script)                
+        except Exception as ex:
+            PageFormFiller.logger.exception(ex)
+
+    @staticmethod
+    def fill_form_zipcodes(driver: webdriver.Chrome) -> None:
+        try:
+            script = PageFormFiller.create_script("zipcode.js")
+            result = driver.execute_script(script)         
+        except Exception as ex:
+            PageFormFiller.logger.exception(ex)
        
