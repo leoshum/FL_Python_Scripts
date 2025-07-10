@@ -180,59 +180,348 @@ class FormMeasurer:
     
     def _check_for_form_content(self, url):
         try:
-            total_elements = 0
-            
-            # Define form element selectors
-            form_selectors = [
-                # Standard HTML form elements
-                'form', 'input[type="text"]', 'input[type="email"]', 'input[type="tel"]',
-                'input[type="radio"]', 'input[type="checkbox"]', 'textarea', 'select',
-                'button[type="submit"]',
-                
-                # Kendo UI elements
-                '.k-button', '[kendobutton]', '.form-group', '.form-field',
-                'kendo-combobox', 'kendo-datepicker', 'kendo-textbox', 'kendo-maskedtextbox',
-                'kendo-dropdownlist', 'kendo-checkbox', 'kendo-tabstrip',
-                '[kendocheckbox]', '[kendotextbox]', '[kendocombobox]', '[kendodatepicker]',
-                '.k-checkbox', '.k-textbox', '.k-combobox', '.k-datepicker', '.k-input', '.k-widget',
-                
-                # Frontline/Accelify specific elements
-                'accelify-signature', 'accelify-form-builder-field', 'accelify-reactive-form-field-value',
-                'accelify-checkbox-list', 'accelify-lookup-type', 'accelify-date-picker',
-                '.signatureButton', '.js-form-field-value', '.js-checkbox-list', '.js-radio-button-list'
+            # Strategy 1: Enhanced action button detection with stale element handling
+            action_keywords = [
+                'save', 'previous', 'next', 'validate', 'print',
+                'clear', 'generate', 'update', 'submit', 'create'
             ]
             
-            for selector in form_selectors:
-                try:
-                    elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                    total_elements += len(elements)
-                except Exception:
-                    continue
+            # Use JavaScript to avoid stale element issues and get comprehensive button data
+            button_analysis = self.driver.execute_script("""
+                const result = {
+                    actionButtons: [],
+                    totalButtons: 0,
+                    visibleButtons: 0,
+                    foundActionButton: false
+                };
+                
+                // Enhanced button selectors including input buttons
+                const buttonSelectors = [
+                    'button',
+                    'input[type="button"]',
+                    'input[type="submit"]',
+                    'a[role="button"]',
+                    '.btn',
+                    '[onclick]'
+                ];
+                
+                const actionKeywords = arguments[0];
+                const allButtons = [];
+                
+                // Collect all buttons from different selectors
+                buttonSelectors.forEach(selector => {
+                    try {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(elem => {
+                            if (!allButtons.includes(elem)) {
+                                allButtons.push(elem);
+                            }
+                        });
+                    } catch (e) {
+                        // Ignore selector errors
+                    }
+                });
+                
+                result.totalButtons = allButtons.length;
+                
+                allButtons.forEach(btn => {
+                    try {
+                        // Check if button is visible
+                        const isVisible = btn.offsetHeight > 0 && btn.offsetWidth > 0 && 
+                                         getComputedStyle(btn).visibility !== 'hidden' && 
+                                         getComputedStyle(btn).display !== 'none';
+                        
+                        if (isVisible) {
+                            result.visibleButtons++;
+                            
+                            // Get text from multiple sources
+                            const text = (
+                                btn.textContent || 
+                                btn.innerText || 
+                                btn.value || 
+                                btn.getAttribute('title') || 
+                                btn.getAttribute('aria-label') || 
+                                ''
+                            ).toLowerCase().trim();
+                            
+                            // Check for action keywords
+                            const hasActionKeyword = actionKeywords.some(keyword => 
+                                text.includes(keyword.toLowerCase())
+                            );
+                            
+                            if (hasActionKeyword) {
+                                result.actionButtons.push({
+                                    text: text,
+                                    tag: btn.tagName,
+                                    type: btn.type || '',
+                                    classes: btn.className || ''
+                                });
+                                result.foundActionButton = true;
+                            }
+                        }
+                    } catch (e) {
+                        // Skip problematic elements
+                    }
+                });
+                
+                return result;
+            """, action_keywords)
             
-            # Count Angular components
-            angular_elements = 0
-            try:
-                angular_components = self.driver.find_elements(By.CSS_SELECTOR, '[ng-reflect], [_ngcontent], [ng-version]')
-                angular_elements = len(angular_components)
-            except Exception:
-                pass
-            
-            # Enhanced validation logic
-            if total_elements > 0:
+            if button_analysis['foundActionButton']:
+                action_button = button_analysis['actionButtons'][0]
+                self.logger.info(f"Found action button: '{action_button['text']}' - form content confirmed")
                 return True
-            elif angular_elements > 3:
-                # Check for form-related keywords in page content
-                try:
-                    page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
-                    form_keywords = ['consent', 'signature', 'parent', 'guardian', 'evaluation', 'services']
-                    
-                    keyword_matches = sum(1 for keyword in form_keywords if keyword in page_text)
-                    if keyword_matches > 0:
-                        return True
-                except Exception:
-                    pass
             
-            self.logger.warning(f"No form content detected - {total_elements} elements, {angular_elements} Angular")
+            # Strategy 2: Enhanced input field detection with JavaScript
+            input_analysis = self.driver.execute_script("""
+                const result = {
+                    totalInputs: 0,
+                    visibleInputs: 0,
+                    interactableInputs: 0,
+                    inputTypes: []
+                };
+                
+                // Comprehensive input selectors
+                const inputSelectors = [
+                    'input:not([type="hidden"]):not([type="button"]):not([type="submit"])',
+                    'select',
+                    'textarea',
+                    '[contenteditable="true"]',
+                    '.k-editor', // Kendo editors
+                    'accelify-rich-editor'
+                ];
+                
+                const allInputs = [];
+                
+                inputSelectors.forEach(selector => {
+                    try {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(elem => {
+                            if (!allInputs.includes(elem)) {
+                                allInputs.push(elem);
+                            }
+                        });
+                    } catch (e) {
+                        // Ignore selector errors
+                    }
+                });
+                
+                result.totalInputs = allInputs.length;
+                
+                allInputs.forEach(input => {
+                    try {
+                        const isVisible = input.offsetHeight > 0 && input.offsetWidth > 0 && 
+                                         getComputedStyle(input).visibility !== 'hidden' && 
+                                         getComputedStyle(input).display !== 'none';
+                        
+                        if (isVisible) {
+                            result.visibleInputs++;
+                            
+                            const isInteractable = !input.disabled && !input.readOnly;
+                            if (isInteractable) {
+                                result.interactableInputs++;
+                                result.inputTypes.push(input.type || input.tagName.toLowerCase());
+                            }
+                        }
+                    } catch (e) {
+                        // Skip problematic elements
+                    }
+                });
+                
+                return result;
+            """)
+            
+            # Relaxed criteria: 1+ interactable inputs OR 2+ visible inputs indicates a form
+            if input_analysis['interactableInputs'] >= 1 or input_analysis['visibleInputs'] >= 2:
+                self.logger.info(f"Found {input_analysis['interactableInputs']} interactable inputs, {input_analysis['visibleInputs']} visible inputs - form content confirmed")
+                return True
+            
+            # Strategy 3: Enhanced form container detection
+            container_analysis = self.driver.execute_script("""
+                const result = {
+                    containers: [],
+                    hasFormWithControls: false
+                };
+                
+                // Enhanced form container selectors
+                const containerSelectors = [
+                    'form',
+                    'div[class*="form"]',
+                    'div[id*="form"]',
+                    'accelify-forms-details',
+                    '.main-content',
+                    '#pnlForm',
+                    '#pnlEventContent',
+                    '[role="form"]'
+                ];
+                
+                containerSelectors.forEach(selector => {
+                    try {
+                        const containers = document.querySelectorAll(selector);
+                        containers.forEach(container => {
+                            const isVisible = container.offsetHeight > 0 && container.offsetWidth > 0;
+                            
+                            if (isVisible) {
+                                // Check for form controls within container
+                                const controls = container.querySelectorAll(
+                                    'input, select, textarea, button, [contenteditable], .k-editor'
+                                );
+                                
+                                const visibleControls = Array.from(controls).filter(ctrl => {
+                                    return ctrl.offsetHeight > 0 && ctrl.offsetWidth > 0 && 
+                                           getComputedStyle(ctrl).display !== 'none';
+                                });
+                                
+                                if (visibleControls.length > 0) {
+                                    result.containers.push({
+                                        selector: selector,
+                                        controlCount: visibleControls.length
+                                    });
+                                    result.hasFormWithControls = true;
+                                }
+                            }
+                        });
+                    } catch (e) {
+                        // Ignore selector errors
+                    }
+                });
+                
+                return result;
+            """)
+            
+            if container_analysis['hasFormWithControls']:
+                container = container_analysis['containers'][0]
+                self.logger.info(f"Found form container '{container['selector']}' with {container['controlCount']} controls - form content confirmed")
+                return True
+            
+            # Strategy 4: Enhanced dynamic content handling for Angular/async forms
+            angular_check = self.driver.execute_script("""
+                const result = {
+                    hasAngular: false,
+                    hasAsyncContent: false,
+                    hasSkeletons: false,
+                    requiresWait: false
+                };
+                
+                // Check for Angular
+                result.hasAngular = !!(window.angular || window.ng || 
+                                     document.querySelector('[ng-app], [data-ng-app], ng-component, [ng-controller]'));
+                
+                // Check for async content indicators
+                const asyncSelectors = [
+                    '[ng-if]', '[*ngIf]', '[v-if]',
+                    '.async-content', '.lazy-load', '.dynamic-content'
+                ];
+                
+                asyncSelectors.forEach(selector => {
+                    try {
+                        if (document.querySelector(selector)) {
+                            result.hasAsyncContent = true;
+                        }
+                    } catch (e) {
+                        // Ignore
+                    }
+                });
+                
+                // Check for loading skeletons
+                const skeletonSelectors = [
+                    '.skeleton', '.loading-skeleton', '.content-skeleton',
+                    '[class*="skeleton"]', '[class*="loading"]'
+                ];
+                
+                skeletonSelectors.forEach(selector => {
+                    try {
+                        const skeletons = document.querySelectorAll(selector);
+                        if (skeletons.length > 0) {
+                            const visibleSkeletons = Array.from(skeletons).filter(s => 
+                                s.offsetHeight > 0 && s.offsetWidth > 0
+                            );
+                            if (visibleSkeletons.length > 0) {
+                                result.hasSkeletons = true;
+                            }
+                        }
+                    } catch (e) {
+                        // Ignore
+                    }
+                });
+                
+                // Determine if we need to wait
+                result.requiresWait = result.hasAngular || result.hasAsyncContent || result.hasSkeletons;
+                
+                return result;
+            """)
+            
+            # If we have Angular/async content but no form elements yet, wait longer and retry multiple times
+            if angular_check['requiresWait']:
+                self.logger.info(f"Detected dynamic content (Angular: {angular_check['hasAngular']}, Async: {angular_check['hasAsyncContent']}, Skeletons: {angular_check['hasSkeletons']}) - waiting for rendering...")
+                
+                # Try up to 3 times with increasing delays
+                for attempt in range(3):
+                    delay = 1.0 + (attempt * 0.5)  # 1.0s, 1.5s, 2.0s delays
+                    time.sleep(delay)
+                    
+                    # Comprehensive retry detection
+                    retry_result = self.driver.execute_script("""
+                        const result = {
+                            hasContent: false,
+                            elementCount: 0,
+                            visibleButtons: 0,
+                            visibleInputs: 0
+                        };
+                        
+                        // Check all form elements
+                        const allFormElements = document.querySelectorAll('input, select, textarea, button');
+                        const visibleElements = Array.from(allFormElements).filter(elem => {
+                            const rect = elem.getBoundingClientRect();
+                            const style = window.getComputedStyle(elem);
+                            return rect.width > 0 && rect.height > 0 && 
+                                   style.visibility !== 'hidden' && 
+                                   style.display !== 'none' && 
+                                   style.opacity !== '0';
+                        });
+                        
+                        result.elementCount = visibleElements.length;
+                        result.hasContent = result.elementCount > 0;
+                        
+                        // Count buttons vs inputs
+                        visibleElements.forEach(elem => {
+                            if (elem.tagName.toLowerCase() === 'button' || elem.type === 'button' || elem.type === 'submit') {
+                                result.visibleButtons++;
+                            } else {
+                                result.visibleInputs++;
+                            }
+                        });
+                        
+                        return result;
+                    """)
+                    
+                    if retry_result['hasContent']:
+                        self.logger.info(f"Dynamic content loaded after {delay:.1f}s wait: {retry_result['elementCount']} elements ({retry_result['visibleButtons']} buttons, {retry_result['visibleInputs']} inputs) - form content confirmed")
+                        return True
+                    else:
+                        self.logger.debug(f"Attempt {attempt + 1}: Still no content after {delay:.1f}s delay")
+                
+                self.logger.debug("Dynamic content wait completed but no form elements found")
+            
+            # Strategy 5: Button-only forms (confirmation forms, simple action forms)
+            # If we have multiple buttons including at least one action button, consider it a form
+            if (button_analysis['visibleButtons'] >= 2 and 
+                any(btn for btn in button_analysis['actionButtons'] if btn)):
+                self.logger.info(f"Found button-only form with {button_analysis['visibleButtons']} buttons including action buttons - form content confirmed")
+                return True
+            
+            # Strategy 6: Fallback - any reasonable interactive content
+            # If we have a combination of buttons and any form elements
+            total_interactive = button_analysis['visibleButtons'] + input_analysis['visibleInputs']
+            if total_interactive >= 3:  # At least 3 interactive elements suggest a form
+                self.logger.info(f"Found interactive content: {button_analysis['visibleButtons']} buttons + {input_analysis['visibleInputs']} inputs = {total_interactive} elements - form content confirmed")
+                return True
+            
+            # Debug info before returning False
+            self.logger.info(f"No form content found: {button_analysis['visibleButtons']} buttons, "
+                           f"{input_analysis['visibleInputs']} visible inputs, "
+                           f"{len(container_analysis['containers'])} form containers")
+            
             return False
             
         except Exception as e:
@@ -245,25 +534,19 @@ class FormMeasurer:
             payload_size = 0.0  # Will calculate only once for first measurement
             
             for i in range(loops):
-                self.logger.debug(f"Load measurement {i+1}/{loops}")
-                
                 # Clear Performance API before each measurement for clean data
                 self.driver.execute_script("performance.clearResourceTimings();")
                 
-                measure_start = time.time()
-                
                 if i == 0:
                     if self.driver.current_url != url:
-                        self.logger.debug(f"URL mismatch, navigating to: {url}")
                         self.driver.get(url)
-                    else:
-                        self.logger.debug("URL matches, using already loaded page")
-                    
-                    self._wait_for_page_ready()
                 else:
-                    self.logger.debug(f"Refreshing page for measurement {i+1}")
                     self.driver.refresh()
-                    self._wait_for_page_ready()
+
+                measure_start = time.time()
+                
+                # Wait for complete page and content readiness
+                self._wait_for_content_ready()
                 
                 # Wait for API requests to complete
                 self._wait_for_api_requests_complete(url)
@@ -275,6 +558,7 @@ class FormMeasurer:
                     payload_size = self._calculate_payload_size(url)
                 
                 validation_result = self._validate_page_after_load()
+                
                 if not validation_result['success']:
                     self.logger.error(f"Page validation failed on measurement {i+1}: {validation_result['error']}")
                     return MeasurementResult(
@@ -305,7 +589,7 @@ class FormMeasurer:
             if not self._check_for_form_content(self.driver.current_url):
                 return {
                     'success': False, 
-                    'error': "No form content detected - possible authentication or access issue"
+                    'error': "No form content detected"
                 }
             
             errors = self._check_for_errors()
@@ -326,7 +610,7 @@ class FormMeasurer:
     def measure_save_time(self, url, loops):
         """
         Flow:
-        1. Wait for Angular content to stabilize
+        1. Finding Save button
         2. Fill required form fields if needed
         3. Find Save button (with 20-second retry logic)
         4. Click Save and measure time
@@ -334,10 +618,7 @@ class FormMeasurer:
         6. Check errors during save
         """
         try:
-            self.logger.info("Starting save measurement on already loaded page...")
-            
-            # STEP 0: Wait for Angular/dynamic content to fully render
-            self._wait_for_angular_content()
+            self.logger.info("Starting save measurement on already loaded page")
             
             # STEP 0.5: Fill required form fields if needed
             self._fill_required_fields_if_needed()
@@ -389,34 +670,266 @@ class FormMeasurer:
                 error_message=error_message
             )
     
-    def _wait_for_angular_content(self, timeout=3):
-        try:
-            # Quick check for Angular stability
-            angular_ready = self.driver.execute_script("""
-                // Quick Angular stability check
-                if (typeof window.getAllAngularTestabilities === 'function') {
-                    var testabilities = window.getAllAngularTestabilities();
-                    return testabilities.every(function(testability) {
-                        return testability.isStable();
+    def _wait_for_content_ready(self, timeout: int = 10) -> bool:
+        end_time = time.time() + timeout
+        poll_interval = 0.3
+        
+        # Phase 1: Wait for document ready
+        while time.time() < end_time:
+            try:
+                if self.driver.execute_script("return document.readyState") == "complete":
+                    break
+            except Exception:
+                pass
+            time.sleep(0.1)
+        
+        # Phase 2: Wait for content stability
+        consecutive_stable_checks = 0
+        required_stable_checks = 3
+        
+        while time.time() < end_time:
+            try:
+                debug_info = self.driver.execute_script("""
+                    const result = {
+                        foundLoaders: [],
+                        hasContent: false,
+                        contentCount: 0
+                    };
+                    
+                    // Check each loading selector individually
+                    // Excluded '.loader' and '.sk-activity-indicator' as they appear to be permanent UI elements
+                    const loadingSelectors = [
+                        '.loading', '.spinner', '.k-loading-mask', 
+                        '.blockUI', '.loading-wrapper', '.loading-overlay',
+                        '.loading-spinner', '.content-loading', '.page-loading',
+                        '[data-loading="true"]', '[aria-busy="true"]'
+                    ];
+                    
+                    for (const selector of loadingSelectors) {
+                        const elements = document.querySelectorAll(selector);
+                        for (const el of elements) {
+                            if (el.offsetHeight > 0 && el.offsetWidth > 0) {
+                                result.foundLoaders.push({
+                                    selector: selector,
+                                    text: el.textContent?.trim() || '',
+                                    classes: el.className
+                                });
+                            }
+                        }
+                    }
+                    
+                    // Content check
+                    const contentElements = document.querySelectorAll('input, button, select, textarea');
+                    result.contentCount = contentElements.length;
+                    result.hasContent = contentElements.length > 0;
+                    
+                    return result;
+                """)
+                
+                if not debug_info['foundLoaders'] and debug_info['hasContent']:
+                    consecutive_stable_checks += 1
+                    if consecutive_stable_checks >= required_stable_checks:
+                        self.logger.debug(f"Content ready after {time.time() - (end_time - timeout):.1f}s")
+                        
+                        # Phase 3: Wait for Angular stability if detected
+                        if self._wait_for_angular_stability():
+                            self.logger.debug("Angular stability achieved")
+                        
+                        # Phase 4: Wait for visual rendering completion
+                        if self._wait_for_visual_readiness():
+                            self.logger.debug("Visual readiness achieved")
+                            return True
+                        else:
+                            self.logger.debug("Visual readiness timeout - continuing anyway")
+                            return True
+                else:
+                    consecutive_stable_checks = 0
+                    # Detailed logging
+                    if debug_info['foundLoaders']:
+                        loader_info = debug_info['foundLoaders'][0]  # First found loader
+                        self.logger.debug(f"Content not ready: found loader '{loader_info['selector']}' with classes '{loader_info['classes']}'")
+                    else:
+                        self.logger.debug(f"Content not ready: no content (found {debug_info['contentCount']} elements)")
+                    
+            except Exception as e:
+                self.logger.debug(f"Content readiness check failed: {e}")
+                consecutive_stable_checks = 0
+                
+            time.sleep(poll_interval)
+        
+        self.logger.debug(f"Content ready timeout after {timeout}s")
+        return False
+    
+    def _wait_for_visual_readiness(self, timeout: int = 3) -> bool:
+        """Wait for visual rendering completion using multiple indicators"""
+        end_time = time.time() + timeout
+        previous_metrics = None
+        
+        while time.time() < end_time:
+            try:
+                current_metrics = self.driver.execute_script("""
+                    const result = {
+                        domNodeCount: document.querySelectorAll('*').length,
+                        visibleElements: 0,
+                        hasTransitions: false,
+                        hasAnimations: false,
+                        pendingImages: 0,
+                        stylesheetsPending: false
+                    };
+                    
+                    // Count visible elements
+                    const allElements = document.querySelectorAll('*');
+                    allElements.forEach(el => {
+                        const style = window.getComputedStyle(el);
+                        if (style.display !== 'none' && style.visibility !== 'hidden' && 
+                            el.offsetWidth > 0 && el.offsetHeight > 0) {
+                            result.visibleElements++;
+                            
+                            // Check for ongoing transitions/animations
+                            if (style.transition !== 'none' && style.transition !== '') {
+                                result.hasTransitions = true;
+                            }
+                            if (style.animation !== 'none' && style.animation !== '') {
+                                result.hasAnimations = true;
+                            }
+                        }
                     });
-                }
+                    
+                    // Check for pending images
+                    const images = document.querySelectorAll('img');
+                    images.forEach(img => {
+                        if (!img.complete || img.naturalHeight === 0) {
+                            result.pendingImages++;
+                        }
+                    });
+                    
+                    // Check stylesheets
+                    const styleSheets = document.styleSheets;
+                    for (let i = 0; i < styleSheets.length; i++) {
+                        try {
+                            // If we can access cssRules, the stylesheet is loaded
+                            const rules = styleSheets[i].cssRules;
+                        } catch (e) {
+                            if (e.name === 'InvalidAccessError') {
+                                // Cross-origin, but loaded
+                                continue;
+                            }
+                            result.stylesheetsPending = true;
+                            break;
+                        }
+                    }
+                    
+                    return result;
+                """)
                 
-                // Fallback: Just check if we have Angular elements
-                var angularElements = document.querySelectorAll('[ng-star-inserted], [kendo-button]');
-                return angularElements.length > 0;
-            """)
+                # Check if metrics are stable (no changes between checks)
+                if previous_metrics:
+                    metrics_stable = (
+                        current_metrics['domNodeCount'] == previous_metrics['domNodeCount'] and
+                        current_metrics['visibleElements'] == previous_metrics['visibleElements'] and
+                        current_metrics['pendingImages'] == 0 and
+                        not current_metrics['stylesheetsPending'] and
+                        not current_metrics['hasTransitions'] and
+                        not current_metrics['hasAnimations']
+                    )
+                    
+                    if metrics_stable:
+                        return True
+                
+                previous_metrics = current_metrics
+                
+            except Exception as e:
+                self.logger.debug(f"Visual readiness check failed: {e}")
+                return True  # Assume ready on error
             
-            if not angular_ready:
-                time.sleep(timeout)
+            time.sleep(0.2)  # Check every 200ms
+        
+        return False  # Timeout reached
+    
+    def _wait_for_angular_stability(self, timeout: int = 3) -> bool:
+        """Wait for Angular to finish rendering and stabilize"""
+        end_time = time.time() + timeout
+        
+        while time.time() < end_time:
+            try:
+                angular_check = self.driver.execute_script("""
+                    const result = {
+                        hasAngular: false,
+                        isStable: false,
+                        hasAsyncContent: false
+                    };
+                    
+                    // Check for Angular presence
+                    result.hasAngular = !!(window.angular || window.ng || 
+                                         document.querySelector('[ng-app], [data-ng-app], ng-component, [ng-controller]'));
+                    
+                    if (!result.hasAngular) {
+                        result.isStable = true; // No Angular = stable
+                        return result;
+                    }
+                    
+                    // Check Angular stability
+                    try {
+                        if (window.angular) {
+                            // AngularJS
+                            const rootScope = angular.element(document).scope()?.$root;
+                            if (rootScope) {
+                                result.isStable = !rootScope.$$phase && 
+                                                (rootScope.$$pendingRequests?.length || 0) === 0;
+                            } else {
+                                result.isStable = true; // Fallback if scope not accessible
+                            }
+                        } else if (window.ng && window.ng.getTestability) {
+                            // Angular 2+
+                            result.isStable = window.ng.getTestability(document.body).isStable();
+                        } else {
+                            result.isStable = true; // Fallback if testability not available
+                        }
+                    } catch(e) {
+                        result.isStable = true; // Assume stable if we can't check
+                    }
+                    
+                    // Check for async content indicators that might still be loading
+                    const asyncSelectors = [
+                        '[ng-if]', '[*ngIf]', '[v-if]',
+                        '.async-content', '.lazy-load', '.dynamic-content',
+                        '.skeleton', '.loading-skeleton', '[class*="skeleton"]'
+                    ];
+                    
+                    for (const selector of asyncSelectors) {
+                        try {
+                            const elements = document.querySelectorAll(selector);
+                            const visibleElements = Array.from(elements).filter(el => 
+                                el.offsetHeight > 0 && el.offsetWidth > 0
+                            );
+                            if (visibleElements.length > 0) {
+                                result.hasAsyncContent = true;
+                                break;
+                            }
+                        } catch (e) {
+                            // Ignore selector errors
+                        }
+                    }
+                    
+                    return result;
+                """)
                 
-        except Exception as e:
-            pass
+                if not angular_check['hasAngular']:
+                    return True  # No Angular detected, consider stable
+                
+                if angular_check['isStable'] and not angular_check['hasAsyncContent']:
+                    return True  # Angular is stable and no async content loading
+                
+            except Exception as e:
+                self.logger.debug(f"Angular stability check failed: {e}")
+                return True  # Assume stable on error
+            
+            time.sleep(0.3)
+        
+        self.logger.debug(f"Angular stability timeout after {timeout}s")
+        return True  # Continue anyway after timeout
     
     def _fill_required_fields_if_needed(self):
-        """
-        Fill required form fields to prevent validation errors during save
-        Uses the existing PageFormFiller infrastructure and respects disable_filler option
-        """
         try:
             from frontline_selenium.selenium_helper import SeleniumHelper
             if hasattr(SeleniumHelper, 'options') and SeleniumHelper.options.get("disable_filler", False):
@@ -537,25 +1050,53 @@ class FormMeasurer:
     def _click_save_button_reliably(self, save_button):
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.support import expected_conditions as EC
-        from selenium.common.exceptions import ElementClickInterceptedException
-        
-        try:
-            # Ensure button is still clickable
-            wait = WebDriverWait(self.driver, 5)
-            wait.until(EC.element_to_be_clickable(save_button))
+        from selenium.common.exceptions import ElementClickInterceptedException, StaleElementReferenceException
+
+        def _safe_click(element):
+            try:
+                element.click()
+                return True
+            except ElementClickInterceptedException:
+                # Covered below by JS click
+                return False
+            except StaleElementReferenceException:
+                return False
+            except Exception:
+                return False
+
+        # Try up to 3 attempts: normal click → JS click → re-find & JS click
+        for attempt in range(3):
+            try:
+                # Ensure (new) button is clickable
+                WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable(save_button))
+            except StaleElementReferenceException:
+                # Re-locate button if it became stale during wait
+                save_button = self._find_save_button_with_wait(max_attempts=5, delay=0.2)
+                if not save_button:
+                    break
             
-            # Scroll into view
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", save_button)
-            time.sleep(0.2)
+            # Scroll into view (element might be detached, ignore errors)
+            try:
+                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", save_button)
+            except Exception:
+                pass
             
-            # Try normal click first
-            save_button.click()
+            # 1. Native click
+            if _safe_click(save_button):
+                return
             
-        except ElementClickInterceptedException:
-            self.driver.execute_script("arguments[0].click();", save_button)
-            
-        except Exception as e:
-            raise Exception(f"Failed to click Save button: {str(e)}")
+            # 2. Fallback JS click
+            try:
+                self.driver.execute_script("arguments[0].click();", save_button)
+                return
+            except Exception:
+                # Re-locate and retry next loop
+                save_button = self._find_save_button_with_wait(max_attempts=5, delay=0.2)
+                if not save_button:
+                    break
+
+        # If we reached here, all click attempts failed
+        raise Exception("Failed to click Save button after multiple attempts")
     
     def _wait_for_save_success_popup(self, timeout=20):
         from selenium.webdriver.support.ui import WebDriverWait
@@ -808,40 +1349,87 @@ class FormMeasurer:
             if "Save failed:" in str(e):
                 raise e
     
-    def _wait_for_page_ready(self, timeout=10):
-        end_time = time.time() + timeout
-        
-        while time.time() < end_time:
-            try:
-                ready_state = self.driver.execute_script("return document.readyState")
-                if ready_state == "complete":                    
-                    loading_indicators = self.driver.execute_script("""
-                        var loadingSelectors = [
-                            '.loading', '.spinner', '.loader', 
-                            '.k-loading-mask', '.blockUI'
-                        ];
+    def _wait_for_api_requests_complete(self, url):
+        """Wait only for API requests to complete (not static resources)"""
+        try:
+            start_time = time.time()
+            max_wait = 5.0
+            current_domain = self._extract_domain_from_url(url)
+            
+            while time.time() - start_time < max_wait:
+                pending_api_requests = self.driver.execute_script("""
+                    try {
+                        var currentDomain = arguments[0];
+                        var pendingApiCount = 0;
+                        var totalApiCount = 0;
                         
-                        for (var i = 0; i < loadingSelectors.length; i++) {
-                            var elements = document.querySelectorAll(loadingSelectors[i]);
-                            for (var j = 0; j < elements.length; j++) {
-                                if (elements[j].offsetHeight > 0 && elements[j].offsetWidth > 0) {
-                                    return true; // Found visible loading indicator
+                        var entries = performance.getEntriesByType('resource');
+                        
+                        entries.forEach(function(entry) {
+                            var requestUrl = entry.name || '';
+                            
+                            // Get request domain
+                            var requestDomain = '';
+                            try {
+                                var urlObj = new URL(requestUrl);
+                                requestDomain = urlObj.hostname.toLowerCase();
+                            } catch(e) {
+                                return; // Skip invalid URLs
+                            }
+                            
+                            // Only check requests to our domain
+                            if (requestDomain === currentDomain) {
+                                // Only count API requests
+                                var isApiRequest = requestUrl.includes('/plan/api/');
+                                
+                                if (isApiRequest) {
+                                    totalApiCount++;
+                                    if (entry.responseEnd === 0) {
+                                        pendingApiCount++;
+                                    }
                                 }
                             }
-                        }
-                        return false; // No loading indicators
-                    """)
-                    
-                    if not loading_indicators:
-                        return True  # Page is ready
+                        });
                         
-            except Exception as e:
-                self.logger.debug(f"Page ready check error: {e}")
+                        return {
+                            pendingCount: pendingApiCount,
+                            totalApiCount: totalApiCount,
+                            success: true
+                        };
+                    } catch(e) {
+                        return {success: false, error: e.toString()};
+                    }
+                """, current_domain)
                 
-            time.sleep(0.5)
-        
-        self.logger.warning(f"Page ready timeout after {timeout}s")
-        return False
+                if not pending_api_requests.get('success'):
+                    break
+                    
+                pending_count = pending_api_requests.get('pendingCount', 0)
+                total_api_count = pending_api_requests.get('totalApiCount', 0)
+                
+                if pending_count == 0:
+                    elapsed = time.time() - start_time
+                    return True
+                    
+                time.sleep(0.2)
+            
+            # Timeout
+            elapsed = time.time() - start_time
+            self.logger.debug(f"API request wait timeout after {elapsed:.2f}s")
+            return True  # Continue anyway
+            
+        except Exception as e:
+            return True
+
+    def _extract_domain_from_url(self, url):
+        """Extract domain from URL for payload matching"""
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            return parsed.hostname.lower() if parsed.hostname else ''
+        except Exception as e:
+            self.logger.debug(f"Failed to extract domain from {url}: {e}")
+            return ''
     
     def _check_for_errors(self):
         errors = []
@@ -922,7 +1510,7 @@ class FormMeasurer:
             if popup_errors:
                 errors.extend(popup_errors)
 
-            # 3. Check for HTTP errors via Performance API (aonly frontline api need)
+            # 3. Check for HTTP errors via Performance API (only frontline api need)
             http_errors = self.driver.execute_script("""
                 var errors = [];
                 var filteredUrls = [];  // For debugging
@@ -1080,91 +1668,6 @@ class FormMeasurer:
         except Exception as e:
             self.logger.warning(f"Payload size calculation failed: {str(e)}")
             return 0.0
-
-    def _wait_for_api_requests_complete(self, url):
-        """Wait only for API requests to complete (not static resources)"""
-        try:
-            start_time = time.time()
-            max_wait = 5.0
-            current_domain = self._extract_domain_from_url(url)
-            
-            self.logger.debug(f"Waiting for API requests to {current_domain} to complete...")
-            
-            while time.time() - start_time < max_wait:
-                pending_api_requests = self.driver.execute_script("""
-                    try {
-                        var currentDomain = arguments[0];
-                        var pendingApiCount = 0;
-                        var totalApiCount = 0;
-                        
-                        var entries = performance.getEntriesByType('resource');
-                        
-                        entries.forEach(function(entry) {
-                            var requestUrl = entry.name || '';
-                            
-                            // Get request domain
-                            var requestDomain = '';
-                            try {
-                                var urlObj = new URL(requestUrl);
-                                requestDomain = urlObj.hostname.toLowerCase();
-                            } catch(e) {
-                                return; // Skip invalid URLs
-                            }
-                            
-                            // Only check requests to our domain
-                            if (requestDomain === currentDomain) {
-                                // Only count API requests
-                                var isApiRequest = requestUrl.includes('/plan/api/');
-                                
-                                if (isApiRequest) {
-                                    totalApiCount++;
-                                    if (entry.responseEnd === 0) {
-                                        pendingApiCount++;
-                                    }
-                                }
-                            }
-                        });
-                        
-                        return {
-                            pendingCount: pendingApiCount,
-                            totalApiCount: totalApiCount,
-                            success: true
-                        };
-                    } catch(e) {
-                        return {success: false, error: e.toString()};
-                    }
-                """, current_domain)
-                
-                if not pending_api_requests.get('success'):
-                    break
-                    
-                pending_count = pending_api_requests.get('pendingCount', 0)
-                total_api_count = pending_api_requests.get('totalApiCount', 0)
-                
-                if pending_count == 0:
-                    elapsed = time.time() - start_time
-                    self.logger.debug(f"All {total_api_count} API requests completed after {elapsed:.2f}s")
-                    return True
-                    
-                time.sleep(0.2)
-            
-            # Timeout
-            elapsed = time.time() - start_time
-            self.logger.debug(f"API request wait timeout after {elapsed:.2f}s")
-            return True  # Continue anyway
-            
-        except Exception as e:
-            return True
-
-    def _extract_domain_from_url(self, url):
-        """Extract domain from URL for payload matching"""
-        try:
-            from urllib.parse import urlparse
-            parsed = urlparse(url)
-            return parsed.hostname.lower() if parsed.hostname else ''
-        except Exception as e:
-            self.logger.debug(f"Failed to extract domain from {url}: {e}")
-            return ''
 
 
 class ExcelResultWriter:
@@ -1453,7 +1956,6 @@ def process_form(driver, url, measurer, loops, logger, is_form_page, disable_sav
         
         # 3. If load successful AND it's a form page AND save not disabled
         if load_result.success and is_form_page and not disable_save:
-            logger.debug(f"Load successful")
             save_result = measurer.measure_save_time(url, loops)
         else:
             if not load_result.success:
@@ -1522,7 +2024,7 @@ def main():
     specify_sheet_layout(wb_sheet)
 
     options = Options()
-    #options.headless = True
+    #options.add_argument("--headless=new")
     driver = webdriver.Chrome(options=options)
     head_cell_top = wb_sheet["F1"]
     head_cell_top.alignment = Alignment(horizontal='center')
