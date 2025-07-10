@@ -1,7 +1,7 @@
 function generateEmail() {
     const firstNames = ['alexselenium', 'jordanselenium', 'nikoselenium'];
     const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-    return `${firstName.toLowerCase()}.${lastName.toLowerCase()}@script.com`;
+    return `${firstName.toLowerCase()}@script.com`;
 }
 
 function fillEmailFields() {
@@ -9,54 +9,54 @@ function fillEmailFields() {
 
     try {
         const allElements = document.querySelectorAll('*');
-        const emailTitles = [];
-
-        allElements.forEach(element => {
-            const text = element.textContent || element.innerText || '';
-            if (text.toLowerCase().includes('email') && text.length < 20) { // Short text likely to be a label
-                emailTitles.push(element);
-            }
+        const emailLabels = Array.from(allElements).filter(el => {
+            const text = (el.textContent || '').trim().toLowerCase();
+            return text.includes('email') && text.length <= 10;
         });
 
-        emailTitles.forEach((titleElement, index) => {
+        emailLabels.forEach(label => {
             let input = null;
 
             // Strategy 1: Look in same container
-            const container = titleElement.closest('div, section, form, td, tr');
+            let container = label.closest('div, form, section, td, tr');
             if (container) {
-                input = container.querySelector('input:not([disabled]):not([type="hidden"])');
+                input = container.querySelector('input[type="text"]:not([disabled])') ||
+                       container.querySelector('input:not([type="hidden"]):not([disabled]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"])');
             }
 
-            // Strategy 2: Look in next siblings
-            if (!input) {
-                let sibling = titleElement.nextElementSibling;
+            // Strategy 2: Look in sibling containers
+            if (!input && container) {
+                let sibling = container.nextElementSibling;
                 let attempts = 0;
                 while (sibling && !input && attempts < 3) {
-                    if (sibling.tagName === 'INPUT' && !sibling.disabled) {
-                        input = sibling;
-                    } else {
-                        input = sibling.querySelector('input:not([disabled]):not([type="hidden"])');
-                    }
+                    input = sibling.querySelector('input[type="text"]:not([disabled])') ||
+                           sibling.querySelector('input:not([type="hidden"]):not([disabled]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"])');
                     sibling = sibling.nextElementSibling;
                     attempts++;
                 }
             }
 
-            // Strategy 3: Look in parent's next siblings
-            if (!input) {
-                let parentSibling = titleElement.parentElement?.nextElementSibling;
+            // Strategy 3: Look in parent's sibling containers
+            if (!input && container && container.parentElement) {
+                let parentSibling = container.parentElement.nextElementSibling;
                 let attempts = 0;
                 while (parentSibling && !input && attempts < 3) {
-                    input = parentSibling.querySelector('input:not([disabled]):not([type="hidden"])');
+                    input = parentSibling.querySelector('input[type="text"]:not([disabled])') ||
+                           parentSibling.querySelector('input:not([type="hidden"]):not([disabled]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"])');
                     parentSibling = parentSibling.nextElementSibling;
                     attempts++;
                 }
             }
 
             if (input) {
-                input.value = generateEmail();
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
+                const emailValue = generateEmail();
+                input.value = '';
+                input.value = emailValue;
+                
+                ['input', 'change', 'keyup', 'blur'].forEach(eventType => {
+                    input.dispatchEvent(new Event(eventType, { bubbles: true }));
+                });
+                
                 totalFilled++;
             }
         });
