@@ -1,11 +1,7 @@
 function generateEmail() {
-    const firstNames = ['Alex', 'Jordan', 'Taylor', 'Casey', 'Morgan'];
-    const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown'];
-
+    const firstNames = ['alexselenium', 'jordanselenium', 'nikoselenium'];
     const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-    const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-
-    return `${firstName.toLowerCase()}.${lastName.toLowerCase()}@seleniumscript.com`;
+    return `${firstName.toLowerCase()}.${lastName.toLowerCase()}@script.com`;
 }
 
 function fillEmailFields() {
