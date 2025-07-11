@@ -618,7 +618,7 @@ class FormMeasurer:
         6. Check errors during save
         """
         try:
-            self.logger.info("Starting save measurement on already loaded page")
+            self.logger.info("Starting save measurement")
             
             # STEP 0.5: Fill required form fields if needed
             self._fill_required_fields_if_needed()
@@ -659,7 +659,7 @@ class FormMeasurer:
             )
             
         except Exception as e:
-            self.logger.error(f"Save measurement failed: {str(e)}")
+            self.logger.error(f"Save measurement failed. {str(e)}")
             error_type, error_message = ErrorClassifier.classify_save_error(e)
             return MeasurementResult(
                 success=False, 
@@ -1283,6 +1283,11 @@ class FormMeasurer:
                             errorResult.found = true;
                             errorResult.text = 'HTTP ' + entry.responseStatus + ' server error';
                             errorResult.type = 'http';
+                            errorResult.failedRequest = {
+                                fullUrl: entry.name,
+                                status: entry.responseStatus,
+                                duration: entry.duration
+                            };
                             return errorResult;
                         }
                     }
@@ -1335,7 +1340,9 @@ class FormMeasurer:
                 error_text = error_found['text']
                 error_type = error_found['type']
                 
-                self.logger.error(f"Save error detected ({error_type}): {error_text}")
+                # Log request details if avail
+                if 'failedRequest' in error_found:
+                    self._log_server_error_request(error_found['failedRequest'])
                 
                 if "500" in error_text or "server error" in error_text.lower():
                     raise Exception(f"Save failed: HTTP 500 server error - {error_text}")
@@ -1510,7 +1517,7 @@ class FormMeasurer:
             # 3. Check for HTTP errors via Performance API (only frontline api need)
             http_errors = self.driver.execute_script("""
                 var errors = [];
-                var filteredUrls = [];  // For debugging
+                var failedRequests = [];  // Store request details
                 try {
                     var entries = performance.getEntriesByType('resource');
 
@@ -1520,13 +1527,27 @@ class FormMeasurer:
                         if (url.includes('frontlineeducation.com')) {
                             // Check for HTTP 500+ errors
                             if (entry.responseStatus >= 500) {
-                                errors.push('HTTP ' + entry.responseStatus + ' error: ' + entry.name);
+                                errors.push({
+                                    message: 'HTTP ' + entry.responseStatus + ' error: ' + entry.name,
+                                    requestDetails: {
+                                        fullUrl: entry.name,
+                                        status: entry.responseStatus,
+                                        duration: entry.duration
+                                    }
+                                });
                             }
                             // Also check for failed requests (responseStatus might be 0) - but only for API endpoints
                             else if (entry.responseStatus === 0 && 
                                     (url.includes('/api/') || url.includes('/plan/api/') || url.includes('/planng/api/'))) {
                                 // API requests with status 0 often indicate server errors
-                                errors.push('Failed API request (possible server error): ' + entry.name);
+                                errors.push({
+                                    message: 'Failed API request (possible server error): ' + entry.name,
+                                    requestDetails: {
+                                        fullUrl: entry.name,
+                                        status: 0,
+                                        duration: entry.duration
+                                    }
+                                });
                             }
                         }
                     });
@@ -1538,7 +1559,20 @@ class FormMeasurer:
             """)
 
             if http_errors and http_errors.get('errors'):
-                errors.extend(http_errors['errors'])
+                # Log each failed request
+                for error in http_errors['errors']:
+                    if isinstance(error, dict) and 'requestDetails' in error:
+                        self._log_server_error_request(error['requestDetails'])
+                
+                # Extract error messages for return
+                error_messages = []
+                for error in http_errors['errors']:
+                    if isinstance(error, dict):
+                        error_messages.append(error['message'])
+                    else:
+                        error_messages.append(error)
+                
+                errors.extend(error_messages)
                 
         except Exception as e:
             self.logger.debug(f"Error checking failed: {e}")
@@ -1665,6 +1699,43 @@ class FormMeasurer:
         except Exception as e:
             self.logger.warning(f"Payload size calculation failed: {str(e)}")
             return 0.0
+
+    def _log_server_error_request(self, request_details):
+        """Log details of server error"""
+        full_url = request_details.get('fullUrl', 'unknown')
+        status = request_details.get('status', 'unknown')
+        duration = request_details.get('duration', 0)
+        
+        form_data = self._get_form_data_for_logging()
+        has_payload = form_data and form_data != "{}"
+        
+        # payload = POST, no payload = GET
+        http_method = 'POST' if has_payload else 'GET'
+        
+        self.logger.error(f"Server error: {http_method} {full_url} - HTTP {status} (took {duration/1000:.1f}s)")
+        
+        if http_method == 'POST' and form_data:
+            self.logger.error(f"POST payload: {form_data}")
+
+    def _get_form_data_for_logging(self):
+        """Get form data for logging"""
+        try:
+            return self.driver.execute_script("""
+                var formData = {};
+                var inputs = document.querySelectorAll('input, select, textarea');
+                
+                for (var i = 0; i < inputs.length; i++) {
+                    var input = inputs[i];
+                    if (input.value) {
+                        var name = input.name || input.id || 'field_' + i;
+                        formData[name] = input.value;
+                    }
+                }
+                
+                return JSON.stringify(formData);
+            """)
+        except:
+            return None
 
 
 class ExcelResultWriter:
