@@ -637,10 +637,7 @@ class FormMeasurer:
                     max_time=0.0,
                     mean_time=0.0
                 )
-            
-            # We found a Save button - now measure save time
-            self.logger.info(f"Found Save button: '{save_button.text.strip()}' - starting save measurement")
-            
+                        
             save_start_time = time.time()
             
             self._click_save_button_reliably(save_button)
@@ -1945,13 +1942,11 @@ def process_form(driver, url, measurer, loops, logger, is_form_page, disable_sav
     
     try:
         # 1. Open new tab
-        logger.debug(f"Opening new tab for: {url}")
         driver.execute_script("window.open('about:blank', '_blank');")
         new_tab = driver.window_handles[-1]
         driver.switch_to.window(new_tab)
         
         # 2. Load and measure form in new tab
-        logger.debug(f"Measuring page load in new tab...")
         load_result = measurer.measure_page_load(url, loops)
         
         # 3. If load successful AND it's a form page AND save not disabled
