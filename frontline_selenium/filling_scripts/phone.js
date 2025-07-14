@@ -12,6 +12,17 @@ function generatePhoneNumber() {
     return `(${areaCode}) ${exchange}-${number}`;
 }
 
+function isTextInput(input) {
+    if (!input || input.tagName !== 'INPUT') return false;
+    
+    const type = (input.type || '').toLowerCase();
+    
+    // Exclude checkbox, radio, hidden, submit, button types
+    const excludedTypes = ['checkbox', 'radio', 'hidden', 'submit', 'button', 'reset', 'file', 'image'];
+    
+    return !excludedTypes.includes(type) && !input.disabled;
+}
+
 function fillPhoneFields() {
     let totalFilled = 0;
 
@@ -21,7 +32,10 @@ function fillPhoneFields() {
 
         allElements.forEach(element => {
             const text = element.textContent || element.innerText || '';
-            if ((text.toLowerCase().includes('phone') || text.toLowerCase().includes('fax')) && text.length < 20) {
+            const lowercaseText = text.toLowerCase();
+            
+            // Look for phone-related text
+            if ((lowercaseText.includes('phone') || lowercaseText.includes('fax')) && text.length < 50) {
                 phoneTitles.push(element);
             }
         });
@@ -29,33 +43,51 @@ function fillPhoneFields() {
         phoneTitles.forEach((titleElement, index) => {
             let input = null;
 
-            // Strategy 1: Look in same container
+            // Strategy 1: Look in same container for text inputs only
             const container = titleElement.closest('div, section, form, td, tr');
             if (container) {
-                input = container.querySelector('input:not([disabled]):not([type="hidden"])');
+                const inputs = container.querySelectorAll('input:not([disabled]):not([type="hidden"])');
+                for (let inp of inputs) {
+                    if (isTextInput(inp)) {
+                        input = inp;
+                        break;
+                    }
+                }
             }
 
-            // Strategy 2: Look in next siblings
+            // Strategy 2: Look in next siblings for text inputs only
             if (!input) {
                 let sibling = titleElement.nextElementSibling;
                 let attempts = 0;
                 while (sibling && !input && attempts < 3) {
-                    if (sibling.tagName === 'INPUT' && !sibling.disabled) {
+                    if (isTextInput(sibling)) {
                         input = sibling;
                     } else {
-                        input = sibling.querySelector('input:not([disabled]):not([type="hidden"])');
+                        const inputs = sibling.querySelectorAll('input:not([disabled]):not([type="hidden"])');
+                        for (let inp of inputs) {
+                            if (isTextInput(inp)) {
+                                input = inp;
+                                break;
+                            }
+                        }
                     }
                     sibling = sibling.nextElementSibling;
                     attempts++;
                 }
             }
 
-            // Strategy 3: Look in parent's next siblings
+            // Strategy 3: Look in parent's next siblings for text inputs only
             if (!input) {
                 let parentSibling = titleElement.parentElement?.nextElementSibling;
                 let attempts = 0;
                 while (parentSibling && !input && attempts < 3) {
-                    input = parentSibling.querySelector('input:not([disabled]):not([type="hidden"])');
+                    const inputs = parentSibling.querySelectorAll('input:not([disabled]):not([type="hidden"])');
+                    for (let inp of inputs) {
+                        if (isTextInput(inp)) {
+                            input = inp;
+                            break;
+                        }
+                    }
                     parentSibling = parentSibling.nextElementSibling;
                     attempts++;
                 }
@@ -68,6 +100,7 @@ function fillPhoneFields() {
                 totalFilled++;
             }
         });
+        
         return totalFilled;
 
     } catch (error) {
