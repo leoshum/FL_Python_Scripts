@@ -37,7 +37,6 @@ logger = logging.getLogger()
 class Config:
     # Timeout settings
     DEFAULT_TIMEOUT = 30  # seconds
-    SAVE_FALLBACK_THRESHOLD = 15.0  # seconds - save times above this indicate fallback
     
     # Decimal precision
     LOAD_TIME_DECIMAL_PLACES = 1
@@ -68,10 +67,7 @@ class Config:
         ORANGE = "FF9900"   # Warnings/investigation needed
         PURPLE = "800080"   # Technical issues
         GREEN = "00FF00"    # Good performance
-        YELLOW = "FFFF00"   # Average performance
-    
-    # Network monitoring
-    SLOW_REQUEST_THRESHOLD = 3000  # milliseconds (3 seconds) - threshold for flagging slow API requests
+        YELLOW = "FFFF00"   # Average performance    
 
     # Error classification
     class ErrorTypes:
@@ -85,6 +81,7 @@ class Config:
         FORM_LOAD_ERROR = "form_load_error"  # NEW: For form load errors during page load
         TIMEOUT_ERROR = "timeout_error"
         TECHNICAL_ERROR = "technical_error"
+        SERVER_DOWN = "server_down"  # NEW: For HTTP 503 Service Unavailable
 
 
 class MeasurementResult:
@@ -1101,130 +1098,42 @@ class FormMeasurer:
         
         start_time = time.time()
         
-        # Success keywords to look for
-        success_keywords = [
+        # Exact text - priority
+        exact_text = "Form has been updated successfully"
+        
+        # Fallback variations (if text changes)
+        fallback_texts = [
             "successfully updated",
             "saved successfully", 
             "update successful",
-            "form has been updated",
-            "success"
+            "form has been updated"
         ]
         
         check_interval = 0.1  # Check every 100ms
         
         while time.time() - start_time < timeout:
             try:
-                # FIRST: Check for errors http 500 for example
+                # Check for errors first
                 self._check_for_save_errors()
                 
-                # SECOND: Check for success popup using JS
-                success_found = self.driver.execute_script("""
-                    // Look for success messages in common popup locations
-                    var successSelectors = [
-                        '.k-notification',           // Kendo notifications
-                        '.notification', 
-                        '.alert',
-                        '.toast',
-                        '[role="alert"]',
-                        '.popup',
-                        '.modal-body',
-                        '.success-message',
-                        '.k-notification-success'
-                    ];
-                    
-                    var successKeywords = arguments[0];
-                    
-                    // 1. FIRST: Check popups/notifications (existing logic)
-                    for (var i = 0; i < successSelectors.length; i++) {
-                        var elements = document.querySelectorAll(successSelectors[i]);
-                        
-                        for (var j = 0; j < elements.length; j++) {
-                            var element = elements[j];
-                            
-                            // Only check visible elements
-                            if (element.offsetHeight > 0 && element.offsetWidth > 0) {
-                                var text = (element.textContent || element.innerText || '').toLowerCase();
-                                
-                                // Check if any success keyword is found
-                                for (var k = 0; k < successKeywords.length; k++) {
-                                    if (text.includes(successKeywords[k].toLowerCase())) {
-                                        return {
-                                            found: true,
-                                            text: element.textContent || element.innerText,
-                                            selector: successSelectors[i],
-                                            type: 'popup'
-                                        };
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // 2. ENHANCED: Check for success text ANYWHERE on the page
-                    try {
-                        var pageText = document.body.innerText || document.body.textContent || '';
-                        var lowerPageText = pageText.toLowerCase();
-                        
-                        // Look for success keywords anywhere on the page
-                        for (var k = 0; k < successKeywords.length; k++) {
-                            if (lowerPageText.includes(successKeywords[k].toLowerCase())) {
-                                // Extract some context around the success message
-                                var msgIndex = lowerPageText.indexOf(successKeywords[k].toLowerCase());
-                                var start = Math.max(0, msgIndex - 30);
-                                var end = Math.min(pageText.length, msgIndex + 50);
-                                var context = pageText.substring(start, end).trim();
-                                
-                                return {
-                                    found: true,
-                                    text: context,
-                                    selector: 'page_content',
-                                    type: 'page_text'
-                                };
-                            }
-                        }
-                        
-                        // 3. ADDITIONAL: Check for common success patterns that might not be in keywords
-                        var additionalSuccessPatterns = [
-                            'form has been updated',
-                            'saved successfully',
-                            'form updated',
-                            'successfully saved',
-                            'update successful'
-                        ];
-                        
-                        for (var p = 0; p < additionalSuccessPatterns.length; p++) {
-                            if (lowerPageText.includes(additionalSuccessPatterns[p])) {
-                                var msgIndex = lowerPageText.indexOf(additionalSuccessPatterns[p]);
-                                var start = Math.max(0, msgIndex - 30);
-                                var end = Math.min(pageText.length, msgIndex + 50);
-                                var context = pageText.substring(start, end).trim();
-                                
-                                return {
-                                    found: true,
-                                    text: context,
-                                    selector: 'page_content',
-                                    type: 'page_text'
-                                };
-                            }
-                        }
-                        
-                    } catch(pageError) {
-                        // Ignore page text search errors
-                    }
-                    
-                    return { found: false };
-                """, success_keywords)
+                page_text = self.driver.execute_script(
+                    "return document.body.innerText || document.body.textContent || '';"
+                )
                 
-                if success_found['found']:
+                # First check exact text
+                if exact_text in page_text:
                     elapsed = time.time() - start_time
-                    success_text = success_found['text'].strip()
-                    success_type = success_found.get('type', 'unknown')
-                    success_selector = success_found.get('selector', 'unknown')
-                    
-                    # Simplified success logging - just confirm success was detected
-                    self.logger.info(f"Save success confirmed after {elapsed:.1f}s")
+                    self.logger.info(f"Save success confirmed exact text after {elapsed:.1f}s")
                     return
                 
+                # Then check fallback variations (case insensitive)
+                page_text_lower = page_text.lower()
+                for fallback in fallback_texts:
+                    if fallback in page_text_lower:
+                        elapsed = time.time() - start_time
+                        self.logger.info(f"Save success confirmed (fallback: '{fallback}') after {elapsed:.1f}s")
+                        return
+                        
             except Exception as e:
                 if "save failed:" in str(e).lower() or "500" in str(e):
                     raise e
@@ -1710,7 +1619,7 @@ class FormMeasurer:
         has_payload = form_data and form_data != "{}"
         
         # payload = POST, no payload = GET
-        http_method = 'POST' if has_payload else 'GET'
+        http_method = 'POST' if has_payload else 'GET' 
         
         self.logger.error(f"Server error: {http_method} {full_url} - HTTP {status} (took {duration/1000:.1f}s)")
         
@@ -2090,7 +1999,7 @@ def main():
     specify_sheet_layout(wb_sheet)
 
     options = Options()
-    #options.add_argument("--headless=new")
+    # options.add_argument("--headless=new")
     driver = webdriver.Chrome(options=options)
     head_cell_top = wb_sheet["F1"]
     head_cell_top.alignment = Alignment(horizontal='center')
