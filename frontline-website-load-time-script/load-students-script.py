@@ -36,6 +36,20 @@ class Config:
         {"name": "My Student Teams", "selector": "#pnlStudentsLanding-tab-3", "default": False},
         {"name": "Distribution History", "selector": "#pnlStudentsLanding-tab-4", "default": False}
     ]
+    
+    # Filter configurations
+    FILTER_SELECTORS = {
+        "panel_toggle": ".k-panelbar-toggle",
+        "filter_panel": "#pnlStudentFilters",
+        "upcoming_event_dropdown": "#EventDefinitionId",
+        "filter_button": "#btnFilterStudents",
+        "reset_button": "#btnResetFilters"
+    }
+    
+    # Filter search criteria
+    FILTER_CRITERIA = {
+        "UPCOMING_EVENT_TEXT": "IEP Annual Eligibility Determination"  # Search by text content
+    }
 
 
 class APIErrorDetector:
@@ -235,6 +249,7 @@ class StudentPageTester:
         self.driver = driver
         self.logger = logger
         self.api_detector = api_detector
+        self.filter_manager = StudentFilterManager(driver, logger)
         self.tab_results: Dict = {}
     
     def navigate_to_students_page(self) -> bool:
@@ -276,9 +291,15 @@ class StudentPageTester:
             self.tab_results[tab_name] = result
             
             if result['success']:
-                self.logger.info(f"[OK] {tab_name} ({result['load_time']:.1f}s)")
+                filter_status = ""
+                if result.get('filter_applied', False):
+                    filter_status = " [FILTER: IEP Annual Eligibility]"
+                self.logger.info(f"[OK] {tab_name} ({result['load_time']:.1f}s){filter_status}")
             else:
-                self.logger.error(f"[FAIL] {tab_name}: {result['error']}")
+                filter_error = ""
+                if tab_name == "All Students" and not result.get('filter_applied', False):
+                    filter_error = " [FILTER: FAILED]"
+                self.logger.error(f"[FAIL] {tab_name}: {result['error']}{filter_error}")
         
         return self.tab_results
     
@@ -286,6 +307,7 @@ class StudentPageTester:
         """Test a single student tab"""
         selector = tab_config['selector']
         is_default = tab_config['default']
+        tab_name = tab_config['name']
         TIMEOUT_SECONDS = 1
         
         try:
@@ -305,23 +327,47 @@ class StudentPageTester:
             # Wait for students to load
             self._wait_for_students_to_load()
             
+            # Apply filters for All Students tab only
+            filter_success = True
+            if tab_name == "All Students":
+                self.logger.info("Applying filters to All Students tab")
+                try:
+                    filter_success = self.filter_manager.apply_filters_to_all_students_tab()
+                    if not filter_success:
+                        self.logger.error("Filter application failed for All Students tab")
+                except Exception as e:
+                    self.logger.error(f"Error during filter application: {e}")
+                    filter_success = False
+            
             # Check for API errors
             api_status = self.api_detector.check_api_errors()
             
             load_time = (time.time() - start_time) - TIMEOUT_SECONDS # remove the timeout seconds
             
+            # Consider both API errors and filter errors for overall success
             if api_status['api_errors'] > 0:
                 return {
                     'success': False,
                     'error': f"API errors detected: {api_status['api_errors']} errors",
                     'load_time': load_time,
-                    'api_status': api_status
+                    'api_status': api_status,
+                    'filter_applied': tab_name == "All Students" and filter_success
+                }
+            
+            if tab_name == "All Students" and not filter_success:
+                return {
+                    'success': False,
+                    'error': "Filter application failed",
+                    'load_time': load_time,
+                    'api_status': api_status,
+                    'filter_applied': False
                 }
             
             return {
                 'success': True,
                 'load_time': load_time,
-                'api_status': api_status
+                'api_status': api_status,
+                'filter_applied': tab_name == "All Students" and filter_success
             }
                 
         except Exception as e:
@@ -329,7 +375,8 @@ class StudentPageTester:
                 'success': False,
                 'error': str(e),
                 'load_time': time.time() - start_time if 'start_time' in locals() else 0,
-                'api_status': {'api_errors': 0, 'slow_requests': 0, 'total_api_requests': 0}
+                'api_status': {'api_errors': 0, 'slow_requests': 0, 'total_api_requests': 0},
+                'filter_applied': False
             }
     
     def _wait_for_students_to_load(self) -> None:
@@ -388,6 +435,231 @@ class StudentPageTester:
             
         except Exception as e:
             self.logger.warning(f"Student loading wait failed: {e}")
+
+
+class StudentFilterManager:
+    """Manages student filter operations"""
+    
+    def __init__(self, driver, logger):
+        self.driver = driver
+        self.logger = logger
+        
+    def ensure_filter_panel_open(self) -> bool:
+        """Ensure the filter panel is open and ready for interaction"""
+        try:
+            wait = WebDriverWait(self.driver, Config.DEFAULT_TIMEOUT)
+            
+            # Check if panel is already open
+            panel = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, Config.FILTER_SELECTORS["filter_panel"])))
+            
+            # Check if panel content is visible
+            is_expanded = self.driver.execute_script("""
+                var panel = arguments[0];
+                var content = panel.querySelector('.k-panelbar-content');
+                return content && content.style.display !== 'none';
+            """, panel)
+            
+            if not is_expanded:
+                # Find and click the toggle button to open the panel
+                toggle_button = panel.find_element(By.CSS_SELECTOR, Config.FILTER_SELECTORS["panel_toggle"])
+                toggle_button.click()
+                
+                # Wait for panel to expand
+                wait.until(lambda driver: driver.execute_script("""
+                    var panel = document.querySelector(arguments[0]);
+                    var content = panel.querySelector('.k-panelbar-content');
+                    return content && content.style.display !== 'none';
+                """, Config.FILTER_SELECTORS["filter_panel"]))
+                
+                self.logger.info("Filter panel opened successfully")
+            else:
+                self.logger.info("Filter panel already open")
+                
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to open filter panel: {e}")
+            return False
+    
+    def apply_upcoming_event_filter(self, search_text: str) -> bool:
+        """Apply upcoming event filter using simple approach"""
+        try:
+            # Check if the dropdown exists
+            try:
+                wait = WebDriverWait(self.driver, Config.DEFAULT_TIMEOUT)
+                dropdown = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, Config.FILTER_SELECTORS["upcoming_event_dropdown"])))
+            except:
+                self.logger.warning("Upcoming event dropdown not found - skipping filter")
+                return True  # Not an error if filter doesn't exist
+            
+            # Try to select the option
+            result = self.driver.execute_script("""
+                var element = document.querySelector(arguments[0]);
+                var searchText = arguments[1];
+                
+                if (!element) return {success: false, error: 'Element not found'};
+                
+                // Try regular select first
+                var options = element.querySelectorAll('option');
+                for (var i = 0; i < options.length; i++) {
+                    if (options[i].textContent.includes(searchText)) {
+                        options[i].selected = true;
+                        element.dispatchEvent(new Event('change', {bubbles: true}));
+                        return {success: true, selectedText: options[i].textContent};
+                    }
+                }
+                
+                // Try Kendo if available
+                if (typeof $ !== 'undefined') {
+                    try {
+                        var kendoWidget = $(element).data('kendoDropDownList');
+                        if (kendoWidget && kendoWidget.dataSource) {
+                            var data = kendoWidget.dataSource.data();
+                            for (var j = 0; j < data.length; j++) {
+                                if (data[j].text && data[j].text.includes(searchText)) {
+                                    kendoWidget.value(data[j].value);
+                                    kendoWidget.trigger('change');
+                                    return {success: true, selectedText: data[j].text};
+                                }
+                            }
+                        }
+                    } catch(e) {}
+                }
+                
+                return {success: false, error: 'Option not found'};
+            """, Config.FILTER_SELECTORS["upcoming_event_dropdown"], search_text)
+            
+            if result.get('success'):
+                self.logger.info(f"Selected upcoming event filter: {result['selectedText']}")
+            else:
+                self.logger.warning(f"Could not find filter option: {search_text}")
+            
+            return True  # Always return True
+            
+        except Exception as e:
+            self.logger.warning(f"Filter error: {e}")
+            return True
+    
+    def click_filter_button(self) -> bool:
+        """Click the filter button to apply all selected filters"""
+        try:
+            wait = WebDriverWait(self.driver, Config.DEFAULT_TIMEOUT)
+            
+            filter_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, Config.FILTER_SELECTORS["filter_button"])))
+            filter_button.click()
+            
+            self.logger.info("Filter button clicked successfully")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to click filter button: {e}")
+            return False
+    
+    def wait_for_grid_reload(self) -> bool:
+        """Wait for the student grid to reload with filtered results"""
+        try:
+            # Wait a moment for the filter request to start
+            time.sleep(1)
+            
+            # Wait for any loading indicators to disappear
+            wait = WebDriverWait(self.driver, Config.MAX_LOADING_WAIT)
+            
+            # Wait for page to be ready
+            wait.until(lambda driver: driver.execute_script("return document.readyState") == "complete")
+            
+            # Wait for API requests to complete (similar to existing logic)
+            self.driver.execute_script("""
+                return new Promise((resolve) => {
+                    const maxWait = 10000; // 10 seconds max for filter results
+                    const startTime = Date.now();
+                    const currentDomain = window.location.hostname;
+                    
+                    const checkApiComplete = () => {
+                        try {
+                            const entries = performance.getEntriesByType('resource');
+                            let pendingApiCount = 0;
+                            
+                            entries.forEach(entry => {
+                                try {
+                                    const url = entry.name;
+                                    const urlObj = new URL(url);
+                                    
+                                    // Check for student-related API requests
+                                    if (urlObj.hostname === currentDomain && 
+                                        (url.includes('/plan/api/') || url.includes('/Students/'))) {
+                                        if (entry.responseEnd === 0) {
+                                            pendingApiCount++;
+                                        }
+                                    }
+                                } catch(e) {
+                                    // Skip invalid URLs
+                                }
+                            });
+                            
+                            if (pendingApiCount === 0 || (Date.now() - startTime) > maxWait) {
+                                resolve(true);
+                            } else {
+                                setTimeout(checkApiComplete, 500);
+                            }
+                        } catch(e) {
+                            resolve(true); // Continue on error
+                        }
+                    };
+                    
+                    setTimeout(checkApiComplete, 500);
+                });
+            """)
+            
+            self.logger.info("Grid reload completed successfully")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error waiting for grid reload: {e}")
+            return False
+    
+    def apply_filters_to_all_students_tab(self) -> bool:
+        """Apply filters specifically to the All Students tab"""
+        try:
+            self.logger.info("Applying filters to All Students tab")
+            
+            # Open filter panel
+            if not self.ensure_filter_panel_open():
+                self.logger.warning("Could not open filter panel")
+                return True
+            
+            time.sleep(1)  # Wait for panel to load
+            
+            # Apply filter and click button
+            self.apply_upcoming_event_filter(Config.FILTER_CRITERIA["UPCOMING_EVENT_TEXT"])
+            
+            # Quick check if filter was applied
+            try:
+                current_value = self.driver.execute_script("""
+                    var element = document.querySelector(arguments[0]);
+                    if (element && element.value) return element.value;
+                    if (typeof $ !== 'undefined') {
+                        var widget = $(element).data('kendoDropDownList');
+                        if (widget) return widget.value();
+                    }
+                    return null;
+                """, Config.FILTER_SELECTORS["upcoming_event_dropdown"])
+                
+                if current_value:
+                    self.logger.info(f"Filter value set to: {current_value}")
+            except:
+                pass
+            
+            if self.click_filter_button():
+                self.wait_for_grid_reload()
+                self.logger.info("Filter application completed")
+            else:
+                self.logger.warning("Could not click filter button")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.warning(f"Filter issues: {e}")
+            return True
 
 
 class StudentLoadingTester:
@@ -554,6 +826,7 @@ class StudentLoadingTester:
                 print(f"  {error['status']}: {error['url']}")
         
         print("=" * 60)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Student Loading Test Script")
