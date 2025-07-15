@@ -107,6 +107,11 @@ class ErrorClassifier:
         """SIMPLIFIED: Classify load error and return (error_type, simple_message)"""
         error_lower = error_message.lower()
         
+        # PRIORITY: HTTP 503 Service Unavailable (server down)
+        if ("service unavailable" in error_lower or "http 503" in error_lower or 
+            ("503" in error_lower and "service" in error_lower)):
+            return Config.ErrorTypes.SERVER_DOWN, error_message
+        
         # Chrome crashes - very common
         if ("gethandleverifier" in error_lower or "stacktrace" in error_lower or 
             "chrome" in error_lower or "driver" in error_lower):
@@ -1388,6 +1393,14 @@ class FormMeasurer:
                     var pageText = document.body.innerText || document.body.textContent || '';
                     var lowerPageText = pageText.toLowerCase();
                     
+                    // PRIORITY: Check for HTTP 503 Service Unavailable (server down)
+                    if (lowerPageText.includes('service unavailable') || 
+                        lowerPageText.includes('http error 503') ||
+                        (lowerPageText.includes('503') && lowerPageText.includes('service'))) {
+                        errors.push('Service Unavailable (HTTP 503) - Server is down');
+                        return errors;  // Return immediately for server down
+                    }
+                    
                     // Check for 404 Not Found errors first
                     if (lowerPageText.includes('not found error') || 
                         (lowerPageText.includes('error 404') && lowerPageText.includes('not found'))) {
@@ -1727,6 +1740,7 @@ class ExcelResultWriter:
             Config.ErrorTypes.FALLBACK: Config.Colors.RED,
             Config.ErrorTypes.ELEMENT_NOT_FOUND: Config.Colors.ORANGE,
             Config.ErrorTypes.TECHNICAL: Config.Colors.PURPLE,
+            Config.ErrorTypes.SERVER_DOWN: Config.Colors.RED,  # NEW: Red for server down
             Config.ErrorTypes.READONLY: None  # No coloring for readonly. DO WE HAVE THIS?
         }
         
@@ -1962,6 +1976,45 @@ def process_form(driver, url, measurer, loops, logger, is_form_page, disable_sav
             logger.warning(f"Tab cleanup failed: {cleanup_ex}")
 
 
+def print_server_down_error(error_message: str):
+    """Print a clear, prominent server down error message"""
+    print(f"\n" + "="*60)
+    print(f"🚨 CRITICAL: SERVER IS DOWN! 🚨")
+    print(f"HTTP 503 Service Unavailable detected")
+    print(f"Error details: {error_message}")
+    print(f"Stopping script to avoid wasting time...")
+    print(f"="*60)
+
+
+def print_final_stats(start_time: float, loops: int, processed_records: int, network_speed: float):
+    """Print comprehensive final statistics about the script execution"""
+    total_seconds = time.time() - start_time
+    hours = int(total_seconds // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+    seconds = int(total_seconds % 60)
+    
+    print(f"\n" + "="*60)
+    print(f"🎉 PROCESSING COMPLETED!")
+    print(f"="*60)
+    print(f"📊 EXECUTION STATISTICS:")
+    print(f"   • Loops per record: {loops}")
+    print(f"   • Total records processed: {processed_records}")
+    print(f"   • Network speed: {network_speed}mb/s")
+    print(f"   • Total execution time: {hours:02d}h {minutes:02d}m {seconds:02d}s")
+    
+    if processed_records > 0:
+        avg_time_per_record = total_seconds / processed_records
+        avg_time_per_measurement = total_seconds / (processed_records * loops)
+        print(f"   • Average time per record: {avg_time_per_record:.1f}s")
+        print(f"   • Average time per measurement: {avg_time_per_measurement:.1f}s")
+        
+        # Calculate throughput
+        records_per_hour = (processed_records / total_seconds) * 3600
+        print(f"   • Processing rate: {records_per_hour:.1f} records/hour")
+    
+    print(f"="*60)
+
+
 def main():
     timestamp = datetime.now().strftime("%m-%d-%y_%H-%M")
     start_time = time.time()
@@ -2082,6 +2135,20 @@ def main():
             # Write load result to Excel
             ExcelResultWriter.write_load_result(row, load_result)
             
+            # CRITICAL: Check for server down and terminate immediately
+            if not load_result.success and load_result.error_type == Config.ErrorTypes.SERVER_DOWN:
+                print_server_down_error(load_result.error_message)
+                logger.error(f"SERVER DOWN detected: {load_result.error_message}")                
+                wb.save(input_file)                
+                print_final_stats(start_time, loops, processed_records, network_speed)
+                
+                try:
+                    driver.quit()
+                except:
+                    pass
+                
+                return
+            
             if load_result.success:
                 print(f"Load successful: {load_result.mean_time:.1f}s average")
                 
@@ -2139,19 +2206,7 @@ def main():
     
     driver.quit()
 
-    total_seconds = time.time() - start_time
-    hours = int(total_seconds // 3600)
-    minutes = int((total_seconds % 3600) // 60)
-    seconds = int(total_seconds % 60)
-    
-    print(f"\n" + "="*60)
-    print(f"PROCESSING COMPLETED!\n")
-    print(f"Loops per record: {loops}")
-    print(f"Total records processed: {processed_records}")
-    print(f"Total time: {hours:02d}h {minutes:02d}m {seconds:02d}s")
-    if processed_records > 0:
-        print(f"Average time per record: {(total_seconds/(processed_records * loops)):.1f}s")
-    print(f"="*60)
+    print_final_stats(start_time, loops, processed_records, network_speed)
 
 if __name__ == "__main__":
     main()
