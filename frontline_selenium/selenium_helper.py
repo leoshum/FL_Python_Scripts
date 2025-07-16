@@ -245,13 +245,13 @@ class SeleniumHelper:
                     lambda d: not d.find_elements(By.CSS_SELECTOR, 
                         ".loading-wrapper, .blockUI, .blockMsg, .blockPage")
                 )
-                print("✅ Loading indicators cleared")
+                print("Loading indicators cleared")
             else:
                 # No loading indicators found - wait for document ready state
                 WebDriverWait(driver, 5).until(
                     lambda d: d.execute_script("return document.readyState") == "complete"
                 )
-                print("✅ Document ready")
+                print("Document ready")
         except Exception as ex:
             if SeleniumHelper.logger:
                 SeleniumHelper.logger.error(f"Standard page load timeout: {str(ex)}")
@@ -261,14 +261,11 @@ class SeleniumHelper:
     def wait_for_form_save_popup(driver: webdriver.Chrome, initial_requests: list = None) -> float:
         temp_start_time = time.time()
         
-        # Use provided initial_requests or get them now (fallback)
         if initial_requests is None:
             try:
                 initial_requests = SeleniumHelper.get_ajax_requests(driver)
             except:
                 initial_requests = []
-        
-        time.sleep(0.1)  # enough time for DOM updates ?
         
         success_found = False
         while time.time() - temp_start_time < SeleniumHelper.timeout:
@@ -312,7 +309,6 @@ class SeleniumHelper:
                         ]
                         
                         failed_requests = []
-                        save_requests_found = False
                         
                         for request in new_requests:
                             request_url = request.get("url", "") if isinstance(request, dict) else str(request)
@@ -321,9 +317,7 @@ class SeleniumHelper:
                             # Check if this is a save-related request
                             is_save_request = any(endpoint in request_url for endpoint in form_save_endpoints)
                             
-                            if is_save_request:
-                                save_requests_found = True
-                                
+                            if is_save_request:                                
                                 # Check for error status codes (anything not 2xx)
                                 if isinstance(request_status, int) and (request_status < 200 or request_status >= 300):
                                     if request_status != 0:  # 0 means pending, which we handle below
@@ -337,7 +331,7 @@ class SeleniumHelper:
                                 # TODO: move 30 sec to config
                                 elif request_status == 0 or request_status == "pending":
                                     request_duration = request.get("duration", 0)
-                                    if request_duration > 30000:  # 30+ seconds
+                                    if request_duration > 30000:  # 30 seconds
                                         failed_requests.append({
                                             'url': request_url,
                                             'status': 'pending_timeout',
@@ -359,23 +353,9 @@ class SeleniumHelper:
                                 SeleniumHelper.logger.error(error_msg)
                             
                             # Raise exception with detailed status code info for Excel colnm
-                            raise ValueError(f"Form save network error: {len(failed_requests)} failed request(s)")
-                    
-                    except ValueError:
-                         # Reraise ValueError looks like network errors 
-                        raise
+                            raise ValueError(f"Form save network error: {len(failed_requests)} failed request(s)")                    
                     except Exception as e:
-                        if SeleniumHelper.logger:
-                            SeleniumHelper.logger.warning(f"Failed to check network requests: {str(e)}")
-                    
-            except UnexpectedAlertPresentException:
-                try:
-                    Alert(driver).accept()
-                except:
-                    pass
-            except ValueError:
-                # Reraise ValueError looks like network errors 
-                raise
+                        SeleniumHelper.logger.warning(f"Failed to check network requests: {str(e)}")                                
             except Exception:
                 # Fallback: direct element search but still need to check for success
                 try:
@@ -391,16 +371,13 @@ class SeleniumHelper:
                             success_found = True
                             break
                 except:
-                    # If fallback also fails, continue the loop
-                    pass
-                    
-            time.sleep(0.1)
+                    pass        
 
         elapsed = time.time() - temp_start_time
+
         if elapsed >= SeleniumHelper.timeout and not success_found:
             error_msg = f"Form save popup timeout after {SeleniumHelper.timeout}s"
-            if SeleniumHelper.logger:
-                SeleniumHelper.logger.error(error_msg)
+            SeleniumHelper.logger.error(error_msg)
             raise TimeoutException(error_msg)
 
         return elapsed

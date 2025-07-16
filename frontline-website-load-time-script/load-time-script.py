@@ -533,10 +533,10 @@ class FormMeasurer:
     def measure_page_load(self, url, loops):
         try:
             times = []
-            payload_size = 0.0  # Will calculate only once for first measurement
+            payload_size = 0.0  # calculate only once 
             
             for i in range(loops):
-                # Clear Performance API before each measurement for clean data
+                # clear Performance API before each measurement
                 self.driver.execute_script("performance.clearResourceTimings();")
                 
                 if i == 0:
@@ -643,8 +643,8 @@ class FormMeasurer:
             save_start_time = time.time()
             
             self._click_save_button_reliably(save_button)
-            
-            self._wait_for_save_success_popup(timeout=20)
+
+            SeleniumHelper.wait_for_form_save_popup(self.driver)
             
             save_elapsed_time = time.time() - save_start_time
             
@@ -671,7 +671,7 @@ class FormMeasurer:
     
     def _wait_for_content_ready(self, timeout: int = 10) -> bool:
         end_time = time.time() + timeout
-        poll_interval = 0.3
+        poll_interval = 0.1
         
         # Phase 1: Wait for document ready
         while time.time() < end_time:
@@ -841,7 +841,7 @@ class FormMeasurer:
                 self.logger.debug(f"Visual readiness check failed: {e}")
                 return True  # Assume ready on error
             
-            time.sleep(0.2)  # Check every 200ms
+            time.sleep(0.1)  # Check every 200ms
         
         return False  # Timeout reached
     
@@ -923,7 +923,7 @@ class FormMeasurer:
                 self.logger.debug(f"Angular stability check failed: {e}")
                 return True  # Assume stable on error
             
-            time.sleep(0.3)
+            time.sleep(0.1)
         
         self.logger.debug(f"Angular stability timeout after {timeout}s")
         return True  # Continue anyway after timeout
@@ -946,8 +946,7 @@ class FormMeasurer:
         """
         Find Save button with smart retry logic
         Total max time: 20 * 0.5 = 10 sec
-        """
-        
+        """        
         # All selectors
         save_button_selectors = [
             "#btnUpdateForm",                    # Most common ID
@@ -1096,177 +1095,7 @@ class FormMeasurer:
 
         # If we reached here, all click attempts failed
         raise Exception("Failed to click Save button after multiple attempts")
-    
-    def _wait_for_save_success_popup(self, timeout=20):
-        from selenium.webdriver.support.ui import WebDriverWait
-        from selenium.common.exceptions import TimeoutException
-        
-        start_time = time.time()
-        
-        # Exact text - priority
-        exact_text = "Form has been updated successfully"
-        
-        # Fallback variations (if text changes)
-        fallback_texts = [
-            "successfully updated",
-            "saved successfully", 
-            "update successful",
-            "form has been updated"
-        ]
-        
-        check_interval = 0.1  # Check every 100ms
-        
-        while time.time() - start_time < timeout:
-            try:
-                # Check for errors first
-                self._check_for_save_errors()
-                
-                page_text = self.driver.execute_script(
-                    "return document.body.innerText || document.body.textContent || '';"
-                )
-                
-                # First check exact text
-                if exact_text in page_text:
-                    elapsed = time.time() - start_time
-                    self.logger.info(f"Save success confirmed exact text after {elapsed:.1f}s")
-                    return
-                
-                # Then check fallback variations (case insensitive)
-                page_text_lower = page_text.lower()
-                for fallback in fallback_texts:
-                    if fallback in page_text_lower:
-                        elapsed = time.time() - start_time
-                        self.logger.info(f"Save success confirmed (fallback: '{fallback}') after {elapsed:.1f}s")
-                        return
-                        
-            except Exception as e:
-                if "save failed:" in str(e).lower() or "500" in str(e):
-                    raise e
-                pass
-            
-            time.sleep(check_interval)
-        
-        elapsed = time.time() - start_time
-        
-        # Final error check only on timeout
-        try:
-            self._check_for_save_errors()
-        except Exception as final_error:
-            raise final_error
-        
-        raise TimeoutException(f"Save success popup not found after {elapsed:.1f}s timeout")
-    
-    def _check_for_save_errors(self):
-        try:
-            error_found = self.driver.execute_script("""
-                var errorResult = { found: false, text: '', type: '' };
-                
-                // 1. Check for visible error popups
-                var errorSelectors = [
-                    '.k-notification-error',
-                    '.alert-danger',
-                    '.error',
-                    '.error-popup',
-                    '.popup-error',
-                    '[role="alert"][class*="error"]',
-                    '.notification-error'
-                ];
-                
-                for (var i = 0; i < errorSelectors.length; i++) {
-                    var elements = document.querySelectorAll(errorSelectors[i]);
-                    for (var j = 0; j < elements.length; j++) {
-                        var element = elements[j];
-                        if (element.offsetHeight > 0 && element.offsetWidth > 0) {
-                            var text = element.textContent || element.innerText || '';
-                            if (text.trim().length > 0) {
-                                errorResult.found = true;
-                                errorResult.text = text.trim();
-                                errorResult.type = 'popup';
-                                return errorResult;
-                            }
-                        }
-                    }
-                }
-                
-                // 2. Check for HTTP 500 errors via Performance API
-                try {
-                    var entries = performance.getEntriesByType('resource');
-                    for (var k = 0; k < entries.length; k++) {
-                        var entry = entries[k];
-                        if (entry.responseStatus >= 500) {
-                            errorResult.found = true;
-                            errorResult.text = 'HTTP ' + entry.responseStatus + ' server error';
-                            errorResult.type = 'http';
-                            errorResult.failedRequest = {
-                                fullUrl: entry.name,
-                                status: entry.responseStatus,
-                                duration: entry.duration
-                            };
-                            return errorResult;
-                        }
-                    }
-                } catch(perfError) {
-                    // Performance API not available
-                }
-                
-                // 3. Check for server error text in page content
-                try {
-                    var bodyText = document.body.innerText || document.body.textContent || '';
-                    var lowerText = bodyText.toLowerCase();
-                    
-                    // Check for 404 Not Found errors first (most specific)
-                    if (lowerText.includes('not found error') || 
-                        (lowerText.includes('error 404') && lowerText.includes('not found'))) {
-                        errorResult.found = true;
-                        errorResult.text = 'Not Found Error';
-                        errorResult.type = 'content';
-                        return errorResult;  // Return immediately for 404 errors
-                    }
-                    
-                    // Common error messages to look for
-                    var errorMessages = [
-                        'an error has occurred',
-                        'an error occurred',
-                        'sorry for inconvenience',
-                        'contact the site administrator',
-                        'internal server error',
-                        'server error occurred',
-                        'unexpected error',
-                    ];
-                    
-                    for (var i = 0; i < errorMessages.length; i++) {
-                        if (lowerText.includes(errorMessages[i])) {
-                            // Return standardized message for managers instead of raw context
-                            errorResult.found = true;
-                            errorResult.text = 'Page showed error: An error has occurred on the page you were requesting...';
-                            errorResult.type = 'content';
-                            return errorResult;
-                        }
-                    }
-                } catch(contentError) {
-                    // Ignore content check errors
-                }
-                
-                return errorResult;
-            """)
-            
-            if error_found['found']:
-                error_text = error_found['text']
-                error_type = error_found['type']
-                
-                # Log request details if avail
-                if 'failedRequest' in error_found:
-                    self._log_server_error_request(error_found['failedRequest'])
-                
-                if "500" in error_text or "server error" in error_text.lower():
-                    raise Exception(f"Save failed: HTTP 500 server error - {error_text}")
-                else:
-                    raise Exception(f"Save failed: {error_text}")
-                
-        except Exception as e:
-            if "Save failed:" in str(e):
-                raise e
-    
+  
     def _wait_for_api_requests_complete(self, url):
         """Wait only for API requests to complete (not static resources)"""
         try:
@@ -1986,7 +1815,7 @@ def print_server_down_error(error_message: str):
     print(f"="*60)
 
 
-def print_final_stats(start_time: float, loops: int, processed_records: int, network_speed: float):
+def print_final_stats(start_time: float, loops: int, processed_records: int):
     """Print comprehensive final statistics about the script execution"""
     total_seconds = time.time() - start_time
     hours = int(total_seconds // 3600)
@@ -1999,16 +1828,9 @@ def print_final_stats(start_time: float, loops: int, processed_records: int, net
     print(f"📊 EXECUTION STATISTICS:")
     print(f"   • Loops per record: {loops}")
     print(f"   • Total records processed: {processed_records}")
-    print(f"   • Network speed: {network_speed}mb/s")
     print(f"   • Total execution time: {hours:02d}h {minutes:02d}m {seconds:02d}s")
     
     if processed_records > 0:
-        avg_time_per_record = total_seconds / processed_records
-        avg_time_per_measurement = total_seconds / (processed_records * loops)
-        print(f"   • Average time per record: {avg_time_per_record:.1f}s")
-        print(f"   • Average time per measurement: {avg_time_per_measurement:.1f}s")
-        
-        # Calculate throughput
         records_per_hour = (processed_records / total_seconds) * 3600
         print(f"   • Processing rate: {records_per_hour:.1f} records/hour")
     
@@ -2052,7 +1874,7 @@ def main():
     specify_sheet_layout(wb_sheet)
 
     options = Options()
-    # options.add_argument("--headless=new")
+    #options.add_argument("--headless=new")
     driver = webdriver.Chrome(options=options)
     head_cell_top = wb_sheet["F1"]
     head_cell_top.alignment = Alignment(horizontal='center')
@@ -2140,7 +1962,7 @@ def main():
                 print_server_down_error(load_result.error_message)
                 logger.error(f"SERVER DOWN detected: {load_result.error_message}")                
                 wb.save(input_file)                
-                print_final_stats(start_time, loops, processed_records, network_speed)
+                print_final_stats(start_time, loops, processed_records)
                 
                 try:
                     driver.quit()
@@ -2206,7 +2028,7 @@ def main():
     
     driver.quit()
 
-    print_final_stats(start_time, loops, processed_records, network_speed)
+    print_final_stats(start_time, loops, processed_records)
 
 if __name__ == "__main__":
     main()
