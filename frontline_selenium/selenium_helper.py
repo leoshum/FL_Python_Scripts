@@ -79,21 +79,16 @@ class SeleniumHelper:
     
     @staticmethod
     def wait_for_form_page_load(driver: webdriver.Chrome, timeout: int = 30) -> None:
-        """
-        INDUSTRY-STANDARD form page load detection using MutationObserver.
-        Proven approach used by modern testing frameworks like Playwright and Cypress.
-        Simple, reliable, and fast detection of form readiness.
-        """
         try:
-            # STEP 1: Trigger reload FIRST
+            # STEP 1: reload
             driver.execute_script("location.reload(true);")
             
-            # STEP 2: Wait for document ready state
+            # STEP 2: document ready state
             WebDriverWait(driver, timeout).until(
                 lambda d: d.execute_script("return document.readyState === 'complete';")
             )
             
-            # STEP 3: INDUSTRY-STANDARD approach - MutationObserver + simple checks
+            # STEP 3: MutationObserver + simple checks
             driver.execute_script(f"""
                 return new Promise((resolve) => {{
                     const startTime = performance.now();
@@ -139,7 +134,7 @@ class SeleniumHelper:
                         const hasLoading = Array.from(loadingElements).some(el => el.offsetHeight > 0);
                         
                         // 3. Simple readiness check
-                        const hasContent = formContainer.innerText.trim().length > 100;
+                        const hasContent = formContainer.innerText.trim().length > 50;
                         const hasInputs = visibleInputs.length > 0;
                         
                         return !hasLoading && (hasInputs || hasContent);
@@ -207,10 +202,7 @@ class SeleniumHelper:
             try:
                 WebDriverWait(driver, 10).until(
                     lambda d: d.execute_script("return document.readyState === 'complete';")
-                )
-                
-                # TODO: think about removing this sleep
-                time.sleep(0.8)
+                )                
                 
                 # Try to find any visible form container
                 WebDriverWait(driver, 5).until(

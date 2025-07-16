@@ -182,119 +182,24 @@ class FormMeasurer:
     
     def _check_for_form_content(self, url):
         try:
-            # Strategy 1: Enhanced action button detection with stale element handling
-            action_keywords = [
-                'save', 'previous', 'next', 'validate', 'print',
-                'clear', 'generate', 'update', 'submit', 'create'
-            ]
-            
-            # Use JavaScript to avoid stale element issues and get comprehensive button data
-            button_analysis = self.driver.execute_script("""
-                const result = {
-                    actionButtons: [],
-                    totalButtons: 0,
-                    visibleButtons: 0,
-                    foundActionButton: false
-                };
-                
-                // Enhanced button selectors including input buttons
-                const buttonSelectors = [
-                    'button',
-                    'input[type="button"]',
-                    'input[type="submit"]',
-                    'a[role="button"]',
-                    '.btn',
-                    '[onclick]'
-                ];
-                
-                const actionKeywords = arguments[0];
-                const allButtons = [];
-                
-                // Collect all buttons from different selectors
-                buttonSelectors.forEach(selector => {
-                    try {
-                        const elements = document.querySelectorAll(selector);
-                        elements.forEach(elem => {
-                            if (!allButtons.includes(elem)) {
-                                allButtons.push(elem);
-                            }
-                        });
-                    } catch (e) {
-                        // Ignore selector errors
-                    }
-                });
-                
-                result.totalButtons = allButtons.length;
-                
-                allButtons.forEach(btn => {
-                    try {
-                        // Check if button is visible
-                        const isVisible = btn.offsetHeight > 0 && btn.offsetWidth > 0 && 
-                                         getComputedStyle(btn).visibility !== 'hidden' && 
-                                         getComputedStyle(btn).display !== 'none';
-                        
-                        if (isVisible) {
-                            result.visibleButtons++;
-                            
-                            // Get text from multiple sources
-                            const text = (
-                                btn.textContent || 
-                                btn.innerText || 
-                                btn.value || 
-                                btn.getAttribute('title') || 
-                                btn.getAttribute('aria-label') || 
-                                ''
-                            ).toLowerCase().trim();
-                            
-                            // Check for action keywords
-                            const hasActionKeyword = actionKeywords.some(keyword => 
-                                text.includes(keyword.toLowerCase())
-                            );
-                            
-                            if (hasActionKeyword) {
-                                result.actionButtons.push({
-                                    text: text,
-                                    tag: btn.tagName,
-                                    type: btn.type || '',
-                                    classes: btn.className || ''
-                                });
-                                result.foundActionButton = true;
-                            }
-                        }
-                    } catch (e) {
-                        // Skip problematic elements
-                    }
-                });
-                
-                return result;
-            """, action_keywords)
-            
-            if button_analysis['foundActionButton']:
-                action_button = button_analysis['actionButtons'][0]
-                self.logger.info(f"Found action button: '{action_button['text']}' - form content confirmed")
-                return True
-            
-            # Strategy 2: Enhanced input field detection with JavaScript
+            # Strategy 1: Check for real interactive inputs
             input_analysis = self.driver.execute_script("""
                 const result = {
                     totalInputs: 0,
                     visibleInputs: 0,
-                    interactableInputs: 0,
-                    inputTypes: []
+                    interactableInputs: 0
                 };
                 
-                // Comprehensive input selectors
                 const inputSelectors = [
                     'input:not([type="hidden"]):not([type="button"]):not([type="submit"])',
                     'select',
                     'textarea',
                     '[contenteditable="true"]',
-                    '.k-editor', // Kendo editors
+                    '.k-editor',
                     'accelify-rich-editor'
                 ];
                 
                 const allInputs = [];
-                
                 inputSelectors.forEach(selector => {
                     try {
                         const elements = document.querySelectorAll(selector);
@@ -322,7 +227,6 @@ class FormMeasurer:
                             const isInteractable = !input.disabled && !input.readOnly;
                             if (isInteractable) {
                                 result.interactableInputs++;
-                                result.inputTypes.push(input.type || input.tagName.toLowerCase());
                             }
                         }
                     } catch (e) {
@@ -333,28 +237,49 @@ class FormMeasurer:
                 return result;
             """)
             
-            # Relaxed criteria: 1+ interactable inputs OR 2+ visible inputs indicates a form
+            # Strategy 1 Success: 1+ interactable inputs OR 2+ visible inputs
             if input_analysis['interactableInputs'] >= 1 or input_analysis['visibleInputs'] >= 2:
                 self.logger.info(f"Found {input_analysis['interactableInputs']} interactable inputs, {input_analysis['visibleInputs']} visible inputs - form content confirmed")
                 return True
             
-            # Strategy 3: Enhanced form container detection
+            # Strategy 2: Check for live form containers with actual content
             container_analysis = self.driver.execute_script("""
                 const result = {
-                    containers: [],
-                    hasFormWithControls: false
+                    hasLiveAngularForms: false,
+                    hasLiveKendoTabs: false,
+                    hasLiveContainers: false,
+                    debugInfo: {
+                        routerOutletContent: 0,
+                        kendoTabCount: 0,
+                        formSectionCount: 0
+                    }
                 };
                 
-                // Enhanced form container selectors
+                // Check Angular router-outlet has actual content
+                const routerOutlet = document.querySelector('router-outlet');
+                if (routerOutlet && routerOutlet.children.length > 0) {
+                    result.debugInfo.routerOutletContent = routerOutlet.children.length;
+                    result.hasLiveAngularForms = true;
+                }
+                
+                // Check Kendo tabstrip has actual tabs
+                const kendoTabs = document.querySelectorAll('.k-tabstrip-items li');
+                result.debugInfo.kendoTabCount = kendoTabs.length;
+                if (kendoTabs.length > 0) {
+                    result.hasLiveKendoTabs = true;
+                }
+                
+                // Check for actual form sections with content
+                const formSections = document.querySelectorAll('accelify-form-section');
+                result.debugInfo.formSectionCount = formSections.length;
+                
+                // Legacy form containers with controls
                 const containerSelectors = [
                     'form',
-                    'div[class*="form"]',
-                    'div[id*="form"]',
-                    'accelify-forms-details',
+                    '.form-container',
                     '.main-content',
                     '#pnlForm',
-                    '#pnlEventContent',
-                    '[role="form"]'
+                    '#pnlEventContent'
                 ];
                 
                 containerSelectors.forEach(selector => {
@@ -364,9 +289,8 @@ class FormMeasurer:
                             const isVisible = container.offsetHeight > 0 && container.offsetWidth > 0;
                             
                             if (isVisible) {
-                                // Check for form controls within container
                                 const controls = container.querySelectorAll(
-                                    'input, select, textarea, button, [contenteditable], .k-editor'
+                                    'input:not([type="button"]):not([type="submit"]), select, textarea, [contenteditable], .k-editor'
                                 );
                                 
                                 const visibleControls = Array.from(controls).filter(ctrl => {
@@ -375,11 +299,7 @@ class FormMeasurer:
                                 });
                                 
                                 if (visibleControls.length > 0) {
-                                    result.containers.push({
-                                        selector: selector,
-                                        controlCount: visibleControls.length
-                                    });
-                                    result.hasFormWithControls = true;
+                                    result.hasLiveContainers = true;
                                 }
                             }
                         });
@@ -391,17 +311,21 @@ class FormMeasurer:
                 return result;
             """)
             
-            if container_analysis['hasFormWithControls']:
-                container = container_analysis['containers'][0]
-                self.logger.info(f"Found form container '{container['selector']}' with {container['controlCount']} controls - form content confirmed")
+            # Strategy 2 Success: Any live containers found
+            if (container_analysis['hasLiveAngularForms'] or 
+                container_analysis['hasLiveKendoTabs'] or 
+                container_analysis['hasLiveContainers']):
+                
+                debug_info = container_analysis['debugInfo']
+                self.logger.info(f"Found live containers - Angular content: {debug_info['routerOutletContent']}, "
+                               f"Kendo tabs: {debug_info['kendoTabCount']}, form sections: {debug_info['formSectionCount']} - form content confirmed")
                 return True
             
-            # Strategy 4: Enhanced dynamic content handling for Angular/async forms
+            # Strategy 3: Dynamic content with actual wait and verification
             angular_check = self.driver.execute_script("""
                 const result = {
                     hasAngular: false,
                     hasAsyncContent: false,
-                    hasSkeletons: false,
                     requiresWait: false
                 };
                 
@@ -425,104 +349,62 @@ class FormMeasurer:
                     }
                 });
                 
-                // Check for loading skeletons
-                const skeletonSelectors = [
-                    '.skeleton', '.loading-skeleton', '.content-skeleton',
-                    '[class*="skeleton"]', '[class*="loading"]'
-                ];
-                
-                skeletonSelectors.forEach(selector => {
-                    try {
-                        const skeletons = document.querySelectorAll(selector);
-                        if (skeletons.length > 0) {
-                            const visibleSkeletons = Array.from(skeletons).filter(s => 
-                                s.offsetHeight > 0 && s.offsetWidth > 0
-                            );
-                            if (visibleSkeletons.length > 0) {
-                                result.hasSkeletons = true;
-                            }
-                        }
-                    } catch (e) {
-                        // Ignore
-                    }
-                });
-                
-                // Determine if we need to wait
-                result.requiresWait = result.hasAngular || result.hasAsyncContent || result.hasSkeletons;
+                result.requiresWait = result.hasAngular || result.hasAsyncContent;
                 
                 return result;
             """)
             
-            # If we have Angular/async content but no form elements yet, wait longer and retry multiple times
+            # Strategy 3: Wait for dynamic content only if Angular detected
             if angular_check['requiresWait']:
-                self.logger.info(f"Detected dynamic content (Angular: {angular_check['hasAngular']}, Async: {angular_check['hasAsyncContent']}, Skeletons: {angular_check['hasSkeletons']}) - waiting for rendering...")
+                self.logger.info(f"Detected dynamic content (Angular: {angular_check['hasAngular']}, Async: {angular_check['hasAsyncContent']}) - waiting for rendering...")
                 
                 # Try up to 3 times with increasing delays
                 for attempt in range(3):
-                    delay = 1.0 + (attempt * 0.5)  # 1.0s, 1.5s, 2.0s delays
+                    delay = 1.0 + (attempt * 0.5)
                     time.sleep(delay)
                     
-                    # Comprehensive retry detection
+                    # Check for actual rendered content
                     retry_result = self.driver.execute_script("""
                         const result = {
-                            hasContent: false,
-                            elementCount: 0,
-                            visibleButtons: 0,
-                            visibleInputs: 0
+                            hasRealInputs: false,
+                            hasLiveTabs: false,
+                            inputCount: 0,
+                            tabCount: 0
                         };
                         
-                        // Check all form elements
-                        const allFormElements = document.querySelectorAll('input, select, textarea, button');
-                        const visibleElements = Array.from(allFormElements).filter(elem => {
+                        // Check for real form inputs
+                        const formInputs = document.querySelectorAll('input:not([type="button"]):not([type="submit"]), select, textarea');
+                        const visibleInputs = Array.from(formInputs).filter(elem => {
                             const rect = elem.getBoundingClientRect();
                             const style = window.getComputedStyle(elem);
                             return rect.width > 0 && rect.height > 0 && 
                                    style.visibility !== 'hidden' && 
                                    style.display !== 'none' && 
-                                   style.opacity !== '0';
+                                   !elem.disabled && !elem.readOnly;
                         });
                         
-                        result.elementCount = visibleElements.length;
-                        result.hasContent = result.elementCount > 0;
+                        result.inputCount = visibleInputs.length;
+                        result.hasRealInputs = result.inputCount > 0;
                         
-                        // Count buttons vs inputs
-                        visibleElements.forEach(elem => {
-                            if (elem.tagName.toLowerCase() === 'button' || elem.type === 'button' || elem.type === 'submit') {
-                                result.visibleButtons++;
-                            } else {
-                                result.visibleInputs++;
-                            }
-                        });
+                        // Check for live Kendo tabs
+                        const tabs = document.querySelectorAll('.k-tabstrip-items li');
+                        result.tabCount = tabs.length;
+                        result.hasLiveTabs = result.tabCount > 0;
                         
                         return result;
                     """)
                     
-                    if retry_result['hasContent']:
-                        self.logger.info(f"Dynamic content loaded after {delay:.1f}s wait: {retry_result['elementCount']} elements ({retry_result['visibleButtons']} buttons, {retry_result['visibleInputs']} inputs) - form content confirmed")
+                    if retry_result['hasRealInputs'] or retry_result['hasLiveTabs']:
+                        self.logger.info(f"Dynamic content loaded after {delay:.1f}s wait: {retry_result['inputCount']} inputs, {retry_result['tabCount']} tabs - form content confirmed")
                         return True
                     else:
-                        self.logger.debug(f"Attempt {attempt + 1}: Still no content after {delay:.1f}s delay")
+                        self.logger.debug(f"Attempt {attempt + 1}: Still no real content after {delay:.1f}s delay")
                 
                 self.logger.debug("Dynamic content wait completed but no form elements found")
             
-            # Strategy 5: Button-only forms (confirmation forms, simple action forms)
-            # If we have multiple buttons including at least one action button, consider it a form
-            if (button_analysis['visibleButtons'] >= 2 and 
-                any(btn for btn in button_analysis['actionButtons'] if btn)):
-                self.logger.info(f"Found button-only form with {button_analysis['visibleButtons']} buttons including action buttons - form content confirmed")
-                return True
-            
-            # Strategy 6: Fallback - any reasonable interactive content
-            # If we have a combination of buttons and any form elements
-            total_interactive = button_analysis['visibleButtons'] + input_analysis['visibleInputs']
-            if total_interactive >= 3:  # At least 3 interactive elements suggest a form
-                self.logger.info(f"Found interactive content: {button_analysis['visibleButtons']} buttons + {input_analysis['visibleInputs']} inputs = {total_interactive} elements - form content confirmed")
-                return True
-            
-            # Debug info before returning False
-            self.logger.info(f"No form content found: {button_analysis['visibleButtons']} buttons, "
-                           f"{input_analysis['visibleInputs']} visible inputs, "
-                           f"{len(container_analysis['containers'])} form containers")
+            # Final result: No valid form content detected
+            self.logger.info(f"No form content found: {input_analysis['visibleInputs']} visible inputs, "
+                f"{input_analysis['interactableInputs']} interactable inputs")
             
             return False
             
