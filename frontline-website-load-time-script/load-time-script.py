@@ -360,8 +360,7 @@ class FormMeasurer:
                 
                 # Try up to 3 times with increasing delays
                 for attempt in range(3):
-                    delay = 1.0 + (attempt * 0.5)
-                    time.sleep(delay)
+                    time.sleep(attempt)
                     
                     # Check for actual rendered content
                     retry_result = self.driver.execute_script("""
