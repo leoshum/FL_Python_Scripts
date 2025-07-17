@@ -397,14 +397,47 @@ class FormMeasurer:
                     if retry_result['hasRealInputs'] or retry_result['hasLiveTabs']:
                         self.logger.info(f"Dynamic content loaded after {delay:.1f}s wait: {retry_result['inputCount']} inputs, {retry_result['tabCount']} tabs - form content confirmed")
                         return True
-                    else:
-                        self.logger.debug(f"Attempt {attempt + 1}: Still no real content after {delay:.1f}s delay")
-                
-                self.logger.debug("Dynamic content wait completed but no form elements found")
             
             # Final result: No valid form content detected
             self.logger.info(f"No form content found: {input_analysis['visibleInputs']} visible inputs, "
                 f"{input_analysis['interactableInputs']} interactable inputs")
+            
+            # Strategy 4: Check for readonly content (data tables, significant text)
+            readonly_check = self.driver.execute_script("""
+                const result = {
+                    hasDataTables: false,
+                    hasSignificantText: false,
+                    dataRowCount: 0
+                };
+                
+                // Check for data tables with actual content
+                const tableSelectors = ['kendo-grid', '.k-grid', 'table[role="grid"]'];
+                tableSelectors.forEach(selector => {
+                    const elements = document.querySelectorAll(selector);
+                    elements.forEach(element => {
+                        if (element.offsetHeight > 0) {
+                            const text = element.textContent || '';
+                            const hasData = text.length > 50;
+                            
+                            if (hasData) {
+                                result.hasDataTables = true;
+                                const rows = element.querySelectorAll('tr:not(.k-grid-norecords)');
+                                result.dataRowCount += Math.max(0, rows.length - 1);
+                            }
+                        }
+                    });
+                });
+                
+                // Check for significant text content
+                const bodyText = document.body.textContent || '';
+                result.hasSignificantText = bodyText.trim().length > 300;
+                
+                return result;
+            """)
+            
+            if readonly_check['hasDataTables'] or readonly_check['hasSignificantText']:
+                self.logger.info(f"Found readonly content: {readonly_check['dataRowCount']} data rows, significant text: {readonly_check['hasSignificantText']}")
+                return True
             
             return False
             
@@ -1756,7 +1789,7 @@ def main():
     specify_sheet_layout(wb_sheet)
 
     options = Options()
-    #options.add_argument("--headless=new")
+    # options.add_argument("--headless=new")
     driver = webdriver.Chrome(options=options)
     head_cell_top = wb_sheet["F1"]
     head_cell_top.alignment = Alignment(horizontal='center')
