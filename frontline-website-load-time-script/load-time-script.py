@@ -478,9 +478,10 @@ class FormMeasurer:
                 
                 if not validation_result['success']:
                     self.logger.error(f"Page validation failed on measurement {i+1}: {validation_result['error']}")
+                    error_type = validation_result.get('error_type', Config.ErrorTypes.FORM_LOAD_ERROR)
                     return MeasurementResult(
                         success=False,
-                        error_type=Config.ErrorTypes.FORM_LOAD_ERROR,
+                        error_type=error_type,
                         error_message=validation_result['error']
                     )
                 
@@ -511,17 +512,21 @@ class FormMeasurer:
             
             errors = self._check_for_errors()
             if errors:
+                error_type, error_message = ErrorClassifier.classify_load_error(errors[0])
                 return {
                     'success': False,
-                    'error': errors[0]
+                    'error': error_message,
+                    'error_type': error_type
                 }
             
             return {'success': True, 'error': None}
             
         except Exception as e:
+            error_type, error_message = ErrorClassifier.classify_load_error(str(e))
             return {
                 'success': False,
-                'error': f"Page validation failed: {str(e)}"
+                'error': error_message,
+                'error_type': error_type
             }
     
     def measure_save_time(self, url, loops):
@@ -1138,9 +1143,7 @@ class FormMeasurer:
                     var lowerPageText = pageText.toLowerCase();
                     
                     // PRIORITY: Check for HTTP 503 Service Unavailable (server down)
-                    if (lowerPageText.includes('service unavailable') || 
-                        lowerPageText.includes('http error 503') ||
-                        (lowerPageText.includes('503') && lowerPageText.includes('service'))) {
+                    if (lowerPageText.includes('HTTP Error 503. The Service is unavalible')) {
                         errors.push('Service Unavailable (HTTP 503) - Server is down');
                         return errors;  // Return immediately for server down
                     }
