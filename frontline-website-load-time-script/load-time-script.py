@@ -246,27 +246,31 @@ class FormMeasurer:
             container_analysis = self.driver.execute_script("""
                 const result = {
                     hasLiveAngularForms: false,
-                    hasLiveKendoTabs: false,
                     hasLiveContainers: false,
                     debugInfo: {
                         routerOutletContent: 0,
-                        kendoTabCount: 0,
                         formSectionCount: 0
                     }
                 };
                 
-                // Check Angular router-outlet has actual content
+                // Check Angular router-outlet has actual MEANINGFUL content
                 const routerOutlet = document.querySelector('router-outlet');
                 if (routerOutlet && routerOutlet.children.length > 0) {
                     result.debugInfo.routerOutletContent = routerOutlet.children.length;
-                    result.hasLiveAngularForms = true;
-                }
-                
-                // Check Kendo tabstrip has actual tabs
-                const kendoTabs = document.querySelectorAll('.k-tabstrip-items li');
-                result.debugInfo.kendoTabCount = kendoTabs.length;
-                if (kendoTabs.length > 0) {
-                    result.hasLiveKendoTabs = true;
+                    
+                    // Check if children have meaningful content (inputs, text, etc.)
+                    let hasMeaningfulContent = false;
+                    for (const child of routerOutlet.children) {
+                        const inputs = child.querySelectorAll('input, select, textarea, [contenteditable]');
+                        const text = child.textContent?.trim() || '';
+                        
+                        if (inputs.length > 0 || text.length > 50) {
+                            hasMeaningfulContent = true;
+                            break;
+                        }
+                    }
+                    
+                    result.hasLiveAngularForms = hasMeaningfulContent;
                 }
                 
                 // Check for actual form sections with content
@@ -313,12 +317,11 @@ class FormMeasurer:
             
             # Strategy 2 Success: Any live containers found
             if (container_analysis['hasLiveAngularForms'] or 
-                container_analysis['hasLiveKendoTabs'] or 
                 container_analysis['hasLiveContainers']):
                 
                 debug_info = container_analysis['debugInfo']
                 self.logger.info(f"Found live containers - Angular content: {debug_info['routerOutletContent']}, "
-                               f"Kendo tabs: {debug_info['kendoTabCount']}, form sections: {debug_info['formSectionCount']} - form content confirmed")
+                               f"form sections: {debug_info['formSectionCount']} - form content confirmed")
                 return True
             
             # Strategy 3: Dynamic content with actual wait and verification
@@ -394,48 +397,73 @@ class FormMeasurer:
                     """)
                     
                     if retry_result['hasRealInputs'] or retry_result['hasLiveTabs']:
-                        self.logger.info(f"Dynamic content loaded after {delay:.1f}s wait: {retry_result['inputCount']} inputs, {retry_result['tabCount']} tabs - form content confirmed")
+                        self.logger.info(f"Dynamic content loaded after {attempt:.1f}s wait: {retry_result['inputCount']} inputs, {retry_result['tabCount']} tabs - form content confirmed")
                         return True
             
             # Final result: No valid form content detected
             self.logger.info(f"No form content found: {input_analysis['visibleInputs']} visible inputs, "
                 f"{input_analysis['interactableInputs']} interactable inputs")
             
-            # Strategy 4: Check for readonly content (data tables, significant text)
+            # Strategy 4: Check for ACTUAL readonly content (data tables, reports)
             readonly_check = self.driver.execute_script("""
                 const result = {
                     hasDataTables: false,
-                    hasSignificantText: false,
+                    hasReports: false,
                     dataRowCount: 0
                 };
                 
-                // Check for data tables with actual content
+                // Check for data tables with actual content rows
                 const tableSelectors = ['kendo-grid', '.k-grid', 'table[role="grid"]'];
                 tableSelectors.forEach(selector => {
                     const elements = document.querySelectorAll(selector);
                     elements.forEach(element => {
                         if (element.offsetHeight > 0) {
-                            const text = element.textContent || '';
-                            const hasData = text.length > 50;
+                            // Count actual data rows (not headers or empty rows)
+                            const dataRows = element.querySelectorAll('tr:not(.k-grid-norecords):not(.k-header)');
+                            const hasData = dataRows.length > 1; // More than header row
                             
                             if (hasData) {
                                 result.hasDataTables = true;
-                                const rows = element.querySelectorAll('tr:not(.k-grid-norecords)');
-                                result.dataRowCount += Math.max(0, rows.length - 1);
+                                result.dataRowCount += Math.max(0, dataRows.length - 1);
                             }
                         }
                     });
                 });
                 
-                // Check for significant text content
-                const bodyText = document.body.textContent || '';
-                result.hasSignificantText = bodyText.trim().length > 300;
+                // Check for report-like content (structured data displays)
+                const reportSelectors = [
+                    '.report-content',
+                    '.data-display',
+                    '.readonly-form',
+                    '.form-display',
+                    '[class*="report"]',
+                    '[class*="summary"]'
+                ];
+                
+                reportSelectors.forEach(selector => {
+                    try {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(element => {
+                            if (element.offsetHeight > 0) {
+                                const text = element.textContent || '';
+                                const hasStructuredData = text.length > 50 &&
+                                    (text.includes(':') || text.includes('|') || text.includes('\t'));
+                                
+                                if (hasStructuredData) {
+                                    result.hasReports = true;
+                                }
+                            }
+                        });
+                    } catch (e) {
+                        // Ignore selector errors
+                    }
+                });
                 
                 return result;
             """)
             
-            if readonly_check['hasDataTables'] or readonly_check['hasSignificantText']:
-                self.logger.info(f"Found readonly content: {readonly_check['dataRowCount']} data rows, significant text: {readonly_check['hasSignificantText']}")
+            if readonly_check['hasDataTables'] or readonly_check['hasReports']:
+                self.logger.info(f"Found readonly content: {readonly_check['dataRowCount']} data rows, reports: {readonly_check['hasReports']}")
                 return True
             
             return False
@@ -676,7 +704,7 @@ class FormMeasurer:
             time.sleep(poll_interval)
         
         self.logger.debug(f"Content ready timeout after {timeout}s")
-        return False
+        return False  # Timeout reached
     
     def _wait_for_visual_readiness(self, timeout: int = 3) -> bool:
         """Wait for visual rendering completion using multiple indicators"""
