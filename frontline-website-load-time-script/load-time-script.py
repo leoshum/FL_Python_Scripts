@@ -567,10 +567,7 @@ class FormMeasurer:
         6. Check errors during save
         """
         try:
-            self.logger.info("Starting save measurement")
-            
-            # STEP 0.5: Fill required form fields if needed
-            self._fill_required_fields_if_needed()
+            self.logger.info("Starting save measurement")          
             
             # STEP 1: Find Save button with 20-second wait (page might render dynamically)
             save_button = self._find_save_button_with_wait()
@@ -586,10 +583,12 @@ class FormMeasurer:
                     max_time=0.0,
                     mean_time=0.0
                 )
-                        
-            save_start_time = time.time()
+            
+            self._fill_required_fields_if_needed()
             
             self._click_save_button_reliably(save_button)
+
+            save_start_time = time.time()
 
             SeleniumHelper.wait_for_form_save_popup(self.driver)
             
@@ -1720,13 +1719,6 @@ def process_form(driver, url, measurer, loops, logger, is_form_page, disable_sav
         # 3. If load successful AND it's a form page AND save not disabled
         if load_result.success and is_form_page and not disable_save:
             save_result = measurer.measure_save_time(url, loops)
-        else:
-            if not load_result.success:
-                logger.debug(f"Skipping save measurement - load failed")
-            elif not is_form_page:
-                logger.debug(f"Skipping save measurement - not a form page")
-            elif disable_save:
-                logger.debug(f"Skipping save measurement - save disabled")
         
         return load_result, save_result
         
