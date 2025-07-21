@@ -145,18 +145,14 @@ class ErrorClassifier:
         
         # Check for timeout specifically
         if isinstance(exception, TimeoutException) or "timeout" in error_msg:
-            if "save success popup not found" in error_msg:
-                return Config.ErrorTypes.TIMEOUT_ERROR, "Save timeout - success popup not detected within 20 seconds"
-            else:
-                return Config.ErrorTypes.TIMEOUT_ERROR, "Save operation timeout"
+            return Config.ErrorTypes.TIMEOUT_ERROR, "Save message timeout"
         
-        # Check for specific save errors
-        if "save failed:" in error_msg:
-            # Extract the actual error message after "Save failed:"
+        # Check for specific save errors (API errors)
+        if "save failed:" in error_msg or "api error" in error_msg:
             if "500" in error_msg or "server error" in error_msg:
                 return Config.ErrorTypes.API_ERROR, "Save failed due to server error (HTTP 500)"
             else:
-                return Config.ErrorTypes.API_ERROR, "Save failed due to server error"
+                return Config.ErrorTypes.API_ERROR, str(exception)  # Use full exception message for API errors
         
         # Chrome crashes
         if ("gethandleverifier" in error_msg or "stacktrace" in error_msg or 
@@ -191,12 +187,13 @@ class FormMeasurer:
                 };
                 
                 const inputSelectors = [
-                    'input:not([type="hidden"]):not([type="button"]):not([type="submit"])',
-                    'select',
-                    'textarea',
+                    'input:not([type="hidden"])',
+                    'select', 'textarea', 'button',
                     '[contenteditable="true"]',
-                    '.k-editor',
-                    'accelify-rich-editor'
+                    '.k-editor', 'accelify-rich-editor',
+                    'kendo-datepicker', 'kendo-combobox', 'kendo-dropdownlist', 'kendo-multiselect',
+                    'accelify-date-picker', 'accelify-signature',
+                    '.k-checkbox', '.k-radio'
                 ];
                 
                 const allInputs = [];
@@ -258,19 +255,18 @@ class FormMeasurer:
                 if (routerOutlet && routerOutlet.children.length > 0) {
                     result.debugInfo.routerOutletContent = routerOutlet.children.length;
                     
-                    // Check if children have meaningful content (inputs, text, etc.)
-                    let hasMeaningfulContent = false;
-                    for (const child of routerOutlet.children) {
-                        const inputs = child.querySelectorAll('input, select, textarea, [contenteditable]');
-                        const text = child.textContent?.trim() || '';
-                        
-                        if (inputs.length > 0 || text.length > 50) {
-                            hasMeaningfulContent = true;
-                            break;
-                        }
-                    }
+                    // Check if router-outlet or its descendants have meaningful content
+                    const inputs = routerOutlet.querySelectorAll(`
+                        input, select, textarea, button, [contenteditable],
+                        kendo-datepicker, kendo-combobox, kendo-dropdownlist, kendo-multiselect,
+                        accelify-date-picker, accelify-signature, accelify-rich-editor,
+                        .k-editor, .k-checkbox, .k-radio
+                    `);
+                    const text = routerOutlet.textContent?.trim() || '';
                     
-                    result.hasLiveAngularForms = hasMeaningfulContent;
+                    if (inputs.length > 0 || text.length > 50) {
+                        result.hasLiveAngularForms = true;
+                    }
                 }
                 
                 // Check for actual form sections with content
@@ -293,9 +289,12 @@ class FormMeasurer:
                             const isVisible = container.offsetHeight > 0 && container.offsetWidth > 0;
                             
                             if (isVisible) {
-                                const controls = container.querySelectorAll(
-                                    'input:not([type="button"]):not([type="submit"]), select, textarea, [contenteditable], .k-editor'
-                                );
+                                const controls = container.querySelectorAll(`
+                                    input, select, textarea, button, [contenteditable],
+                                    kendo-datepicker, kendo-combobox, kendo-dropdownlist, kendo-multiselect,
+                                    accelify-date-picker, accelify-signature, accelify-rich-editor,
+                                    .k-editor, .k-checkbox, .k-radio
+                                `);
                                 
                                 const visibleControls = Array.from(controls).filter(ctrl => {
                                     return ctrl.offsetHeight > 0 && ctrl.offsetWidth > 0 && 
@@ -375,7 +374,12 @@ class FormMeasurer:
                         };
                         
                         // Check for real form inputs
-                        const formInputs = document.querySelectorAll('input:not([type="button"]):not([type="submit"]), select, textarea');
+                        const formInputs = document.querySelectorAll(`
+                            input, select, textarea, button,
+                            kendo-datepicker, kendo-combobox, kendo-dropdownlist, kendo-multiselect,
+                            accelify-date-picker, accelify-signature,
+                            .k-checkbox, .k-radio
+                        `);
                         const visibleInputs = Array.from(formInputs).filter(elem => {
                             const rect = elem.getBoundingClientRect();
                             const style = window.getComputedStyle(elem);
@@ -407,7 +411,7 @@ class FormMeasurer:
             # Strategy 4: Check for ACTUAL readonly content (data tables, reports)
             readonly_check = self.driver.execute_script("""
                 const result = {
-                    hasDataTables: false,
+                    hasGrid: false,
                     hasReports: false,
                     dataRowCount: 0
                 };
@@ -418,14 +422,9 @@ class FormMeasurer:
                     const elements = document.querySelectorAll(selector);
                     elements.forEach(element => {
                         if (element.offsetHeight > 0) {
-                            // Count actual data rows (not headers or empty rows)
+                            result.hasGrid = true;                            
                             const dataRows = element.querySelectorAll('tr:not(.k-grid-norecords):not(.k-header)');
-                            const hasData = dataRows.length > 1; // More than header row
-                            
-                            if (hasData) {
-                                result.hasDataTables = true;
-                                result.dataRowCount += Math.max(0, dataRows.length - 1);
-                            }
+                            result.dataRowCount += Math.max(0, dataRows.length - 1);
                         }
                     });
                 });
@@ -462,7 +461,7 @@ class FormMeasurer:
                 return result;
             """)
             
-            if readonly_check['hasDataTables'] or readonly_check['hasReports']:
+            if readonly_check['hasGrid'] or readonly_check['hasReports']:
                 self.logger.info(f"Found readonly content: {readonly_check['dataRowCount']} data rows, reports: {readonly_check['hasReports']}")
                 return True
             
@@ -1015,7 +1014,7 @@ class FormMeasurer:
                 WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable(save_button))
             except StaleElementReferenceException:
                 # Re-locate button if it became stale during wait
-                save_button = self._find_save_button_with_wait(max_attempts=5, delay=0.2)
+                save_button = self._find_save_button_with_wait(max_attempts=10, delay=0.2)
                 if not save_button:
                     break
             
@@ -1035,7 +1034,7 @@ class FormMeasurer:
                 return
             except Exception:
                 # Re-locate and retry next loop
-                save_button = self._find_save_button_with_wait(max_attempts=5, delay=0.2)
+                save_button = self._find_save_button_with_wait(max_attempts=2, delay=0.25)
                 if not save_button:
                     break
 
@@ -1741,6 +1740,8 @@ def process_form(driver, url, measurer, loops, logger, is_form_page, disable_sav
         except Exception as cleanup_ex:
             logger.warning(f"Tab cleanup failed: {cleanup_ex}")
 
+    print_final_stats(start_time, loops, processed_records)
+
 
 def print_server_down_error(error_message: str):
     """Print a clear, prominent server down error message"""
@@ -1916,7 +1917,7 @@ def main():
                     ExcelResultWriter.write_save_result(row, save_result)
                     if save_result.success:
                         if "No Save button found" in save_result.error_message:
-                            print(f"No Save button found - this is normal for some forms")
+                            print(save_result.error_message)
                         else:
                             print(f"Save successful: {save_result.mean_time:.1f}s average")
                     else:

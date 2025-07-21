@@ -250,129 +250,106 @@ class SeleniumHelper:
             raise
     
     @staticmethod
-    def wait_for_form_save_popup(driver: webdriver.Chrome, initial_requests: list = None) -> float:
-        temp_start_time = time.time()
+    def wait_for_form_save_popup(driver: webdriver.Chrome) -> float:
+        start_time = time.time()
+        timeout = 20  # sec
+        interval = 0.2  # sec
         
-        if initial_requests is None:
+        while time.time() - start_time < timeout:
             try:
-                initial_requests = SeleniumHelper.get_ajax_requests(driver)
-            except:
-                initial_requests = []
+                api_errors = driver.execute_script("""
+                    const errors = [];
+                    try {
+                        const entries = performance.getEntriesByType('resource');
+                        const currentDomain = window.location.hostname.toLowerCase();
+                        
+                        entries.forEach(entry => {
+                            const url = entry.name.toLowerCase();
+                            let entryDomain = '';
+                            
+                            try {
+                                entryDomain = new URL(entry.name).hostname.toLowerCase();
+                            } catch(e) {
+                                return; // Skip invalid URLs
+                            }
+                            
+                            const isOurDomain = entryDomain.includes(currentDomain) ||
+                                (currentDomain.includes('frontlineeducation.com') && entryDomain.includes('frontlineeducation.com'));                            
+                            const isXmlHttpRequest = entry.initiatorType === 'xmlhttprequest';
+                            const hasApiInUrl = url.includes('/api/');
+                            
+                            if (isOurDomain && isXmlHttpRequest && hasApiInUrl) {
+                                if (entry.responseStatus >= 500) {
+                                    errors.push({
+                                        url: entry.name,
+                                        status: entry.responseStatus,
+                                        type: 'http_error'
+                                    });
+                                }
+                                else if (entry.responseStatus === 0) {
+                                    errors.push({
+                                        url: entry.name,
+                                        status: 0,
+                                        type: 'network_error'
+                                    });
+                                }
+                            }
+                        });
+                    } catch(e) {
+                        // Ignore performance API errors
+                    }
+                    return errors;
+                """)
+                
+                if api_errors:
+                    error_details = []
+                    for error in api_errors:
+                        route = error['url'].split('/')[-1] if '/' in error['url'] else error['url']
+                        if error['type'] == 'http_error':
+                            error_details.append(f"HTTP {error['status']}: {route}")
+                        else:
+                            error_details.append(f"Network error: {route}")
+                    
+                    error_msg = f"Save failed due to API error - {'; '.join(error_details)}"
+                    if SeleniumHelper.logger:
+                        SeleniumHelper.logger.error(error_msg)
+                    raise ValueError(error_msg)
+                
+                success_found = driver.execute_script("""
+                    const successTexts = [
+                        'Form has been updated successfully',
+                        'has been updated successfully',
+                        'successfully updated',
+                        'saved successfully',
+                    ];
+                    
+                    const pageText = document.body.innerText || document.body.textContent || '';
+                    const lowerPageText = pageText.toLowerCase();
+                    
+                    return successTexts.some(successText => 
+                        lowerPageText.includes(successText.toLowerCase())
+                    );
+                """)
+                
+                if success_found:
+                    elapsed = time.time() - start_time
+                    if SeleniumHelper.logger:
+                        SeleniumHelper.logger.info(f"Save success message found after {elapsed:.1f}s")
+                    return elapsed
+                
+            except ValueError:
+                raise
+            except Exception as e:
+                if SeleniumHelper.logger:
+                    SeleniumHelper.logger.warning(f"Error during save popup check: {str(e)}")
+            
+            time.sleep(interval)
         
-        success_found = False
-        while time.time() - temp_start_time < SeleniumHelper.timeout:
-            try:
-                # Check for success messages first
-                if SeleniumHelper.is_plan_page_url(driver.current_url):
-                    script_result = driver.execute_script("""
-                        var alertDiv = document.querySelector('div[role="alert"]');
-                        return alertDiv ? alertDiv.textContent : null;
-                    """)
-                else:
-                    script_result = driver.execute_script("""
-                        var notification = document.querySelector('kendo-notification');
-                        return notification ? notification.textContent : null;
-                    """)
-                
-                if script_result and "Form has been updated successfully" in script_result:
-                    success_found = True
-                    break
-                
-                # Check network requests for errors every few seconds
-                elapsed = time.time() - temp_start_time
-                # TODO: think about this logic. Can we not wait for 3 sec?
-                if elapsed > 3:  # After 3 seconds, start checking network errors
-                    try:
-                        current_requests = SeleniumHelper.get_ajax_requests(driver)
-                        
-                        # Find new requests made during save operation
-                        new_requests = []
-                        if len(current_requests) > len(initial_requests):
-                            new_requests = current_requests[len(initial_requests):]
-                        
-                        # Check for save-related endpoints and their status codes
-                        form_save_endpoints = [
-                            "plan/Events/UpdateForm" if SeleniumHelper.is_plan_page_url(driver.current_url) else "plan/api/forms/",
-                            "/api/",
-                            "/update",
-                            "/save",
-                            "UpdateForm",
-                            "SaveForm"
-                        ]
-                        
-                        failed_requests = []
-                        
-                        for request in new_requests:
-                            request_url = request.get("url", "") if isinstance(request, dict) else str(request)
-                            request_status = request.get("status", 0) if isinstance(request, dict) else 0
-                            
-                            # Check if this is a save-related request
-                            is_save_request = any(endpoint in request_url for endpoint in form_save_endpoints)
-                            
-                            if is_save_request:                                
-                                # Check for error status codes (anything not 2xx)
-                                if isinstance(request_status, int) and (request_status < 200 or request_status >= 300):
-                                    if request_status != 0:  # 0 means pending, which we handle below
-                                        failed_requests.append({
-                                            'url': request_url,
-                                            'status': request_status,
-                                            'method': request.get('method', 'Unknown')
-                                        })
-                                        
-                                # Check for long-pending requests (>30s means stuck)
-                                # TODO: move 30 sec to config
-                                elif request_status == 0 or request_status == "pending":
-                                    request_duration = request.get("duration", 0)
-                                    if request_duration > 30000:  # 30 seconds
-                                        failed_requests.append({
-                                            'url': request_url,
-                                            'status': 'pending_timeout',
-                                            'duration': request_duration
-                                        })
-
-                        # If we found failed requests then raise error immediately
-                        if failed_requests:
-                            error_details = []
-                            for req in failed_requests:
-                                if req['status'] == 'pending_timeout':
-                                    detail = f"URL: {req['url']} - Status: PENDING for {req['duration']}ms"
-                                else:
-                                    detail = f"URL: {req['url']} - Status: {req['status']} ({req.get('method', 'Unknown')})"
-                                error_details.append(detail)
-                                
-                            error_msg = f"Form save failed - Network errors detected:\n" + "\n".join(error_details)
-                            if SeleniumHelper.logger:
-                                SeleniumHelper.logger.error(error_msg)
-                            
-                            # Raise exception with detailed status code info for Excel colnm
-                            raise ValueError(f"Form save network error: {len(failed_requests)} failed request(s)")                    
-                    except Exception as e:
-                        SeleniumHelper.logger.warning(f"Failed to check network requests: {str(e)}")                                
-            except Exception:
-                # Fallback: direct element search but still need to check for success
-                try:
-                    if SeleniumHelper.is_plan_page_url(driver.current_url):
-                        alert_elem = driver.find_element(By.CSS_SELECTOR, 'div[role="alert"]')
-
-                        if alert_elem and "Form has been updated successfully" in alert_elem.text:
-                            success_found = True
-                            break
-                    else:
-                        notification_elem = driver.find_element(By.TAG_NAME, 'kendo-notification')
-                        if notification_elem and "Form has been updated successfully" in notification_elem.text:
-                            success_found = True
-                            break
-                except:
-                    pass        
-
-        elapsed = time.time() - temp_start_time
-
-        if elapsed >= SeleniumHelper.timeout and not success_found:
-            error_msg = f"Form save popup timeout after {SeleniumHelper.timeout}s"
+        elapsed = time.time() - start_time
+        error_msg = f"Save message timeout after {elapsed:.0f}s"
+        if SeleniumHelper.logger:
             SeleniumHelper.logger.error(error_msg)
-            raise TimeoutException(error_msg)
-
-        return elapsed
+        raise TimeoutException(error_msg)
 
     @staticmethod
     def login_user(url: str, driver: webdriver.Chrome, username: str, password: str) -> None:
@@ -465,25 +442,6 @@ class SeleniumHelper:
             if SeleniumHelper.logger:
                 SeleniumHelper.logger.debug(f"Could not hide interfering elements: {str(ex)}")
             pass
-
-    @staticmethod
-    def get_ajax_requests(driver: webdriver.Chrome) -> list:
-        try:
-            with open(SeleniumHelper.util_scripts_directory + "get_requests.js", "r") as script_file:
-                script = script_file.read()
-        except (FileNotFoundError, IOError) as e:
-            error_msg = f"Failed to read get_requests.js: {str(e)}"
-            if SeleniumHelper.logger:
-                SeleniumHelper.logger.error(error_msg)
-            raise FileNotFoundError(error_msg)
-        
-        try:
-            return driver.execute_script(script)
-        except Exception as e:
-            error_msg = f"Failed to execute get_requests.js: {str(e)}"
-            if SeleniumHelper.logger:
-                SeleniumHelper.logger.error(error_msg)
-            raise
 
     @staticmethod
     def test_form_load_detection(driver: webdriver.Chrome) -> dict:
