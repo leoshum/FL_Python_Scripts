@@ -37,13 +37,18 @@ class Config:
     USERNAME = "SFTDVTester"
     PASSWORD = "ht2jGMM2GnC3bwX7"
     
-    # Student tab configurations
-    STUDENT_TABS = [
-        {"name": TabNames.ALL_STUDENTS, "selector": "#pnlStudentsLanding-tab-1", "default": False},
-        {"name": TabNames.MY_STUDENTS, "selector": "#pnlStudentsLanding-tab-2", "default": True},
-        {"name": TabNames.MY_STUDENT_TEAMS, "selector": "#pnlStudentsLanding-tab-3", "default": False},
-        {"name": TabNames.DISTRIBUTION_HISTORY, "selector": "#pnlStudentsLanding-tab-4", "default": False}
-    ]
+    @staticmethod
+    def get_student_tabs(filter_manager: 'StudentFilterManager') -> List[any]:
+        return [
+            {"name": TabNames.ALL_STUDENTS, "selector": "#pnlStudentsLanding-tab-1", "default": True, 
+             "filter_func": lambda: filter_manager.apply_all_students_filters()},
+            {"name": TabNames.MY_STUDENTS, "selector": "#pnlStudentsLanding-tab-2", "default": False,
+             "filter_func": None},
+            {"name": TabNames.MY_STUDENT_TEAMS, "selector": "#pnlStudentsLanding-tab-3", "default": False,
+             "filter_func": None},
+            {"name": TabNames.DISTRIBUTION_HISTORY, "selector": "#pnlStudentsLanding-tab-4", "default": False,
+             "filter_func": None}
+        ]
     
     # Filter configurations
     FILTER_SELECTORS = {
@@ -292,8 +297,8 @@ class StudentPageTester:
             return False
     
     def test_all_tabs(self) -> Dict:
-        """Test all student tabs and return results"""        
-        for tab_config in Config.STUDENT_TABS:
+        """Test all tabs"""
+        for tab_config in Config.get_student_tabs(self.filter_manager):
             tab_name = tab_config['name']            
             result = self._test_single_tab(tab_config)
             self.tab_results[tab_name] = result
@@ -301,13 +306,10 @@ class StudentPageTester:
             if result['success']:
                 filter_status = ""
                 if result.get('filter_applied', False):
-                    filter_status = " [FILTER: IEP Annual Eligibility]"
-                self.logger.info(f"[OK] {tab_name} ({result['load_time']:.1f}s){filter_status}")
+                    filter_status = " [FILTER: Applied]"
+                self.logger.info(f"{tab_name} loaded in {result['load_time']:.1f}s{filter_status}")
             else:
-                filter_error = ""
-                if tab_name == TabNames.ALL_STUDENTS and not result.get('filter_applied', False):
-                    filter_error = " [FILTER: FAILED]"
-                self.logger.error(f"[FAIL] {tab_name}: {result['error']}{filter_error}")
+                self.logger.error(f"{tab_name} failed: {result['error']}")
         
         return self.tab_results
     
@@ -315,6 +317,7 @@ class StudentPageTester:
         """Test a single student tab"""
         selector = tab_config['selector']
         is_default = tab_config['default']
+        filter_func = tab_config['filter_func']
         tab_name = tab_config['name']
         TIMEOUT_SECONDS = 1
         
@@ -336,11 +339,11 @@ class StudentPageTester:
             self._wait_for_students_to_load()
             
             filter_success = True
-            if tab_name == TabNames.ALL_STUDENTS:
+            if filter_func:
                 try:
-                    filter_success = self.filter_manager.apply_filters_to_all_students_tab()
+                    filter_success = filter_func()
                     if not filter_success:
-                        self.logger.error("Filter application failed for All Students tab")
+                        self.logger.error(f"Filter application failed for {tab_name}")
                 except Exception as e:
                     self.logger.error(f"Error during filter application: {e}")
                     filter_success = False
@@ -356,10 +359,10 @@ class StudentPageTester:
                     'error': f"API errors detected: {api_status['api_errors']} errors",
                     'load_time': load_time,
                     'api_status': api_status,
-                    'filter_applied': tab_name == TabNames.ALL_STUDENTS and filter_success
+                    'filter_applied': filter_func and filter_success
                 }
             
-            if tab_name == TabNames.ALL_STUDENTS and not filter_success:
+            if filter_func and not filter_success:
                 return {
                     'success': False,
                     'error': "Filter application failed",
@@ -372,7 +375,7 @@ class StudentPageTester:
                 'success': True,
                 'load_time': load_time,
                 'api_status': api_status,
-                'filter_applied': tab_name == TabNames.ALL_STUDENTS and filter_success
+                'filter_applied': filter_func and filter_success
             }
                 
         except Exception as e:
@@ -436,8 +439,6 @@ class StudentPageTester:
                 });
             """)
             
-            self.logger.debug("Student loading completed")
-            
         except Exception as e:
             self.logger.warning(f"Student loading wait failed: {e}")
 
@@ -476,10 +477,8 @@ class StudentFilterManager:
                     return content && content.style.display !== 'none';
                 """, Config.FILTER_SELECTORS["filter_panel"]))
                 
-                self.logger.info("Filter panel opened successfully")
-            else:
-                self.logger.info("Filter panel already open")
-                
+                self.logger.debug("Filter panel opened")
+            
             return True
             
         except Exception as e:
@@ -551,9 +550,7 @@ class StudentFilterManager:
             wait = WebDriverWait(self.driver, Config.DEFAULT_TIMEOUT)
             
             filter_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, Config.FILTER_SELECTORS["filter_button"])))
-            filter_button.click()
-            
-            self.logger.info("Filter button clicked successfully")
+            filter_button.click()            
             return True
             
         except Exception as e:
@@ -564,11 +561,9 @@ class StudentFilterManager:
         """Wait for the student grid to reload with filtered results"""
         try:
             # Wait a moment for the filter request to start
-            time.sleep(1)
-            
+            time.sleep(1)            
             # Wait for any loading indicators to disappear
-            wait = WebDriverWait(self.driver, Config.MAX_LOADING_WAIT)
-            
+            wait = WebDriverWait(self.driver, Config.MAX_LOADING_WAIT)            
             # Wait for page to be ready
             wait.until(lambda driver: driver.execute_script("return document.readyState") == "complete")
             
@@ -615,18 +610,16 @@ class StudentFilterManager:
                 });
             """)
             
-            self.logger.info("Grid reload completed successfully")
+            self.logger.debug("Grid reload completed")
             return True
             
         except Exception as e:
             self.logger.error(f"Error waiting for grid reload: {e}")
             return False
     
-    def apply_filters_to_all_students_tab(self) -> bool:
-        """Apply filters specifically to the All Students tab"""
+    def apply_all_students_filters(self) -> bool:
+        """Apply filters specific to All Students tab"""
         try:
-            self.logger.info("Applying filters to All Students tab")
-            
             # Open filter panel
             if not self.ensure_filter_panel_open():
                 self.logger.warning("Could not open filter panel")
@@ -650,13 +643,13 @@ class StudentFilterManager:
                 """, Config.FILTER_SELECTORS["upcoming_event_dropdown"])
                 
                 if current_value:
-                    self.logger.info(f"Filter value set to: {current_value}")
+                    self.logger.debug(f"Filter value set to: {current_value}")
             except:
                 pass
             
             if self.click_filter_button():
                 self.wait_for_grid_reload()
-                self.logger.info("Filter application completed")
+                self.logger.debug("Filter applied successfully")
             else:
                 self.logger.warning("Could not click filter button")
             
@@ -786,7 +779,7 @@ class StudentLoadingTester:
             
             # Overall success if all tabs loaded without critical errors
             successful_tabs = sum(1 for result in results['tab_results'].values() if result['success'])
-            results['success'] = successful_tabs == len(Config.STUDENT_TABS)
+            results['success'] = successful_tabs == len(Config.get_student_tabs(self.page_tester.filter_manager))
             
             results['total_time'] = time.time() - start_time
             

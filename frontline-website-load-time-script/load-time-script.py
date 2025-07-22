@@ -1072,7 +1072,7 @@ class FormMeasurer:
                             // Only check requests to our domain
                             if (requestDomain === currentDomain) {
                                 // Only count API requests
-                                var isApiRequest = requestUrl.includes('/plan/api/');
+                                var isApiRequest = requestUrl.includes('/api/');
                                 
                                 if (isApiRequest) {
                                     totalApiCount++;
@@ -1332,7 +1332,7 @@ class FormMeasurer:
                             );
                             
                             // Only count API requests (not all non-static requests)
-                            var isApiRequest = requestUrl.includes('/plan/api/');
+                            var isApiRequest = requestUrl.includes('/api/');
                             
                             debugInfo.push({
                                 url: requestUrl,
