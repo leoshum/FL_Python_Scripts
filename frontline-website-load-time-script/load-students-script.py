@@ -16,6 +16,14 @@ from selenium.webdriver.chrome.options import Options
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from frontline_selenium.selenium_helper import SeleniumHelper
+
+
+class TabNames:
+    ALL_STUDENTS = "All Students"
+    MY_STUDENTS = "My Students"
+    MY_STUDENT_TEAMS = "My Student Teams"
+    DISTRIBUTION_HISTORY = "Distribution History"
+
     
 class Config:
     """Configuration constants for student loading tests"""
@@ -31,10 +39,10 @@ class Config:
     
     # Student tab configurations
     STUDENT_TABS = [
-        {"name": "All Students", "selector": "#pnlStudentsLanding-tab-1", "default": False},
-        {"name": "My Students", "selector": "#pnlStudentsLanding-tab-2", "default": True},
-        {"name": "My Student Teams", "selector": "#pnlStudentsLanding-tab-3", "default": False},
-        {"name": "Distribution History", "selector": "#pnlStudentsLanding-tab-4", "default": False}
+        {"name": TabNames.ALL_STUDENTS, "selector": "#pnlStudentsLanding-tab-1", "default": False},
+        {"name": TabNames.MY_STUDENTS, "selector": "#pnlStudentsLanding-tab-2", "default": True},
+        {"name": TabNames.MY_STUDENT_TEAMS, "selector": "#pnlStudentsLanding-tab-3", "default": False},
+        {"name": TabNames.DISTRIBUTION_HISTORY, "selector": "#pnlStudentsLanding-tab-4", "default": False}
     ]
     
     # Filter configurations
@@ -297,7 +305,7 @@ class StudentPageTester:
                 self.logger.info(f"[OK] {tab_name} ({result['load_time']:.1f}s){filter_status}")
             else:
                 filter_error = ""
-                if tab_name == "All Students" and not result.get('filter_applied', False):
+                if tab_name == TabNames.ALL_STUDENTS and not result.get('filter_applied', False):
                     filter_error = " [FILTER: FAILED]"
                 self.logger.error(f"[FAIL] {tab_name}: {result['error']}{filter_error}")
         
@@ -327,10 +335,8 @@ class StudentPageTester:
             # Wait for students to load
             self._wait_for_students_to_load()
             
-            # Apply filters for All Students tab only
             filter_success = True
-            if tab_name == "All Students":
-                self.logger.info("Applying filters to All Students tab")
+            if tab_name == TabNames.ALL_STUDENTS:
                 try:
                     filter_success = self.filter_manager.apply_filters_to_all_students_tab()
                     if not filter_success:
@@ -339,7 +345,6 @@ class StudentPageTester:
                     self.logger.error(f"Error during filter application: {e}")
                     filter_success = False
             
-            # Check for API errors
             api_status = self.api_detector.check_api_errors()
             
             load_time = (time.time() - start_time) - TIMEOUT_SECONDS # remove the timeout seconds
@@ -351,10 +356,10 @@ class StudentPageTester:
                     'error': f"API errors detected: {api_status['api_errors']} errors",
                     'load_time': load_time,
                     'api_status': api_status,
-                    'filter_applied': tab_name == "All Students" and filter_success
+                    'filter_applied': tab_name == TabNames.ALL_STUDENTS and filter_success
                 }
             
-            if tab_name == "All Students" and not filter_success:
+            if tab_name == TabNames.ALL_STUDENTS and not filter_success:
                 return {
                     'success': False,
                     'error': "Filter application failed",
@@ -367,7 +372,7 @@ class StudentPageTester:
                 'success': True,
                 'load_time': load_time,
                 'api_status': api_status,
-                'filter_applied': tab_name == "All Students" and filter_success
+                'filter_applied': tab_name == TabNames.ALL_STUDENTS and filter_success
             }
                 
         except Exception as e:
