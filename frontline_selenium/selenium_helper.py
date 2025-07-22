@@ -273,8 +273,7 @@ class SeleniumHelper:
                                 return; // Skip invalid URLs
                             }
                             
-                            const isOurDomain = entryDomain.includes(currentDomain) ||
-                                (currentDomain.includes('frontlineeducation.com') && entryDomain.includes('frontlineeducation.com'));                            
+                            const isOurDomain = entryDomain.includes(currentDomain);                            
                             const isXmlHttpRequest = entry.initiatorType === 'xmlhttprequest';
                             const hasApiInUrl = url.includes('/api/');
                             
