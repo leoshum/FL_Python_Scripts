@@ -140,7 +140,6 @@ class ErrorClassifier:
     
     @staticmethod
     def classify_save_error(exception):
-        """SIMPLIFIED: Classify save error and return (error_type, simple_message)"""
         error_msg = str(exception).lower()
         
         # Check for timeout specifically
@@ -606,7 +605,11 @@ class FormMeasurer:
             )
             
         except Exception as e:
-            self.logger.error(f"Save measurement failed. {str(e)}")
+            error_msg = str(e).strip()
+            if not error_msg:
+                error_msg = f"Unknown error during save: {type(e).__name__}"
+            self.logger.error(f"Save measurement failed. {error_msg}")
+
             error_type, error_message = ErrorClassifier.classify_save_error(e)
             return MeasurementResult(
                 success=False, 
@@ -1277,7 +1280,7 @@ class FormMeasurer:
         try:
             current_domain = self._extract_domain_from_url(url)
             
-            # Get network performance data via JavaScript
+            # Get network performance data via JS
             payload_data = self.driver.execute_script("""
                 try {
                     var currentDomain = arguments[0];
