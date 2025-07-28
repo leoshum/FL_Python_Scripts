@@ -1234,11 +1234,11 @@ class FormMeasurer:
                                 });
                             }
                             // Also check for failed requests (responseStatus might be 0) - but only for API endpoints
-                            else if (entry.responseStatus === 0 && 
+                            else if (entry.responseStatus === 0 && entry.responseEnd > 0 && 
                                     (url.includes('/api/') || url.includes('/plan/api/') || url.includes('/planng/api/'))) {
                                 // API requests with status 0 often indicate server errors
                                 errors.push({
-                                    message: 'Failed API request (possible server error): ' + entry.name,
+                                    message: 'Failed API request (possible network error): ' + entry.name,
                                     requestDetails: {
                                         fullUrl: entry.name,
                                         status: 0,

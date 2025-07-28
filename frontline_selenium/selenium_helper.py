@@ -285,7 +285,7 @@ class SeleniumHelper:
                                         type: 'http_error'
                                     });
                                 }
-                                else if (entry.responseStatus === 0) {
+                                else if (entry.responseStatus === 0 && entry.responseEnd > 0) {
                                     errors.push({
                                         url: entry.name,
                                         status: 0,

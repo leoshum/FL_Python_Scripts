@@ -29,6 +29,7 @@ class NetworkMonitor {
                 const hasApiInUrl = url.includes(this.apiPath);
                 
                 if (isOurDomain && isXmlHttpRequest && hasApiInUrl) {
+                    // Check for HTTP server errors (500+)
                     if (entry.responseStatus >= 500) {
                         errors.push({
                             url: entry.name,
@@ -37,7 +38,8 @@ class NetworkMonitor {
                             duration: entry.duration
                         });
                     }
-                    else if (entry.responseStatus === 0 && entry.duration > 0) {
+                    // Check for completed requests with no status
+                    else if (entry.responseStatus === 0 && entry.responseEnd > 0) {
                         errors.push({
                             url: entry.name,
                             status: 0,
