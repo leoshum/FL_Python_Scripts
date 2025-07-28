@@ -177,6 +177,7 @@ class PageFormFiller:
                         continue
                         
                     dropdownlist.click()
+                    time.sleep(0.1)  # Allow popup to appear. FIX FOR TESTING, POTENTIAN NOT A BEST IDEA
                     popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
                     options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
                     if options:
@@ -231,6 +232,7 @@ class PageFormFiller:
                         continue
                         
                     multiselect.click()
+                    time.sleep(0.1)  # Allow popup to appear FIX FOR TESTING, POTENTIAN NOT A BEST IDEA
                     popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
                     # Add some basic interaction with the popup if it exists
                     if popup:
