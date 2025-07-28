@@ -4,15 +4,13 @@ import time
 import argparse
 import logging
 from datetime import datetime
-from typing import List, Dict, Optional
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException
+from typing import List, Dict
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-# Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from frontline_selenium.selenium_helper import SeleniumHelper
@@ -26,7 +24,7 @@ class TabNames:
 
     
 class Config:
-    """Configuration constants for student loading tests"""
+    """Configuration constants"""
     BASE_URL = "https://texas-stg-acc.ss.frontlineeducation.com"
     STUDENT_PATH = "/plan/Students/Landing"
     DEFAULT_TIMEOUT = 20
@@ -61,7 +59,7 @@ class Config:
     
     # Filter search criteria
     FILTER_CRITERIA = {
-        "UPCOMING_EVENT_TEXT": "IEP Annual Eligibility Determination"  # Search by text content
+        "UPCOMING_EVENT_TEXT": "IEP Annual Eligibility Determination"  # Search by text
     }
 
 
@@ -71,13 +69,13 @@ class APIErrorDetector:
     def __init__(self, driver, logger):
         self.driver = driver
         self.logger = logger
+        self.network_monitor = NetworkMonitorJS(driver, logger)
         self.api_errors: List[Dict] = []
         self.slow_requests: List[Dict] = []
     
     def start_monitoring(self) -> None:
-        """Initialize API monitoring by clearing performance data"""
         try:
-            self.driver.execute_script("performance.clearResourceTimings();")
+            self.network_monitor.start_monitoring()
             self.api_errors.clear()
             self.slow_requests.clear()
             self.logger.debug("API monitoring started")
@@ -87,81 +85,26 @@ class APIErrorDetector:
     def check_api_errors(self) -> Dict:
         """Check for API errors and slow requests"""
         try:
-            results = self.driver.execute_script("""
-                try {
-                    const results = {
-                        errors: [],
-                        slowRequests: [],
-                        totalApiRequests: 0
-                    };
-                    
-                    const entries = performance.getEntriesByType('resource');
-                    const currentDomain = window.location.hostname;
-                    
-                    entries.forEach(entry => {
-                        const url = entry.name;
-                        
-                        try {
-                            const urlObj = new URL(url);
-                            
-                            // Only check requests to current domain
-                            if (urlObj.hostname === currentDomain) {
-                                // Only check API endpoints (plan/api paths)
-                                if (url.includes('/plan/api/')) {
-                                    results.totalApiRequests++;
-                                    
-                                    // Check for HTTP errors (400, 500 status codes)
-                                    if (entry.responseStatus >= 400) {
-                                        results.errors.push({
-                                            url: url,
-                                            status: entry.responseStatus,
-                                            duration: entry.duration
-                                        });
-                                    }
-                                    
-                                    // Check for slow requests (>3 seconds)
-                                    if (entry.duration > 3000) {
-                                        results.slowRequests.push({
-                                            url: url,
-                                            status: entry.responseStatus || 0,
-                                            duration: entry.duration
-                                        });
-                                    }
-                                }
-                            }
-                        } catch(e) {
-                            // Skip invalid URLs
-                        }
-                    });
-                    
-                    return results;
-                } catch(e) {
-                    return {
-                        errors: [],
-                        slowRequests: [],
-                        totalApiRequests: 0,
-                        jsError: e.toString()
-                    };
-                }
-            """)
+            status = self.network_monitor.get_status()
             
-            if results.get('jsError'):
-                self.logger.warning(f"JavaScript error in API check: {results['jsError']}")
+            # Process errors
+            new_errors = status.get('errors', [])
+            if new_errors:
+                self.api_errors.extend(new_errors)
+                for error in new_errors:
+                    self.logger.error(f"API Error {error['status']}: {error['url']} ({error.get('duration', 0):.0f}ms)")
             
-            if results['errors']:
-                self.api_errors.extend(results['errors'])
-                for error in results['errors']:
-                    self.logger.error(f"API Error {error['status']}: {error['url']} ({error['duration']:.0f}ms)")
-            
-            if results['slowRequests']:
-                self.slow_requests.extend(results['slowRequests'])
-                for slow in results['slowRequests']:
+            # Process slow requests (>3 seconds)
+            slow_requests = [e for e in new_errors if e.get('duration', 0) > 3000]
+            if slow_requests:
+                self.slow_requests.extend(slow_requests)
+                for slow in slow_requests:
                     self.logger.warning(f"Slow API Request: {slow['url']} ({slow['duration']:.0f}ms)")
             
             return {
                 'api_errors': len(self.api_errors),
                 'slow_requests': len(self.slow_requests),
-                'total_api_requests': results['totalApiRequests']
+                'total_api_requests': status.get('total', 0)
             }
             
         except Exception as e:
@@ -194,7 +137,6 @@ class ServiceManagerSwitcher:
             app_switcher_button = wait.until(
                 EC.element_to_be_clickable((By.ID, "sk--app-switcher-title"))
             )
-            
             app_switcher_button.click()
             
             # Wait for dropdown menu to appear
@@ -202,12 +144,16 @@ class ServiceManagerSwitcher:
                 EC.visibility_of_element_located((By.ID, "sk--app-switcher-menu"))
             )
             
-            # Click on Plan Management
-            plan_mgmt_link = wait.until(
-                EC.element_to_be_clickable((By.XPATH, "//a[@href='http://texas-stg-acc.ss.frontlineeducation.com/plan']"))
-            )
-            
-            plan_mgmt_link.click()
+            # Click on Plan Management by text content
+            try:
+                plan_mgmt_link = wait.until(
+                    EC.element_to_be_clickable((By.XPATH, "//a[.//span[contains(text(), 'Plan Management')]]"))
+                )
+                plan_mgmt_link.click()
+            except Exception as click_e:
+                self.logger.error(f"Could not click Plan Management link: {click_e}")
+                self.logger.info("Trying direct navigation to Plan Management")
+                self.driver.get(f"{Config.BASE_URL}/plan")
             
             # Wait for page to load after switching
             self._wait_for_page_load()
@@ -394,50 +340,11 @@ class StudentPageTester:
             # Wait for page to be ready
             wait.until(lambda driver: driver.execute_script("return document.readyState") == "complete")
             
-            # Wait for API requests to complete
-            self.driver.execute_script("""
-                return new Promise((resolve) => {
-                    const maxWait = 8000; // 8 seconds max
-                    const startTime = Date.now();
-                    const currentDomain = window.location.hostname;
-                    
-                    const checkApiComplete = () => {
-                        try {
-                            const entries = performance.getEntriesByType('resource');
-                            let pendingApiCount = 0;
-                            let totalApiCount = 0;
-                            
-                            entries.forEach(entry => {
-                                try {
-                                    const url = entry.name;
-                                    const urlObj = new URL(url);
-                                    
-                                    // Only check our domain API requests
-                                    if (urlObj.hostname === currentDomain && url.includes('/plan/api/')) {
-                                        totalApiCount++;
-                                        if (entry.responseEnd === 0) {
-                                            pendingApiCount++;
-                                        }
-                                    }
-                                } catch(e) {
-                                    // Skip invalid URLs
-                                }
-                            });
-                            
-                            // Check if all API requests are done or timeout
-                            if (pendingApiCount === 0 || (Date.now() - startTime) > maxWait) {
-                                resolve(true);
-                            } else {
-                                setTimeout(checkApiComplete, 500);
-                            }
-                        } catch(e) {
-                            resolve(true); // Continue on error
-                        }
-                    };
-                    
-                    setTimeout(checkApiComplete, 1000); // Start checking after 1 second
-                });
-            """)
+            # Use NetworkMonitor to wait for API completion
+            if hasattr(self.api_detector, 'network_monitor'):
+                result = self.api_detector.network_monitor.wait_for_completion(timeout=8000)
+                if result.get('timedOut'):
+                    self.logger.warning(f"API requests timed out after {result.get('elapsed', 0)}ms, {result.get('pendingCount', 0)} pending")
             
         except Exception as e:
             self.logger.warning(f"Student loading wait failed: {e}")
@@ -567,7 +474,6 @@ class StudentFilterManager:
             # Wait for page to be ready
             wait.until(lambda driver: driver.execute_script("return document.readyState") == "complete")
             
-            # Wait for API requests to complete (similar to existing logic)
             self.driver.execute_script("""
                 return new Promise((resolve) => {
                     const maxWait = 10000; // 10 seconds max for filter results
@@ -586,7 +492,7 @@ class StudentFilterManager:
                                     
                                     // Check for student-related API requests
                                     if (urlObj.hostname === currentDomain && 
-                                        (url.includes('/plan/api/') || url.includes('/Students/'))) {
+                                        (url.includes('/api/') || url.includes('/Students/'))) {
                                         if (entry.responseEnd === 0) {
                                             pendingApiCount++;
                                         }
@@ -599,14 +505,14 @@ class StudentFilterManager:
                             if (pendingApiCount === 0 || (Date.now() - startTime) > maxWait) {
                                 resolve(true);
                             } else {
-                                setTimeout(checkApiComplete, 500);
+                                setTimeout(checkApiComplete, 200);
                             }
                         } catch(e) {
                             resolve(true); // Continue on error
                         }
                     };
                     
-                    setTimeout(checkApiComplete, 500);
+                    setTimeout(checkApiComplete, 200);
                 });
             """)
             
@@ -659,6 +565,86 @@ class StudentFilterManager:
             self.logger.warning(f"Filter issues: {e}")
             return True
 
+# TODO: This is a duplicate of the NetworkMonitor class in network_monitor.js
+class NetworkMonitorJS:
+    
+    def __init__(self, driver, logger):
+        self.driver = driver
+        self.logger = logger
+        self._inject_network_monitor()
+    
+    def _inject_network_monitor(self):
+        """Inject the NetworkMonitor JavaScript utility"""
+        try:
+            js_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'network_monitor.js')
+            
+            if not os.path.exists(js_path):
+                self.logger.error(f"NetworkMonitor JS file not found at: {js_path}")
+                return
+            
+            with open(js_path, 'r', encoding='utf-8') as f:
+                js_code = f.read()
+            
+            self.driver.execute_script(js_code)
+                
+        except Exception as e:
+            self.logger.error(f"Failed to inject NetworkMonitor: {e}")
+    
+    def start_monitoring(self):
+        """Start monitoring by clearing previous data"""
+        try:
+            # Check if NetworkMonitor is available, re-inject if needed
+            is_available = self.driver.execute_script("return typeof NetworkMonitor !== 'undefined';")
+            if not is_available:
+                self.logger.debug("NetworkMonitor not available, re-injecting...")
+                self._inject_network_monitor()
+            
+            self.driver.execute_script("window.networkMonitor = new NetworkMonitor();")
+            self.driver.execute_script("window.networkMonitor.clear();")
+            self.logger.debug("Network monitoring started")
+        except Exception as e:
+            self.logger.warning(f"Failed to start monitoring: {e}")
+    
+    def get_api_errors(self):
+        """Get current API errors"""
+        try:
+            return self.driver.execute_script("""
+                if (window.networkMonitor) {
+                    return window.networkMonitor.getApiErrors();
+                }
+                return [];
+            """)
+        except Exception as e:
+            self.logger.warning(f"Failed to get API errors: {e}")
+            return []
+    
+    def wait_for_completion(self, timeout=10000):
+        """Wait for all API requests to complete"""
+        try:
+            return self.driver.execute_script(f"""
+                if (window.networkMonitor) {{
+                    window.networkMonitor.timeout = {timeout};
+                    return window.networkMonitor.waitForCompletion();
+                }}
+                return {{success: true, elapsed: 0, timedOut: false}};
+            """)
+        except Exception as e:
+            self.logger.warning(f"Failed to wait for completion: {e}")
+            return {'success': True, 'elapsed': 0, 'timedOut': False}
+    
+    def get_status(self):
+        """Get comprehensive network status"""
+        try:
+            return self.driver.execute_script("""
+                if (window.networkMonitor) {
+                    return window.networkMonitor.getStatus();
+                }
+                return {errors: [], pending: 0, total: 0, hasErrors: false, isComplete: true};
+            """)
+        except Exception as e:
+            self.logger.warning(f"Failed to get status: {e}")
+            return {'errors': [], 'pending': 0, 'total': 0, 'hasErrors': False, 'isComplete': True}
+
 
 class StudentLoadingTester:
     """Main orchestrator for student loading tests"""    
@@ -695,10 +681,9 @@ class StudentLoadingTester:
         return logger
     
     def setup_driver(self) -> bool:
-        """Initialize the Chrome driver"""
         try:
             options = Options()
-            # options.add_argument("--headless")  # Uncomment for headless mode
+            # options.add_argument("--headless")  # FOR OPTIMIZATION !!!
             options.add_argument("--no-sandbox")
             options.add_argument("--disable-dev-shm-usage")
             
@@ -736,8 +721,7 @@ class StudentLoadingTester:
             self.logger.error(f"Login failed: {e}")
             return False
     
-    def run_test(self) -> Dict:
-        """Execute the complete student loading test"""
+    def run(self) -> Dict:
         start_time = time.time()
         results = {
             'success': False,
@@ -831,7 +815,7 @@ def main():
     # args = parser.parse_args()
     
     tester = StudentLoadingTester()
-    results = tester.run_test()
+    results = tester.run()
     tester.print_results(results)
     
     # Exit with error code if test failed
