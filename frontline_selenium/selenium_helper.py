@@ -5,9 +5,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.alert import Alert
-from selenium.common.exceptions import ElementClickInterceptedException, NoSuchElementException, UnexpectedAlertPresentException, TimeoutException, StaleElementReferenceException
-from urllib.parse import urlparse
+from selenium.common.exceptions import TimeoutException
 
 class SeleniumHelper:
     timeout: float = 30
