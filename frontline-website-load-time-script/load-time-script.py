@@ -644,7 +644,6 @@ class FormMeasurer:
                     };
                     
                     // Check each loading selector individually
-                    // Excluded '.loader' and '.sk-activity-indicator' as they appear to be permanent UI elements
                     const loadingSelectors = [
                         '.loading', '.spinner', '.k-loading-mask', 
                         '.blockUI', '.loading-wrapper', '.loading-overlay',
@@ -682,13 +681,13 @@ class FormMeasurer:
                         if self._wait_for_angular_stability():
                             self.logger.debug("Angular stability achieved")
                         
+                        return True
                         # Phase 4: Wait for visual rendering completion
                         if self._wait_for_visual_readiness():
                             self.logger.debug("Visual readiness achieved")
                             return True
                         else:
                             self.logger.debug("Visual readiness timeout - continuing anyway")
-                            return True
                 else:
                     consecutive_stable_checks = 0
                     # Detailed logging
@@ -1236,15 +1235,23 @@ class FormMeasurer:
                             // Also check for failed requests (responseStatus might be 0) - but only for API endpoints
                             else if (entry.responseStatus === 0 && entry.responseEnd > 0 && 
                                     (url.includes('/api/') || url.includes('/plan/api/') || url.includes('/planng/api/'))) {
-                                // API requests with status 0 often indicate server errors
-                                errors.push({
-                                    message: 'Failed API request (possible network error): ' + entry.name,
-                                    requestDetails: {
-                                        fullUrl: entry.name,
-                                        status: 0,
-                                        duration: entry.duration
-                                    }
-                                });
+                                var isCancelledRequest = (
+                                    entry.responseStart === 0 ||           // No response started
+                                    entry.transferSize === 0 ||            // No data transferred
+                                    (entry.duration > 0 && entry.duration < 1) // Very short duration suggests cancellation
+                                );
+                                
+                                if (!isCancelledRequest) {
+                                    // API requests with status 0 often indicate server errors
+                                    errors.push({
+                                        message: 'Failed API request (possible network error): ' + entry.name,
+                                        requestDetails: {
+                                            fullUrl: entry.name,
+                                            status: 0,
+                                            duration: entry.duration
+                                        }
+                                    });
+                                }
                             }
                         }
                     });
@@ -1743,21 +1750,16 @@ def process_form(driver, url, measurer, loops, logger, is_form_page, disable_sav
         except Exception as cleanup_ex:
             logger.warning(f"Tab cleanup failed: {cleanup_ex}")
 
-    print_final_stats(start_time, loops, processed_records)
-
 
 def print_server_down_error(error_message: str):
-    """Print a clear, prominent server down error message"""
     print(f"\n" + "="*60)
-    print(f"🚨 CRITICAL: SERVER IS DOWN! 🚨")
     print(f"HTTP 503 Service Unavailable detected")
     print(f"Error details: {error_message}")
-    print(f"Stopping script to avoid wasting time...")
+    print(f"Stopping script...")
     print(f"="*60)
 
 
 def print_final_stats(start_time: float, loops: int, processed_records: int):
-    """Print comprehensive final statistics about the script execution"""
     total_seconds = time.time() - start_time
     hours = int(total_seconds // 3600)
     minutes = int((total_seconds % 3600) // 60)

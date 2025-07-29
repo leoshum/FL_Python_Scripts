@@ -40,12 +40,20 @@ class NetworkMonitor {
                     }
                     // Check for completed requests with no status
                     else if (entry.responseStatus === 0 && entry.responseEnd > 0) {
-                        errors.push({
-                            url: entry.name,
-                            status: 0,
-                            type: 'network_error',
-                            duration: entry.duration
-                        });
+                        const isCancelledRequest = (
+                            entry.responseStart === 0 ||           // No response started
+                            entry.transferSize === 0 ||            // No data transferred
+                            (entry.duration > 0 && entry.duration < 1) // Very short duration suggests cancellation
+                        );
+                        
+                        if (!isCancelledRequest) {
+                            errors.push({
+                                url: entry.name,
+                                status: 0,
+                                type: 'network_error',
+                                duration: entry.duration
+                            });
+                        }
                     }
                 }
             });
