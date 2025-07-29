@@ -681,13 +681,13 @@ class FormMeasurer:
                         if self._wait_for_angular_stability():
                             self.logger.debug("Angular stability achieved")
                         
-                        return True
                         # Phase 4: Wait for visual rendering completion
-                        if self._wait_for_visual_readiness():
+                        if self._wait_for_visual_readiness(2):
                             self.logger.debug("Visual readiness achieved")
                             return True
                         else:
                             self.logger.debug("Visual readiness timeout - continuing anyway")
+                            return True
                 else:
                     consecutive_stable_checks = 0
                     # Detailed logging
