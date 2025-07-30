@@ -1746,7 +1746,6 @@ def process_form(driver, url, measurer, loops, logger, is_form_page, disable_sav
         # 4. Always close current tab and switch back to first tab
         try:
             if len(driver.window_handles) > 1:
-                logger.debug("Closing form tab and switching back to main tab")
                 driver.close()
                 driver.switch_to.window(driver.window_handles[0])
         except Exception as cleanup_ex:
