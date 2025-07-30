@@ -177,15 +177,24 @@ class PageFormFiller:
                     # Skip elements that are not interactable
                     if not dropdownlist.is_enabled():
                         continue
-                        
+
+                    # Scroll element into view
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", dropdownlist)
+
+                    # Wait for element to be clickable
+                    WebDriverWait(driver, 2).until(
+                        EC.element_to_be_clickable(dropdownlist)
+                    )
+
                     dropdownlist.click()
-                    time.sleep(0.1)  # Allow popup to appear. FIX FOR TESTING, POTENTIAN NOT A BEST IDEA
-                    popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
+                    popup = WebDriverWait(driver, 2).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "kendo-popup"))
+                    )
                     options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
                     if options:
                         options[random.randint(0, len(options) - 1)].click()
                 except Exception as ex:
-                    PageFormFiller.logger.exception(ex)
+                    PageFormFiller.logger.error(f"Multiselect click failed: {type(ex).__name__}: {str(ex)}")
 
     @staticmethod
     def fill_form_date_time_picker(driver: webdriver.Chrome) -> None:
@@ -242,14 +251,12 @@ class PageFormFiller:
                     )
                     
                     multiselect.click()
-                    time.sleep(0.1)  # Allow popup to appear FIX FOR TESTING, POTENTIAN NOT A BEST IDEA
-                    popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
-                    # Add some basic interaction with the popup if it exists
-                    if popup:
-                        options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
-                        if options:
-                            # Select a random option
-                            options[random.randint(0, len(options) - 1)].click()
+                    popup = WebDriverWait(driver, 2).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "kendo-popup"))
+                    )
+                    options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
+                    if options:
+                        options[random.randint(0, len(options) - 1)].click()
                 except Exception as ex:
                     PageFormFiller.logger.error(f"Multiselect click failed: {type(ex).__name__}: {str(ex)}")
 
