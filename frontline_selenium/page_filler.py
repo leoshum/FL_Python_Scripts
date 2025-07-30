@@ -134,37 +134,38 @@ class PageFormFiller:
         driver.execute_script(script)
 
     @staticmethod
-    def select_random_value_from_dropdownlist(driver: webdriver.Chrome, dropdownlist: WebElement) -> None:
+    def select_random_value_from_dropdown(driver: webdriver.Chrome, dropdown: WebElement) -> None:
         try:
             is_disabled = (
-                dropdownlist.get_attribute("disabled") is not None
-                or "k-disabled" in dropdownlist.get_attribute("class")
-                    or not dropdownlist.is_enabled()
+                dropdown.get_attribute("disabled") is not None
+                or "k-disabled" in dropdown.get_attribute("class")
+                    or not dropdown.is_enabled()
             )
             if is_disabled:
                 return
 
             # Scroll element into view
-            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", dropdownlist)
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", dropdown)
 
             # Wait for element to be clickable
             WebDriverWait(driver, 2).until(
-                EC.element_to_be_clickable(dropdownlist)
+                EC.element_to_be_clickable(dropdown)
             )
 
-            dropdownlist.click()
+            dropdown.click()
             popup = WebDriverWait(driver, 2).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "kendo-popup"))
             )
             options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
             if options:
                 selected_option = options[random.randint(0, len(options) - 1)]
-                # Scroll option into view and wait for clickability
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", selected_option)
                 WebDriverWait(driver, 1).until(EC.element_to_be_clickable(selected_option))
                 selected_option.click()
+
+            driver.find_element(By.TAG_NAME, "body").click() # Click on the body to close the dropdown
         except Exception as ex:
-            PageFormFiller.logger.error(f"Multiselect click failed: {type(ex).__name__}: {str(ex)}")
+            PageFormFiller.logger.error(f"Multiselect click failed. {type(ex).__name__}: {str(ex)}")
 
     
     @staticmethod
@@ -206,7 +207,7 @@ class PageFormFiller:
                 
             dropdownlists = driver.find_elements(By.CSS_SELECTOR, "table kendo-dropdownlist")
             for dropdownlist in dropdownlists:
-                PageFormFiller.select_random_value_from_dropdownlist(driver, dropdownlist)
+                PageFormFiller.select_random_value_from_dropdown(driver, dropdownlist)
 
 
     @staticmethod
@@ -247,7 +248,7 @@ class PageFormFiller:
         else:
             multiselects = driver.find_elements(By.CSS_SELECTOR, "kendo-multiselect")
             for multiselect in multiselects:
-                PageFormFiller.select_random_value_from_dropdownlist(driver, multiselect)
+                PageFormFiller.select_random_value_from_dropdown(driver, multiselect)
 
     @staticmethod
     def fill_form_phones(driver: webdriver.Chrome) -> None:
