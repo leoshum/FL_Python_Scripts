@@ -10,6 +10,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from frontline_selenium.selenium_helper import SeleniumHelper
 from frontline_selenium.random_html_generator import RandomHtmlGenerator
+from selenium.webdriver.remote.webelement import WebElement
 from faker import Faker
 
 class PageFormFiller:
@@ -123,6 +124,7 @@ class PageFormFiller:
             "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower()
         })
         driver.execute_script(script)
+
     
     @staticmethod
     def fill_form_radio_buttons(driver: webdriver.Chrome) -> None:
@@ -130,6 +132,40 @@ class PageFormFiller:
             "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower()
         })
         driver.execute_script(script)
+
+    @staticmethod
+    def select_random_value_from_dropdownlist(driver: webdriver.Chrome, dropdownlist: WebElement) -> None:
+        try:
+            is_disabled = (
+                dropdownlist.get_attribute("disabled") is not None
+                or "k-disabled" in dropdownlist.get_attribute("class")
+                    or not dropdownlist.is_enabled()
+            )
+            if is_disabled:
+                return
+
+            # Scroll element into view
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", dropdownlist)
+
+            # Wait for element to be clickable
+            WebDriverWait(driver, 2).until(
+                EC.element_to_be_clickable(dropdownlist)
+            )
+
+            dropdownlist.click()
+            popup = WebDriverWait(driver, 2).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "kendo-popup"))
+            )
+            options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
+            if options:
+                selected_option = options[random.randint(0, len(options) - 1)]
+                # Scroll option into view and wait for clickability
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", selected_option)
+                WebDriverWait(driver, 1).until(EC.element_to_be_clickable(selected_option))
+                selected_option.click()
+        except Exception as ex:
+            PageFormFiller.logger.error(f"Multiselect click failed: {type(ex).__name__}: {str(ex)}")
+
     
     @staticmethod
     def fill_form_drop_down_lists(driver: webdriver.Chrome) -> None:
@@ -170,31 +206,8 @@ class PageFormFiller:
                 
             dropdownlists = driver.find_elements(By.CSS_SELECTOR, "table kendo-dropdownlist")
             for dropdownlist in dropdownlists:
-                try:
-                    # Skip disabled elements
-                    if dropdownlist.get_attribute("disabled") is not None:
-                        continue
-                    # Skip elements that are not interactable
-                    if not dropdownlist.is_enabled():
-                        continue
+                PageFormFiller.select_random_value_from_dropdownlist(driver, dropdownlist)
 
-                    # Scroll element into view
-                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", dropdownlist)
-
-                    # Wait for element to be clickable
-                    WebDriverWait(driver, 2).until(
-                        EC.element_to_be_clickable(dropdownlist)
-                    )
-
-                    dropdownlist.click()
-                    popup = WebDriverWait(driver, 2).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "kendo-popup"))
-                    )
-                    options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
-                    if options:
-                        options[random.randint(0, len(options) - 1)].click()
-                except Exception as ex:
-                    PageFormFiller.logger.error(f"Multiselect click failed: {type(ex).__name__}: {str(ex)}")
 
     @staticmethod
     def fill_form_date_time_picker(driver: webdriver.Chrome) -> None:
@@ -234,31 +247,7 @@ class PageFormFiller:
         else:
             multiselects = driver.find_elements(By.CSS_SELECTOR, "kendo-multiselect")
             for multiselect in multiselects:
-                try:
-                    # Skip disabled elements
-                    if multiselect.get_attribute("disabled") is not None:
-                        continue
-                    # Skip elements that are not interactable
-                    if not multiselect.is_enabled():
-                        continue
-                    
-                    # Scroll element into view
-                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", multiselect)
-                    
-                    # Wait for element to be clickable
-                    WebDriverWait(driver, 2).until(
-                        EC.element_to_be_clickable(multiselect)
-                    )
-                    
-                    multiselect.click()
-                    popup = WebDriverWait(driver, 2).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "kendo-popup"))
-                    )
-                    options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
-                    if options:
-                        options[random.randint(0, len(options) - 1)].click()
-                except Exception as ex:
-                    PageFormFiller.logger.error(f"Multiselect click failed: {type(ex).__name__}: {str(ex)}")
+                PageFormFiller.select_random_value_from_dropdownlist(driver, multiselect)
 
     @staticmethod
     def fill_form_phones(driver: webdriver.Chrome) -> None:
