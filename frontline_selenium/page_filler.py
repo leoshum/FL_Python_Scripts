@@ -6,6 +6,8 @@ import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from frontline_selenium.selenium_helper import SeleniumHelper
 from frontline_selenium.random_html_generator import RandomHtmlGenerator
 from faker import Faker
@@ -230,7 +232,15 @@ class PageFormFiller:
                     # Skip elements that are not interactable
                     if not multiselect.is_enabled():
                         continue
-                        
+                    
+                    # Scroll element into view
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", multiselect)
+                    
+                    # Wait for element to be clickable
+                    WebDriverWait(driver, 2).until(
+                        EC.element_to_be_clickable(multiselect)
+                    )
+                    
                     multiselect.click()
                     time.sleep(0.1)  # Allow popup to appear FIX FOR TESTING, POTENTIAN NOT A BEST IDEA
                     popup = driver.find_element(By.CSS_SELECTOR, "kendo-popup")
@@ -241,7 +251,7 @@ class PageFormFiller:
                             # Select a random option
                             options[random.randint(0, len(options) - 1)].click()
                 except Exception as ex:
-                    PageFormFiller.logger.exception(ex)
+                    PageFormFiller.logger.error(f"Multiselect click failed: {type(ex).__name__}: {str(ex)}")
 
     @staticmethod
     def fill_form_phones(driver: webdriver.Chrome) -> None:

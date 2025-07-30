@@ -682,6 +682,8 @@ class FormMeasurer:
                             self.logger.debug("Angular stability achieved")
                         
                         # Phase 4: Wait for visual rendering completion
+                        # TODO: probably this part of code is not reliable, we should use a more reliable way to check if the page is ready
+                        # TODO: also, we should not wait for visual readiness, we should wait for the page to be fully loaded
                         if self._wait_for_visual_readiness(2):
                             self.logger.debug("Visual readiness achieved")
                             return True
