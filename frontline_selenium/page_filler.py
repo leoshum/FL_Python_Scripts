@@ -52,26 +52,35 @@ class PageFormFiller:
             })
             driver.execute_script(script)
         else:
-                textboxes = driver.find_elements(By.CSS_SELECTOR, ".k-textbox")
-                for textbox in textboxes:
-                    try:
-                        # Skip disabled elements
-                        if textbox.get_attribute("disabled") is not None:
-                            continue
-                        # Skip elements that are not interactable
-                        if not textbox.is_enabled():
-                            continue
-                        textbox.clear()
-                        textbox.send_keys(text)
-                    except Exception as ex:
-                        PageFormFiller.logger.exception(ex)
+            textboxes = driver.find_elements(By.CSS_SELECTOR, ".k-textbox")
+            for textbox in textboxes:
+                try:
+                    # Enhanced disabled check
+                    is_disabled = (
+                        textbox.get_attribute("disabled") is not None
+                        or textbox.get_attribute("readonly") is not None
+                        or "k-disabled" in (textbox.get_attribute("class") or "")
+                        or not textbox.is_enabled()
+                        or not textbox.is_displayed()
+                    )
+                    if is_disabled:
+                        continue
+                    
+                    # Scroll into view and wait briefly
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", textbox)
+                    WebDriverWait(driver, 2).until(lambda d: textbox.is_enabled() and textbox.is_displayed())
+                    
+                    textbox.clear()
+                    textbox.send_keys(text)
+                except Exception as ex:
+                    PageFormFiller.logger.error(f"Textbox fill failed. {type(ex).__name__}: {str(ex)}")
 
     @staticmethod
     def fill_form_textareas(driver: webdriver.Chrome) -> None:
         if SeleniumHelper.is_plan_page_url(driver.current_url):
             # For plan pages, use JavaScript approach
             fake = Faker()
-            text = fake.text(max_nb_chars=600).replace("\n", "\\n").replace('"', '\\"').replace("'", "\\'")
+            text = fake.text(max_nb_chars=300).replace("\n", "\\n").replace('"', '\\"').replace("'", "\\'")
             script = PageFormFiller.create_script("textarea.js", {
                 "{{isPlanPage}}": str(SeleniumHelper.is_plan_page_url(driver.current_url)).lower(),
                 "{{text}}": f'"{text}"'
@@ -81,19 +90,28 @@ class PageFormFiller:
             # For other pages, use direct Selenium approach
             textareas = driver.find_elements(By.CSS_SELECTOR, "textarea")
             fake = Faker()
-            text = fake.text(max_nb_chars=600)
+            text = fake.text(max_nb_chars=300)
             for textarea in textareas:
                 try:
-                    # Skip disabled elements
-                    if textarea.get_attribute("disabled") is not None:
+                    # Enhanced disabled check
+                    is_disabled = (
+                        textarea.get_attribute("disabled") is not None
+                        or textarea.get_attribute("readonly") is not None
+                        or "k-disabled" in (textarea.get_attribute("class") or "")
+                        or not textarea.is_enabled()
+                        or not textarea.is_displayed()
+                    )
+                    if is_disabled:
                         continue
-                    # Skip elements that are not interactable
-                    if not textarea.is_enabled():
-                        continue
+                    
+                    # Scroll into view and wait briefly
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", textarea)
+                    WebDriverWait(driver, 2).until(lambda d: textarea.is_enabled() and textarea.is_displayed())
+                    
                     textarea.clear()
                     textarea.send_keys(text)
                 except Exception as ex:
-                    PageFormFiller.logger.exception(ex)
+                    PageFormFiller.logger.error(f"Textarea fill failed. {type(ex).__name__}: {str(ex)}")
 
     @staticmethod
     def fill_form_rich_text_editors(driver: webdriver.Chrome) -> None:

@@ -885,11 +885,9 @@ class FormMeasurer:
                 
             from frontline_selenium.page_filler import PageFormFiller
             PageFormFiller.fill_form(self.driver)
-            
-        except ImportError:
-            pass
+
         except Exception as e:
-            self.logger.warning(f"Form filling failed (continuing anyway): {str(e)}")
+            self.logger.warning(f"Form filling failed : {str(e)}")
     
     def _find_save_button_with_wait(self, max_attempts=20, delay=0.5):
         """
