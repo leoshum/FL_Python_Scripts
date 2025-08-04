@@ -166,12 +166,12 @@ class PageFormFiller:
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", dropdown)
 
             # Wait for element to be clickable
-            WebDriverWait(driver, 2).until(
+            WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable(dropdown)
             )
 
             dropdown.click()
-            popup = WebDriverWait(driver, 2).until(
+            popup = WebDriverWait(driver, 5).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "kendo-popup"))
             )
             options = popup.find_elements(By.CSS_SELECTOR, "ul>li")
