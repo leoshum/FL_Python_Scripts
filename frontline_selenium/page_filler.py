@@ -20,6 +20,36 @@ class PageFormFiller:
     @staticmethod
     def setup_logger(logger: logging.Logger):
         PageFormFiller.logger = logger
+    
+    @staticmethod
+    def is_css_interactable(driver: webdriver.Chrome, element: WebElement) -> bool:
+        try:
+            script = """
+            var element = arguments[0];
+            var style = window.getComputedStyle(element);
+            return {
+                pointerEvents: style.pointerEvents,
+                opacity: style.opacity,
+                visibility: style.visibility,
+                display: style.display
+            };
+            """
+            computed_styles = driver.execute_script(script, element)
+            
+            # checking css blocking 
+            is_blocked = (
+                computed_styles.get('pointerEvents') == 'none' or
+                computed_styles.get('opacity') == '0.5' or 
+                computed_styles.get('opacity') == '0' or
+                computed_styles.get('visibility') == 'hidden' or
+                computed_styles.get('display') == 'none'
+            )
+            
+            return not is_blocked
+            
+        except Exception as ex:
+            PageFormFiller.logger.warning(f"CSS interactability check failed: {ex}")
+            return True
 
     @staticmethod
     def fill_form(driver: webdriver.Chrome) -> None:        
@@ -55,13 +85,14 @@ class PageFormFiller:
             textboxes = driver.find_elements(By.CSS_SELECTOR, ".k-textbox")
             for textbox in textboxes:
                 try:
-                    # Enhanced disabled check
                     is_disabled = (
                         textbox.get_attribute("disabled") is not None
                         or textbox.get_attribute("readonly") is not None
                         or "k-disabled" in (textbox.get_attribute("class") or "")
                         or not textbox.is_enabled()
                         or not textbox.is_displayed()
+                        # CSS checking. Developers not disabled elements, they just using opacity 0.5
+                        or not PageFormFiller.is_css_interactable(driver, textbox)
                     )
                     if is_disabled:
                         continue
@@ -100,6 +131,8 @@ class PageFormFiller:
                         or "k-disabled" in (textarea.get_attribute("class") or "")
                         or not textarea.is_enabled()
                         or not textarea.is_displayed()
+                        # CSS checking. Developers not disabled elements, they just using opacity 0.5
+                        or not PageFormFiller.is_css_interactable(driver, textarea)
                     )
                     if is_disabled:
                         continue
@@ -157,7 +190,9 @@ class PageFormFiller:
             is_disabled = (
                 dropdown.get_attribute("disabled") is not None
                 or "k-disabled" in dropdown.get_attribute("class")
-                    or not dropdown.is_enabled()
+                or not dropdown.is_enabled()
+                # CSS checking. Developers not disabled elements, they just using opacity 0.5
+                or not PageFormFiller.is_css_interactable(driver, dropdown)
             )
             if is_disabled:
                 return
