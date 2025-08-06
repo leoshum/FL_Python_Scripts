@@ -224,3 +224,30 @@ class SeleniumHelper:
             if SeleniumHelper.logger:
                 SeleniumHelper.logger.error(f"Login failed: {str(ex)}")
             raise
+
+    @staticmethod
+    def handle_warning_popup(driver: webdriver.Chrome) -> bool:
+        """
+        handle warning popup whick appears after Save button click if it exists
+        """
+        try:
+            popup_wait = WebDriverWait(driver, 1)
+            warning_dialog = popup_wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='dialog'][aria-modal='true'].k-window.k-dialog"))
+            )
+            
+            ok_button = warning_dialog.find_element(By.CSS_SELECTOR, "button#btnSave")
+            if ok_button and "Ok" in ok_button.text:
+                ok_button.click()
+                if SeleniumHelper.logger:
+                    SeleniumHelper.logger.info("Warning popup detected and OK button clicked")
+                
+                WebDriverWait(driver, 2).until(
+                    EC.invisibility_of_element_located((By.CSS_SELECTOR, "div[role='dialog'][aria-modal='true'].k-window.k-dialog"))
+                )
+                return True
+                
+        except:
+            pass
+        
+        return False

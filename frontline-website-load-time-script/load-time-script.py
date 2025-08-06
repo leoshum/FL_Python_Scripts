@@ -586,6 +586,8 @@ class FormMeasurer:
             
             self._click_save_button_reliably(save_button)
 
+            SeleniumHelper.handle_warning_popup(self.driver)
+
             save_start_time = time.time()
 
             SeleniumHelper.wait_for_form_save_popup(self.driver)
