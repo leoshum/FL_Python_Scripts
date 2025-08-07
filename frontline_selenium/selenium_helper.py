@@ -81,7 +81,7 @@ class SeleniumHelper:
     def wait_for_form_save_popup(driver: webdriver.Chrome) -> float:
         start_time = time.time()
         timeout = 20  # sec
-        interval = 0.2  # sec
+        interval = 0.1  # sec
         
         while time.time() - start_time < timeout:
             try:
@@ -158,7 +158,7 @@ class SeleniumHelper:
                         'saved successfully',
                     ];
                     
-                    const pageText = document.body.innerText || document.body.textContent || '';
+                    const pageText = document.documentElement.innerText || document.documentElement.textContent || '';
                     const lowerPageText = pageText.toLowerCase();
                     
                     return successTexts.some(successText => 
