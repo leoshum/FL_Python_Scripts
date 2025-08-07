@@ -83,6 +83,16 @@ class Config:
         TECHNICAL_ERROR = "technical_error"
         SERVER_DOWN = "server_down"  # NEW: For HTTP 503 Service Unavailable
 
+    USER_1 = {
+        "username": "SFTDVTester",
+        "password": "ht2jGMM2GnC3bwX7"
+    }
+
+    USER_2 = {
+        "username": "PMGMT",
+        "password": "L7wshts3GzFVkH2g"
+    }
+
 
 class MeasurementResult:
     def __init__(self, success=True, error_type=None, error_message="", 
@@ -1889,7 +1899,7 @@ def main():
                     SupportTech.open_website(driver, base_url, "SFTDVTester")
                     driver.get(url)
                 else:
-                    SeleniumHelper.login_user(base_url, driver, "SFTDVTester", "ht2jGMM2GnC3bwX7")
+                    SeleniumHelper.login_user(base_url, driver, Config.USER_2["username"], Config.USER_2["password"])
                 build_version = SeleniumHelper.get_build_version(driver)
                 is_first_row = False
 
