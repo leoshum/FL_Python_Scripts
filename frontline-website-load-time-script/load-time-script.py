@@ -8,6 +8,8 @@ import logging
 from datetime import datetime
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
 
 # Add parent directory to path for imports (frontline_selenium is in parent directory)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1829,7 +1831,8 @@ def main():
 
     options = Options()
     # options.add_argument("--headless=new")
-    driver = webdriver.Chrome(options=options)
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
     head_cell_top = wb_sheet["F1"]
     head_cell_top.alignment = Alignment(horizontal='center')
     head_cell_bottom = wb_sheet["F2"]
