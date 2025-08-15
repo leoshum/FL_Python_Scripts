@@ -1694,7 +1694,7 @@ def compare_measures(curr_cell, prev_cell, diff_cell):
 
 def configure_logger(file_name: str, processing_filename: str) -> logging.Logger:
     logger = logging.getLogger("main")
-    logger.setLevel(logging.DEBUG)  # Enable DEBUG logging to see network monitoring details
+    logger.setLevel(logging.DEBUG)
 
     formatter = HideBacktraceFormatter("%(asctime)s - %(message)s", datefmt="%m-%d-%y_%H:%M")
     timestamp = datetime.now().strftime("%m-%d-%y_%H-%M")
@@ -1702,7 +1702,7 @@ def configure_logger(file_name: str, processing_filename: str) -> logging.Logger
     folders = parts[0:len(parts)-1]
     filename = parts[-1]
     fh = logging.FileHandler(f"{file_name}_{'_'.join(folders)}_{filename.split('.')[0]}_{timestamp}.log")
-    fh.setLevel(logging.DEBUG)  # Enable DEBUG logging
+    fh.setLevel(logging.DEBUG)
     fh.setFormatter(formatter)
     logger.addHandler(fh)
     SeleniumHelper.setup_logger(logger)
@@ -1713,10 +1713,36 @@ def configure_logger(file_name: str, processing_filename: str) -> logging.Logger
 def close_current_tab(driver):
     """Close current tab and switch to the first one"""
     try:
-        driver.close()
-        driver.switch_to.window(driver.window_handles[0])
-    except:
-        pass  # Ignore cleanup errors
+        if len(driver.window_handles) > 1:
+            driver.close()
+            driver.switch_to.window(driver.window_handles[0])
+    except Exception as e:
+        logger.error(f"Failed to close current tab: {str(e)}")
+        # try to recover by switching to first available tab
+        try:
+            if driver.window_handles:
+                driver.switch_to.window(driver.window_handles[0])
+                logger.info("Recovered by switching to first available tab")
+        except Exception as recovery_ex:
+            logger.error(f"Failed to recover tab state: {recovery_ex}")
+
+
+def extract_error_message(error_msg: str) -> str:
+    """Extract clean error message for Excel column"""
+    if "Message: " not in error_msg:
+        return error_msg
+    
+    try:
+        start_idx = error_msg.find("Message: ") + len("Message: ")
+        end_idx = error_msg.find("\n", start_idx)
+        if end_idx == -1:
+            end_idx = error_msg.find("  (Session info:", start_idx)
+        if end_idx != -1:
+            return error_msg[start_idx:end_idx].strip()
+        else:
+            return error_msg[start_idx:].split('\n')[0].strip()
+    except Exception:
+        return error_msg
 
 
 def process_form(driver, url, measurer, loops, logger, is_form_page, disable_save):
@@ -1952,29 +1978,15 @@ def main():
                 row[10].value = ""
         except Exception as critical_ex:
             error_msg = str(critical_ex)
+            clean_error = extract_error_message(error_msg)
             
-            # parse error message at readable format
-            if "gethandleverifier" in error_msg.lower() or "stacktrace" in error_msg.lower():
-                simple_error = "Browser crashed - restart needed"
-            elif "timeout" in error_msg.lower():
-                simple_error = "Connection timeout"
-            elif "connection" in error_msg.lower():
-                simple_error = "Network connection failed"
-            else:
-                simple_error = "Processing failed"
-            
-            print(f"Critical error: {simple_error}")
+            print(f"Critical error: {clean_error}")
             logger.error(f"Critical error for {url}: {error_msg}")
             
-            try:
-                close_current_tab(driver)
-            except:
-                print(f"Could not clean up tabs - continuing anyway")
-
-            # write to excel
-            row[Config.ExcelColumns.ERROR_MESSAGE].value = simple_error
-            mark_form_as_invalid(row, color=Config.Colors.RED)
+            close_current_tab(driver)
             
+            row[Config.ExcelColumns.ERROR_MESSAGE].value = clean_error
+            mark_form_as_invalid(row, color=Config.Colors.RED)
             ExcelResultWriter._clear_load_columns(row)
             ExcelResultWriter._clear_save_columns(row)
         
