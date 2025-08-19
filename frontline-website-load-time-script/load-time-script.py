@@ -160,10 +160,7 @@ class ErrorClassifier:
         
         # Check for specific save errors (API errors)
         if "save failed:" in error_msg or "api error" in error_msg:
-            if "500" in error_msg or "server error" in error_msg:
-                return Config.ErrorTypes.API_ERROR, "Save failed due to server error (HTTP 500)"
-            else:
-                return Config.ErrorTypes.API_ERROR, str(exception)  # Use full exception message for API errors
+            return Config.ErrorTypes.API_ERROR, str(exception)
         
         # Chrome crashes
         if ("gethandleverifier" in error_msg or "stacktrace" in error_msg or 
@@ -622,7 +619,6 @@ class FormMeasurer:
             error_msg = str(e).strip()
             if not error_msg:
                 error_msg = f"Unknown error during save: {type(e).__name__}"
-            self.logger.error(f"Save measurement failed. {error_msg}")
 
             error_type, error_message = ErrorClassifier.classify_save_error(e)
             return MeasurementResult(
@@ -692,8 +688,7 @@ class FormMeasurer:
                         self.logger.debug(f"Content ready after {time.time() - (end_time - timeout):.1f}s")
                         
                         # Phase 3: Wait for Angular stability if detected
-                        if self._wait_for_angular_stability():
-                            self.logger.debug("Angular stability achieved")
+                        self._wait_for_angular_stability()
                         
                         # Phase 4: Wait for visual rendering completion
                         # TODO: probably this part of code is not reliable, we should use a more reliable way to check if the page is ready
@@ -710,8 +705,6 @@ class FormMeasurer:
                     if debug_info['foundLoaders']:
                         loader_info = debug_info['foundLoaders'][0]  # First found loader
                         self.logger.debug(f"Content not ready: found loader '{loader_info['selector']}' with classes '{loader_info['classes']}'")
-                    else:
-                        self.logger.debug(f"Content not ready: no content (found {debug_info['contentCount']} elements)")
                     
             except Exception as e:
                 self.logger.debug(f"Content readiness check failed: {e}")
@@ -1856,7 +1849,9 @@ def main():
     specify_sheet_layout(wb_sheet)
 
     options = Options()
-    # options.add_argument("--headless=new")
+    # options.add_argument("--headless=new")    
+    options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
+    
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     head_cell_top = wb_sheet["F1"]

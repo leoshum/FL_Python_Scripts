@@ -83,6 +83,11 @@ class SeleniumHelper:
         timeout = 20  # sec
         interval = 0.1  # sec
         
+        try:
+            driver.execute_cdp_cmd('Network.enable', {})
+        except:
+            SeleniumHelper.logger.error("Network.enable failed")
+        
         while time.time() - start_time < timeout:
             try:
                 api_errors = driver.execute_script("""
@@ -109,8 +114,11 @@ class SeleniumHelper:
                                 if (entry.responseStatus >= 500) {
                                     errors.push({
                                         url: entry.name,
+                                        fullUrl: entry.name,
                                         status: entry.responseStatus,
-                                        type: 'http_error'
+                                        type: 'http_error',
+                                        duration: entry.duration,
+                                        transferSize: entry.transferSize || 0
                                     });
                                 }
                                 // Check for failed requests, but exclude cancelled requests
@@ -123,8 +131,11 @@ class SeleniumHelper:
                                     if (!isCancelledRequest) {
                                         errors.push({
                                             url: entry.name,
+                                            fullUrl: entry.name,
                                             status: 0,
-                                            type: 'network_error'
+                                            type: 'network_error',
+                                            duration: entry.duration,
+                                            transferSize: entry.transferSize || 0
                                         });
                                     }
                                 }
@@ -136,18 +147,35 @@ class SeleniumHelper:
                     return errors;
                 """)
                 
+                #TODO: validate what we do not have duplicates of error 
+                # example from logs
+                # 08-19-25_15:36 - Starting save measurement
+                # 08-19-25_15:37 - API Error Details: GET https://houston-tx-hotfix-acc.ss.frontlineeducation.com/plan/api/stateReporting/c0128922-3a86-4c0a-bc57-b32500f63687/RecalculateFields?consentReceivedDate=0002-08-02T00:00:00.000&studentAbsencesOverEvaluation=0&radioWasTheStudentAbsent=undefined&campusId=1362 - HTTP 500 (took 3129.0ms)
+                # 08-19-25_15:37 - API Error Details: GET https://houston-tx-hotfix-acc.ss.frontlineeducation.com/plan/api/stateReporting/c0128922-3a86-4c0a-bc57-b32500f63687/RecalculateFields?consentReceivedDate=0020-08-02T00:00:00.000&studentAbsencesOverEvaluation=0&radioWasTheStudentAbsent=undefined&campusId=1362 - HTTP 500 (took 3064.8ms)
+                # 08-19-25_15:37 - API Error Details: GET https://houston-tx-hotfix-acc.ss.frontlineeducation.com/plan/api/stateReporting/c0128922-3a86-4c0a-bc57-b32500f63687/RecalculateFields?consentReceivedDate=0202-08-02T00:00:00.000&studentAbsencesOverEvaluation=0&radioWasTheStudentAbsent=undefined&campusId=1362 - HTTP 500 (took 3003.7ms)
+
                 if api_errors:
                     error_details = []
                     for error in api_errors:
-                        route = error['url'].split('/')[-1] if '/' in error['url'] else error['url']
+                        full_url = error.get('fullUrl', error['url'])
+                        status = error['status']
+                        duration = error.get('duration', 0)
+                        
                         if error['type'] == 'http_error':
-                            error_details.append(f"HTTP {error['status']}: {route}")
+                            error_details.append(f"{full_url} Status Code: {status} ({duration:.1f}ms)")
                         else:
-                            error_details.append(f"Network error: {route}")
+                            error_details.append(f"{full_url} Network error ({duration:.1f}ms)")
+                        
+                        request_body = SeleniumHelper._get_network_request_body(driver, full_url, status)
+
+                        method = "POST" if request_body else "GET"
+                        
+                        SeleniumHelper.logger.error(f"API Error Details: {method} {full_url} - HTTP {status} (took {duration:.1f}ms)")
+
+                        if request_body:
+                            SeleniumHelper.logger.error(f"Request body: {request_body}")
                     
                     error_msg = f"Save failed due to API error - {'; '.join(error_details)}"
-                    if SeleniumHelper.logger:
-                        SeleniumHelper.logger.error(error_msg)
                     raise ValueError(error_msg)
                 
                 success_found = driver.execute_script("""
@@ -251,3 +279,27 @@ class SeleniumHelper:
             pass
         
         return False
+
+    # TODO: add loger for exeption handling after test
+    @staticmethod
+    def _get_network_request_body(driver, failed_url, status_code):
+        try:
+            import json
+            logs = driver.get_log('performance')
+            
+            for log in logs:
+                message = json.loads(log['message'])
+                
+                if message['message']['method'] == 'Network.requestWillBeSent':
+                    params = message['message']['params']
+                    request = params['request']
+                    
+                    if (request['url'] == failed_url and 
+                        request['method'] == 'POST' and 
+                        'postData' in request):
+                        return request['postData']
+            
+            return None
+            
+        except Exception:
+            return None
