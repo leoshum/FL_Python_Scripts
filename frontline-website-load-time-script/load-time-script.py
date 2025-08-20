@@ -1750,6 +1750,9 @@ def process_form(driver, url, measurer, loops, logger, is_form_page, disable_sav
     save_result = None
     
     try:
+        # 0. reset cache 
+        driver.get_log('performance')
+
         # 1. Open new tab
         driver.execute_script("window.open('about:blank', '_blank');")
         new_tab = driver.window_handles[-1]
@@ -1849,8 +1852,14 @@ def main():
     specify_sheet_layout(wb_sheet)
 
     options = Options()
-    # options.add_argument("--headless=new")    
-    options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
+    # options.add_argument("--headless=new") # FOR FAST TESTING WITH NO UI
+    options.set_capability('goog:loggingPrefs', {'performance': 'WARNING'})
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-backgrounding-occluded-windows")
+    options.add_argument("--disable-renderer-backgrounding")
+    options.add_argument("--max_old_space_size=8192")
     
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)

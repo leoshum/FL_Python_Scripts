@@ -210,8 +210,8 @@ class SeleniumHelper:
         
         elapsed = time.time() - start_time
         error_msg = f"Save message timeout after {elapsed:.0f}s"
-        if SeleniumHelper.logger:
-            SeleniumHelper.logger.error(error_msg)
+        SeleniumHelper.logger.error(error_msg)
+
         raise TimeoutException(error_msg)
 
     @staticmethod
