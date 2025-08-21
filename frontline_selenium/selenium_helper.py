@@ -18,13 +18,17 @@ class SeleniumHelper:
         SeleniumHelper.logger = logger
 
     @staticmethod
-    def get_logger():
-        """Return a safe logger - either the configured one or a default logger"""
-        return SeleniumHelper.logger if SeleniumHelper.logger is not None else logging.getLogger(__name__)
-
-    @staticmethod
     def set_options(options: dict):
         SeleniumHelper.options = options
+
+    @staticmethod
+    def _load_script(script_name: str, params: dict = {}) -> str:
+        script_path = os.path.join(SeleniumHelper.util_scripts_directory, script_name)
+        with open(script_path, "r", encoding="utf-8") as script_file:
+            script = script_file.read()
+            for key, value in params.items():
+                script = script.replace(key, str(value))
+            return script
     
     @staticmethod
     def is_plan_page_url(url: str) -> bool:
@@ -87,84 +91,22 @@ class SeleniumHelper:
             driver.execute_cdp_cmd('Network.enable', {})
         except:
             SeleniumHelper.logger.error("Network.enable failed")
+
+        api_errors_script = SeleniumHelper._load_script("get_api_error_request.js")
+        success_script = SeleniumHelper._load_script("get_saved_notification.js")
         
         while time.time() - start_time < timeout:
             try:
-                api_errors = driver.execute_script("""
-                    const errors = [];
-                    try {
-                        const entries = performance.getEntriesByType('resource');
-                        const currentDomain = window.location.hostname.toLowerCase();
-                        
-                        entries.forEach(entry => {
-                            const url = entry.name.toLowerCase();
-                            let entryDomain = '';
-                            
-                            try {
-                                entryDomain = new URL(entry.name).hostname.toLowerCase();
-                            } catch(e) {
-                                return; // Skip invalid URLs
-                            }
-                            
-                            const isOurDomain = entryDomain.includes(currentDomain);                            
-                            const isXmlHttpRequest = entry.initiatorType === 'xmlhttprequest';
-                            const hasApiInUrl = url.includes('/api/');
-                            
-                            if (isOurDomain && isXmlHttpRequest && hasApiInUrl) {
-                                if (entry.responseStatus >= 500) {
-                                    errors.push({
-                                        url: entry.name,
-                                        fullUrl: entry.name,
-                                        status: entry.responseStatus,
-                                        type: 'http_error',
-                                        duration: entry.duration,
-                                        transferSize: entry.transferSize || 0
-                                    });
-                                }
-                                // Check for failed requests, but exclude cancelled requests
-                                else if (entry.responseStatus === 0 && entry.responseEnd > 0) {
-                                    const isCancelledRequest = (
-                                        entry.responseStart === 0 ||           // No response started
-                                        entry.transferSize === 0 ||            // No data transferred
-                                        (entry.duration > 0 && entry.duration < 1) // Very short duration suggests cancellation
-                                    );                                    
-                                    if (!isCancelledRequest) {
-                                        errors.push({
-                                            url: entry.name,
-                                            fullUrl: entry.name,
-                                            status: 0,
-                                            type: 'network_error',
-                                            duration: entry.duration,
-                                            transferSize: entry.transferSize || 0
-                                        });
-                                    }
-                                }
-                            }
-                        });
-                    } catch(e) {
-                        // Ignore performance API errors
-                    }
-                    return errors;
-                """)
-                
-                #TODO: validate what we do not have duplicates of error 
-                # example from logs
-                # 08-19-25_15:36 - Starting save measurement
-                # 08-19-25_15:37 - API Error Details: GET https://houston-tx-hotfix-acc.ss.frontlineeducation.com/plan/api/stateReporting/c0128922-3a86-4c0a-bc57-b32500f63687/RecalculateFields?consentReceivedDate=0002-08-02T00:00:00.000&studentAbsencesOverEvaluation=0&radioWasTheStudentAbsent=undefined&campusId=1362 - HTTP 500 (took 3129.0ms)
-                # 08-19-25_15:37 - API Error Details: GET https://houston-tx-hotfix-acc.ss.frontlineeducation.com/plan/api/stateReporting/c0128922-3a86-4c0a-bc57-b32500f63687/RecalculateFields?consentReceivedDate=0020-08-02T00:00:00.000&studentAbsencesOverEvaluation=0&radioWasTheStudentAbsent=undefined&campusId=1362 - HTTP 500 (took 3064.8ms)
-                # 08-19-25_15:37 - API Error Details: GET https://houston-tx-hotfix-acc.ss.frontlineeducation.com/plan/api/stateReporting/c0128922-3a86-4c0a-bc57-b32500f63687/RecalculateFields?consentReceivedDate=0202-08-02T00:00:00.000&studentAbsencesOverEvaluation=0&radioWasTheStudentAbsent=undefined&campusId=1362 - HTTP 500 (took 3003.7ms)
+                api_errors = driver.execute_script(api_errors_script)
 
                 if api_errors:
                     error_details = []
                     for error in api_errors:
-                        full_url = error.get('fullUrl', error['url'])
+                        full_url = error['url']
                         status = error['status']
-                        duration = error.get('duration', 0)
+                        duration = error['duration']
                         
-                        if error['type'] == 'http_error':
-                            error_details.append(f"{full_url} Status Code: {status} ({duration:.1f}ms)")
-                        else:
-                            error_details.append(f"{full_url} Network error ({duration:.1f}ms)")
+                        error_details.append(f"{full_url} Status Code: {status} ({duration:.1f}ms)")
                         
                         request_body = SeleniumHelper._get_network_request_body(driver, full_url, status)
 
@@ -178,21 +120,7 @@ class SeleniumHelper:
                     error_msg = f"Save failed due to API error - {'; '.join(error_details)}"
                     raise ValueError(error_msg)
                 
-                success_found = driver.execute_script("""
-                    const successTexts = [
-                        'Form has been updated successfully',
-                        'has been updated successfully',
-                        'successfully updated',
-                        'saved successfully',
-                    ];
-                    
-                    const pageText = document.documentElement.innerText || document.documentElement.textContent || '';
-                    const lowerPageText = pageText.toLowerCase();
-                    
-                    return successTexts.some(successText => 
-                        lowerPageText.includes(successText.toLowerCase())
-                    );
-                """)
+                success_found = driver.execute_script(success_script)
                 
                 if success_found:
                     elapsed = time.time() - start_time
@@ -208,10 +136,8 @@ class SeleniumHelper:
             
             time.sleep(interval)
         
-        elapsed = time.time() - start_time
-        error_msg = f"Save message timeout after {elapsed:.0f}s"
+        error_msg = f"Save message timeout after {timeout:.0f}s"
         SeleniumHelper.logger.error(error_msg)
-
         raise TimeoutException(error_msg)
 
     @staticmethod
