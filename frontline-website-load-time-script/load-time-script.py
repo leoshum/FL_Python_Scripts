@@ -1112,7 +1112,7 @@ class FormMeasurer:
                     elapsed = time.time() - start_time
                     return True
                     
-                time.sleep(0.2)
+                time.sleep(0.1)
             
             # Timeout
             elapsed = time.time() - start_time
