@@ -120,17 +120,16 @@ class SeleniumHelper:
                     error_msg = f"Save failed due to API error - {'; '.join(error_details)}"
                     raise ValueError(error_msg)
 
+                success_found = False
+
                 for attempt in range(3):
                     try:
                         if driver.execute_script(success_script):
                             success_found = True
                             break
                     except Exception as js_error:
-                        if SeleniumHelper.logger:
-                            SeleniumHelper.logger.debug(f"JS execution failed on attempt {attempt + 1}: {js_error}")
+                        SeleniumHelper.logger.error(f"JS execution failed on attempt {attempt + 1}: {js_error}")
                         continue
-                
-                success_found = driver.execute_script(success_script)
                 
                 if success_found:
                     elapsed = time.time() - start_time

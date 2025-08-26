@@ -627,6 +627,7 @@ class FormMeasurer:
                 error_message=error_message
             )
     
+    
     def _wait_for_content_ready(self, timeout: int = 10) -> bool:
         end_time = time.time() + timeout
         poll_interval = 0.1
@@ -715,92 +716,79 @@ class FormMeasurer:
         self.logger.debug(f"Content ready timeout after {timeout}s")
         return False  # Timeout reached
     
+
     def _wait_for_visual_readiness(self, timeout: int = 3) -> bool:
-        """Wait for visual rendering completion using multiple indicators"""
+        """Wait for functional readiness focused on form interaction capability"""
         end_time = time.time() + timeout
-        previous_metrics = None
+        previous_dom_count = None
         
         while time.time() < end_time:
             try:
                 current_metrics = self.driver.execute_script("""
                     const result = {
                         domNodeCount: document.querySelectorAll('*').length,
-                        visibleElements: 0,
-                        hasTransitions: false,
-                        hasAnimations: false,
                         pendingImages: 0,
-                        stylesheetsPending: false
+                        interactiveElementsReady: false,
+                        basicKendoReady: true
                     };
                     
-                    // Count visible elements
-                    const allElements = document.querySelectorAll('*');
-                    allElements.forEach(el => {
-                        const style = window.getComputedStyle(el);
-                        if (style.display !== 'none' && style.visibility !== 'hidden' && 
-                            el.offsetWidth > 0 && el.offsetHeight > 0) {
-                            result.visibleElements++;
-                            
-                            // Check for ongoing transitions/animations
-                            if (style.transition !== 'none' && style.transition !== '') {
-                                result.hasTransitions = true;
-                            }
-                            if (style.animation !== 'none' && style.animation !== '') {
-                                result.hasAnimations = true;
-                            }
-                        }
-                    });
-                    
-                    // Check for pending images
+                    // Check only visible images
                     const images = document.querySelectorAll('img');
                     images.forEach(img => {
-                        if (!img.complete || img.naturalHeight === 0) {
-                            result.pendingImages++;
+                        if (img.offsetHeight > 0 && img.offsetWidth > 0) {
+                            if (!img.complete || img.naturalHeight === 0) {
+                                result.pendingImages++;
+                            }
                         }
                     });
                     
-                    // Check stylesheets
-                    const styleSheets = document.styleSheets;
-                    for (let i = 0; i < styleSheets.length; i++) {
-                        try {
-                            // If we can access cssRules, the stylesheet is loaded
-                            const rules = styleSheets[i].cssRules;
-                        } catch (e) {
-                            if (e.name === 'InvalidAccessError') {
-                                // Cross-origin, but loaded
-                                continue;
-                            }
-                            result.stylesheetsPending = true;
-                            break;
-                        }
+                    // Check if interactive elements are ready
+                    const interactiveElements = document.querySelectorAll(`
+                        input:not([type="hidden"]):not([disabled]),
+                        select:not([disabled]), 
+                        textarea:not([disabled]),
+                        button:not([disabled])
+                    `);
+                    
+                    const visibleInteractive = Array.from(interactiveElements).filter(el => 
+                        el.offsetHeight > 0 && el.offsetWidth > 0
+                    );
+                    
+                    result.interactiveElementsReady = visibleInteractive.length > 0;
+                    
+                    // Simple Kendo check - only if Kendo elements exist
+                    const kendoElements = document.querySelectorAll('[data-role]');
+                    if (kendoElements.length > 0) {
+                        const kendoLoading = document.querySelectorAll('.k-loading-mask:not([style*="display: none"])');
+                        result.basicKendoReady = kendoLoading.length === 0;
                     }
                     
                     return result;
                 """)
                 
-                # Check if metrics are stable (no changes between checks)
-                if previous_metrics:
-                    metrics_stable = (
-                        current_metrics['domNodeCount'] == previous_metrics['domNodeCount'] and
-                        current_metrics['visibleElements'] == previous_metrics['visibleElements'] and
+                # Simple stability check
+                if previous_dom_count is not None:
+                    dom_stable = current_metrics['domNodeCount'] == previous_dom_count
+                    functional_ready = (
                         current_metrics['pendingImages'] == 0 and
-                        not current_metrics['stylesheetsPending'] and
-                        not current_metrics['hasTransitions'] and
-                        not current_metrics['hasAnimations']
+                        current_metrics['interactiveElementsReady'] and 
+                        current_metrics['basicKendoReady']
                     )
                     
-                    if metrics_stable:
+                    if dom_stable and functional_ready:
                         return True
                 
-                previous_metrics = current_metrics
+                previous_dom_count = current_metrics['domNodeCount']
                 
             except Exception as e:
-                self.logger.debug(f"Visual readiness check failed: {e}")
-                return True  # Assume ready on error
+                self.logger.error(f"Visual readiness check failed: {e}")
+                return True
             
-            time.sleep(0.1)  # Check every 200ms
+            time.sleep(0.1)
         
         return False  # Timeout reached
     
+
     def _wait_for_angular_stability(self, timeout: int = 3) -> bool:
         """Wait for Angular to finish rendering and stabilize"""
         end_time = time.time() + timeout
@@ -884,6 +872,7 @@ class FormMeasurer:
         self.logger.debug(f"Angular stability timeout after {timeout}s")
         return True  # Continue anyway after timeout
     
+
     def _fill_required_fields_if_needed(self):
         try:
             from frontline_selenium.selenium_helper import SeleniumHelper
@@ -896,6 +885,7 @@ class FormMeasurer:
         except Exception as e:
             self.logger.warning(f"Form filling failed : {str(e)}")
     
+
     def _find_save_button_with_wait(self, max_attempts=20, delay=0.5):
         """
         Find Save button with smart retry logic
@@ -985,6 +975,7 @@ class FormMeasurer:
         
         return None
     
+
     def _is_save_button(self, button_text):
         if not button_text:
             return False
@@ -999,6 +990,7 @@ class FormMeasurer:
         
         return has_save_keyword and not has_exclude_keyword
     
+
     def _click_save_button_reliably(self, save_button):
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.support import expected_conditions as EC
@@ -1050,6 +1042,7 @@ class FormMeasurer:
         # If we reached here, all click attempts failed
         raise Exception("Failed to click Save button after multiple attempts")
   
+
     def _wait_for_api_requests_complete(self, url):
         """Wait only for API requests to complete (not static resources)"""
         try:
@@ -1122,6 +1115,7 @@ class FormMeasurer:
         except Exception as e:
             return True
 
+
     def _extract_domain_from_url(self, url):
         """Extract domain from URL for payload matching"""
         try:
@@ -1132,9 +1126,9 @@ class FormMeasurer:
             self.logger.debug(f"Failed to extract domain from {url}: {e}")
             return ''
     
+
     def _check_for_errors(self):
         errors = []
-        
         try:
             # 1. Check for visible error popups/notifications
             popup_errors = self.driver.execute_script("""
@@ -1290,6 +1284,7 @@ class FormMeasurer:
         
         return errors
     
+
     def _calculate_payload_size(self, url):
         try:
             current_domain = self._extract_domain_from_url(url)
