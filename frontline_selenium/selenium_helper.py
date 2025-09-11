@@ -82,11 +82,16 @@ class SeleniumHelper:
             raise
     
     @staticmethod
+    def setup_save_success_monitor(driver: webdriver.Chrome) -> None:
+        setup_script = SeleniumHelper._load_script("setup_save_success_monitor.js")
+        driver.execute_script(setup_script)
+
+    @staticmethod
     def wait_for_form_save_popup(driver: webdriver.Chrome) -> float:
         start_time = time.time()
         timeout = 20  # sec
         interval = 0.1  # sec
-        
+
         try:
             driver.execute_cdp_cmd('Network.enable', {})
         except:
@@ -94,6 +99,24 @@ class SeleniumHelper:
 
         api_errors_script = SeleniumHelper._load_script("get_api_error_request.js")
         success_script = SeleniumHelper._load_script("get_saved_notification.js")
+        early_check_script = SeleniumHelper._load_script("check_save_success_monitor.js")
+        cleanup_script = SeleniumHelper._load_script("cleanup_save_success_monitor.js")
+        
+        # Check early detection first
+        early_result = driver.execute_script(early_check_script)
+        if early_result.get('detected'):
+            driver.execute_script(cleanup_script)
+            return early_result.get('elapsed', 0)
+        
+        # Quick checks for first 0.5 seconds
+        for _ in range(5):
+            try:
+                if driver.execute_script(success_script):
+                    driver.execute_script(cleanup_script)
+                    return time.time() - start_time
+            except:
+                pass
+            time.sleep(0.1)
         
         while time.time() - start_time < timeout:
             try:
@@ -132,6 +155,7 @@ class SeleniumHelper:
                         continue
                 
                 if success_found:
+                    driver.execute_script(cleanup_script)
                     elapsed = time.time() - start_time
                     if SeleniumHelper.logger:
                         SeleniumHelper.logger.info(f"Save success message found after {elapsed:.1f}s")
@@ -144,6 +168,8 @@ class SeleniumHelper:
                     SeleniumHelper.logger.warning(f"Error during save popup check: {str(e)}")
             
             time.sleep(interval)
+        
+        driver.execute_script(cleanup_script)
         
         error_msg = f"Save message timeout after {timeout:.0f}s"
         SeleniumHelper.logger.error(error_msg)

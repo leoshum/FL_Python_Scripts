@@ -593,15 +593,13 @@ class FormMeasurer:
             
             self._fill_required_fields_if_needed()
             
+            SeleniumHelper.setup_save_success_monitor(self.driver)
+            
             self._click_save_button_reliably(save_button)
 
             SeleniumHelper.handle_warning_popup(self.driver)
 
-            save_start_time = time.time()
-
-            SeleniumHelper.wait_for_form_save_popup(self.driver)
-            
-            save_elapsed_time = time.time() - save_start_time
+            save_elapsed_time = SeleniumHelper.wait_for_form_save_popup(self.driver)
             
             self.logger.info(f"Save completed successfully in {save_elapsed_time:.1f}s")
             
